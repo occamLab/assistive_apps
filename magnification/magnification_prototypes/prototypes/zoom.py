@@ -8,6 +8,9 @@ from std_msgs.msg import String
 from sensor_msgs.msg import Image, CameraInfo
 from cv_bridge import CvBridge, CvBridgeError
 
+from dynamic_reconfigure.server import Server
+from magnification_prototypes.cfg import ZoomConfig
+
 class Zoom():
 
     def __init__(self):
@@ -26,8 +29,26 @@ class Zoom():
         self.cam_R = None
         self.cam_P = None
 
+        self.x_focus = rospy.get_param("~x_focus", 0.0)
+        self.y_focus = rospy.get_param("~y_focus", 0.0)
+        self.z_focus = rospy.get_param("~z_focus", 10.0)
+        self.zoom_percentage = rospy.get_param("~zoom_percentage", 200.0)
+
+        #   initialize dynamic reconfigure server
+        srv = Server(ZoomConfig, self.config_callback)
+
+    def config_callback(self, config, level):
+        """ Reads parameters from dynamic reconfigure """
+
+        self.zoom_percentage = config["zoom_percentage"]
+        self.x_focus = config["x_focus"]
+        self.y_focus = config["y_focus"]
+        self.z_focus = config["z_focus"]
+        return config
+
     def get_image(self, msg):
         """ Reads image from ros topic and converts to open_cv format. """
+
         self.cam_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
 
     def get_camera_info(self, msg):
@@ -52,6 +73,7 @@ class Zoom():
         width, height, channels = img.shape
         new_width = int(prop * width)
         new_height = int(prop * height)
+        print(float(new_width)/new_height)
 
         #   Determine center point of image, if not passed
         if center:
@@ -66,6 +88,16 @@ class Zoom():
         right_x = x_center + new_width/2
         top_y = y_center - new_height/2
         bot_y = y_center + new_width/2
+
+        #   Stop frame from going off screen
+        if left_x < 0:
+            left_x, right_x = 0, right_x - left_x
+        if right_x > width:
+            left_x, right_x = left_x - (right_x - width), width
+        if top_y < 0:
+            top_y, bot_y = 0, bot_y - top_y
+        if bot_y > height:
+            top_y, bot_y = top_y - (bot_y - height), height
 
         #   Crop image
         image_cropped = img[left_x:right_x, top_y:bot_y]
@@ -108,13 +140,15 @@ class Zoom():
 
                 #   Transform odometry point to camera frame
                 #   TODO use actual point instead of arbitrary one
-                point = np.asarray([[0.1, 0.0, 6]])
+                point = np.asarray([[self.x_focus,
+                                    self.y_focus,
+                                    self.z_focus]])
 
                 #   Determine focal point pixel
                 pixel = self.point_to_pixel(point)
 
                 #   Publish zoomed image
-                zoomed_img = self.zoom_percent(self.cam_image, 200)
+                zoomed_img = self.zoom_percent(self.cam_image, self.zoom_percentage, pixel)
                 self.pub.publish(self.bridge.cv2_to_imgmsg(zoomed_img, "bgr8"))
 
             r.sleep()

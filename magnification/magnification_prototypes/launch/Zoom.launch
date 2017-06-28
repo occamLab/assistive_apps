@@ -1,0 +1,9 @@
+<launch>
+
+<node name="zoom" pkg="magnification_prototypes" type="zoom.py" output="screen">
+</node>
+
+<node name="rqt_gui" pkg="rqt_gui" type="rqt_gui" output="screen">
+</node>
+
+</launch>
