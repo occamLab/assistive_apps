@@ -1,21 +1,27 @@
 #!/usr/bin/env python
 
+from os import system, path
+import math
+import time
+try:
+    import cPickle as pickle
+except:
+    import pickle
+
 import rospy
 from geometry_msgs.msg import PoseStamped, Pose, Point, Vector3
 from tf.transformations import euler_from_quaternion
 import tf
-import math
 from std_msgs.msg import Header, ColorRGBA
 from visualization_msgs.msg import Marker
 import pyttsx
-from os import system, path
 from rospkg import RosPack
 from apriltags_ros.msg import AprilTagDetectionArray
 from std_msgs.msg import Header, ColorRGBA
 from keyboard.msg import Key
-import time
 # from dynamic_reconfigure.server import Server
 # from mobility_games.cfg import SemanticWaypointsConfig
+
 
 class ArWaypointTest(object):
     def __init__(self):
@@ -71,7 +77,7 @@ class ArWaypointTest(object):
     #    self.tag_messages[3] = messages
 
     def process_pose(self, msg):       #    Onngoing function that updates current x, y, and yaw
-        if self.origin_tag:
+        if self.origin_tag >= 0:
             try:
                 msg.header.stamp = rospy.Time(0)
                 newitem = self.listener.transformPose('AR', msg)
@@ -248,19 +254,29 @@ class ArWaypointTest(object):
 
     def key_pressed(self, msg):
         # Switch to run mode
-        if msg.code == 97:
+        if msg.code == ord('a'):
             print "\nStarting Run Mode..."
             self.calibration_mode = False
             # self.start_new_game()   
         
         # Mark a waypoint
-        if msg.code == 98:
-            self.engine.say("Name the waypoint!")
+        if msg.code == ord('b'):
             waypoint_location = [self.x, self.z, self.y]
             waypoint_name = raw_input("Name the Waypoint: ")
             self.waypoints[waypoint_name] = waypoint_location
             self.waypoints_detected[waypoint_name] = False
             print self.waypoints
+
+	# Save waypoints
+	if msg.code == ord('s'):
+            # TODO(rlouie):
+            with open('/home/ryan/catkin_ws/saved_calibration.pkl', 'wb') as f:
+                pickle.dump(self.waypoints, f)
+
+        # Load waypoints
+        if msg.code == ord('l'):
+            with open('/home/ryan/catkin_ws/saved_calibration.pkl', 'rb') as f:
+                self.waypoints = pickle.load(f)
 
     def start_speech_engine(self):
         if not self.has_spoken:
