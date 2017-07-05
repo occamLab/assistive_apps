@@ -21,29 +21,27 @@ class ArWaypointTest(object):
     def __init__(self):
         self.calibration_mode = True        # Flag to keep track of game state -- Calibration/Run Modes
         self.waypoints = {}
+        self.waypoints_detected = {}
 
-        self.tag_id_to_name = {}            # Maps tag_id to string label
-        self.tag_name_to_id = {}            # Maps string label to tag_id
-        self.visited_tags_calibrate = []    # Keeps track of tags seen in calibration phase
-        self.tag_id = None                  # Destination tag_id
+        self.origin_tag = None                  # Destination tag_id
+        self.tag_seen = False
         self.translations = None
 
-        self.tag_messages = {}              # Messages stored for each tag
-        self.create_test_messages()         # FOR DEMO ONLY -- Create fake messages
-
-        self.start_run = False              # Flag indicating state of gameplay in Run Mode
-        self.start_time = None              # Starting time -- starts when user types in destination
-        self.end_time = None                # End time -- stops when user finds destination
-        self.distance_to_destination = 999  # Distance to destination from current position
-        self.proximity_to_destination = 0.6 #rospy.get_param('~proximity_to_destination', 0.8)
+        # self.start_run = False              # Flag indicating state of gameplay in Run Mode
+        # self.start_time = None              # Starting time -- starts when user types in destination
+        # self.end_time = None                # End time -- stops when user finds destination
+        # self.distance_to_destination = 999  # Distance to destination from current position
+        self.proximity_to_destination = 0.5 #rospy.get_param('~proximity_to_destination', 0.8)
 
         self.x = None                       # x position of Tango. Start at None because no data have been received yet.
         self.y = None                       # z position of Tango
+        self.z = None
         self.yaw = None                     # yaw of Tango
 
         self.last_play_time = None          #   Last time a beeping noise has been made
         self.last_say_time = None           #   Last time voice instructions have been made                   #   Radius, in meters, game takes place (from initial position)
         self.goal_found = None
+        #self.
 
         self.has_spoken = False
         self.engine = pyttsx.init()         # Speech engine
@@ -75,31 +73,35 @@ class ArWaypointTest(object):
     def process_pose(self, msg):       #    Onngoing function that updates current x, y, and yaw
         if self.origin_tag:
             try:
-                self.listener.waitForTransform('AR', 
-                                               msg.header.frame_id, 
-                                               msg.header.stamp, 
-                                               rospy.Duration(0.5))
+                msg.header.stamp = rospy.Time(0)
                 newitem = self.listener.transformPose('AR', msg)
                 self.x = newitem.pose.position.x
                 self.y = newitem.pose.position.y
                 self.z = newitem.pose.position.z
                 
-                # if self.translations:
-                #     self.distance_to_destination = math.sqrt((self.translations[0] - self.x)**2 + (self.translations[1] - self.y)**2)
                 angles = euler_from_quaternion([msg.pose.orientation.x,
                                                 msg.pose.orientation.y,
                                                 msg.pose.orientation.z,
                                                 msg.pose.orientation.w])
                 self.yaw = angles[2]
 
-                if not calibration_mode and self.translations:
+                if not self.calibration_mode:
                     for waypoint in self.waypoints:
+                        print math.sqrt((self.waypoints[waypoint][0] - self.x)**2 + (self.waypoints[waypoint][1] - self.z)**2)
                         if(math.sqrt((self.waypoints[waypoint][0] - self.x)**2 + (self.waypoints[waypoint][1] - self.z)**2) < 0.5):
-                            print found 
+                            if not self.waypoints_detected[waypoint]:
+                                msg = "Found %s" % waypoint
+                                print msg
+                                self.engine.say(msg)
+                                self.waypoints_detected[waypoint] = True
+                                break
+                        else:
+                            self.waypoints_detected[waypoint] = False                           
+
                         
 
             except Exception as inst:
-                print "Exception is", inst
+               print "Exception is", inst
 
     def det_speech(self, yaw, cur_pos, goal_pos):
         print type(cur_pos[0])
@@ -231,16 +233,18 @@ class ArWaypointTest(object):
                 tag_id = msg.detections[0].id
                 
                 # Only prompt user to input tag name once
-                if not tag_seen:
+                if not self.tag_seen:
+                    print "Origin Tag Found! "
+                    print tag_id
                     self.origin_tag = tag_id
                     self.tag_seen = True
 
-        # Identify april tags with given string names            
-        else:
-            if msg.detections:
-                tag_id = msg.detections[0].id
-                if self.origin_tag == tag_id: 
-                    self.update_origin_pose()
+        # if self.origin_tag:
+        #     if msg.detections:
+        #         tag_id = msg.detections[0].id
+        #         if tag_id == self.origin_tag:
+        #             pass #UPDATE TRANSFORM HERE
+
 
     def key_pressed(self, msg):
         # Switch to run mode
@@ -250,11 +254,13 @@ class ArWaypointTest(object):
             # self.start_new_game()   
         
         # Mark a waypoint
-        if msg.code == 119:
+        if msg.code == 98:
+            self.engine.say("Name the waypoint!")
             waypoint_location = [self.x, self.z, self.y]
             waypoint_name = raw_input("Name the Waypoint: ")
             self.waypoints[waypoint_name] = waypoint_location
-            print waypoints
+            self.waypoints_detected[waypoint_name] = False
+            print self.waypoints
 
     def start_speech_engine(self):
         if not self.has_spoken:
@@ -269,25 +275,26 @@ class ArWaypointTest(object):
         # self.start_speech_engine()
         print("Searching for Tango...")
         self.start_speech_engine()
+        print "Herew we go"
         while not rospy.is_shutdown():
             
-            if self.start_run and self.distance_to_destination > self.proximity_to_destination and self.x and self.y and self.translations:
-                self.update_destination_pose()
-                if not self.last_say_time or rospy.Time.now() - self.last_say_time > rospy.Duration(7.0):
-                    #   If it has been ten seconds since last speech, give voice instructions
-                    self.last_say_time = rospy.Time.now()
-                    speech = self.det_speech(self.yaw, (self.x, self.y), (self.translations[0], self.translations[1]))
-                    self.engine.say(speech)
-                    # print self.distance_to_destination
+            # if self.start_run and self.distance_to_destination > self.proximity_to_destination and self.x and self.y and self.translations:
+            #     self.update_destination_pose()
+            #     if not self.last_say_time or rospy.Time.now() - self.last_say_time > rospy.Duration(7.0):
+            #         #   If it has been ten seconds since last speech, give voice instructions
+            #         self.last_say_time = rospy.Time.now()
+            #         speech = self.det_speech(self.yaw, (self.x, self.y), (self.translations[0], self.translations[1]))
+            #         self.engine.say(speech)
+            #         # print self.distance_to_destination
     
-                if ((not self.last_play_time or
-                    rospy.Time.now() - self.last_play_time > rospy.Duration(6.0/(1+math.exp(-self.distance_to_destination*.3))-2.8)) and
-                    (not self.last_say_time or
-                    rospy.Time.now() - self.last_say_time > rospy.Duration(2.5))):
+            #     if ((not self.last_play_time or
+            #         rospy.Time.now() - self.last_play_time > rospy.Duration(6.0/(1+math.exp(-self.distance_to_destination*.3))-2.8)) and
+            #         (not self.last_say_time or
+            #         rospy.Time.now() - self.last_say_time > rospy.Duration(2.5))):
 
-                    self.last_play_time = rospy.Time.now()
-                    system('aplay ' + path.join(self.sound_folder, 'beep.wav'))
-                    # print self.distance_to_destination
+            #         self.last_play_time = rospy.Time.now()
+            #         system('aplay ' + path.join(self.sound_folder, 'beep.wav'))
+            #         # print self.distance_to_destination
 
             r.sleep()
 

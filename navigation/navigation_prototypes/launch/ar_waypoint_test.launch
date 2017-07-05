@@ -6,6 +6,6 @@
   <node pkg="keyboard" type="keyboard" name="keyboard" />
 
   <node pkg="navigation_prototypes" type="ar_waypoint_test.py" name="ar_waypoint_test" output="screen" />
-  <node pkg="rqt_gui" type="rqt_gui" name="rqt_gui" />
+  <!-- <node pkg="rqt_gui" type="rqt_gui" name="rqt_gui" /> -->
 
 </launch>
