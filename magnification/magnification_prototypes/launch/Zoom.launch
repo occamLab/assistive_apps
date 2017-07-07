@@ -1,9 +1,38 @@
 <launch>
 
+<node pkg="apriltags_ros" type="apriltag_detector_node" name="apriltag_detector" output="screen" ns="fisheye_undistorted">
+    <!-- Remap topic required by the node to custom topics -->
+    <remap from="image_rect" to="image_raw" />
+    <remap from="camera_info" to="camera_info" />
+
+    <!-- Optional: Subscribe to the compressed stream-->
+    <param name="image_transport" type="str" value="raw" />
+
+    <!-- Select the tag family: 16h5, 25h7, 25h9, 36h9, or 36h11(default) -->
+    <param name="tag_family" type="str" value="36h11" />
+
+    <!-- Enable projected optical measurements for more accurate tag transformations -->
+    <!-- This exists for backwards compatability and should be left true for new setups -->
+    <param name="projected_optics" type="bool" value="true" />
+
+    <!-- Describe the tags -->
+    <rosparam param="tag_descriptions">[
+      {id: 0, size: 0.165},
+      {id: 1, size: 0.165},
+      {id: 2, size: 0.165},
+      {id: 3, size: 0.165},
+      {id: 4, size: 0.165},
+      {id: 13, size: 0.053}]
+    </rosparam>
+</node>
+
 <node name="zoom" pkg="magnification_prototypes" type="zoom.py" output="screen">
 </node>
 
 <node name="rqt_gui" pkg="rqt_gui" type="rqt_gui" output="screen">
+</node>
+
+<node name="rviz" pkg="rviz" type="rviz" output="screen">
 </node>
 
 </launch>
