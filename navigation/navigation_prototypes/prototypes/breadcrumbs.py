@@ -1,12 +1,107 @@
 import numpy as np
 import rospy
 from copy import deepcopy
+from keyboard.msg import Key
+from geometry_msgs.msg import PoseStamped, Pose, Point, Vector3
+from tf.transformations import euler_from_quaternion
+import pyttsx
+import math
+from mobility_games.utils.helper_functions import angle_diff
+from visualization_msgs.msg import Marker
+from std_msgs.msg import Header, ColorRGBA
 
 class Breadcrumbs():
     def __init__(self):
+        #   TODO use dynamic reconfigure
         self.path_width = 1.5
         self.crumb_threshold = 3
         self.backtrack = 0
+        self.crumb_interval = 1
+        self.crumb_radius = 1.5
+
+        #   Set initial conditions
+        self.crumb_list = None
+        self.keypoint_list = None
+        self.pose = None
+        self.yaw = None
+        self.drop_crumbs = False
+        self.crumbs_dropped = False
+        self.follow_crumbs = False
+
+        #   Initialize text to speech engine
+        self.has_spoken = False
+        self.engine = pyttsx.init()
+
+        #   Map keys to state changes
+        self.start_crumb_key = ord("d")
+        self.stop_crumb_key = ord("s")
+        self.start_nav_key = ord("c")
+        self.stop_nav_key = ord("x")
+
+        #   Dictionary for clock directions
+        self.direction_dict = {12: "Continue straight toward 12 o'clock",
+                            1: "Turn slightly right toward 1 o'clock",
+                            2: "Turn right toward 2 o'clock",
+                            3: "Turn right toward 3 o'clock",
+                            4: "Turn right toward 4 o'clock",
+                            5: "Turn around toward 5 o'clock",
+                            6: "Turn around toward 6 o'clock",
+                            7: "Turn around toward 7 o'clock",
+                            8: "Turn left toward 8 o'clock",
+                            9: "Turn left toward 9 o'clock",
+                            10: "Turn left toward 10 o'clock",
+                            11: "Turn slightly left toward 11 o'clock"}
+
+        #   Establish ROS subscribers
+        rospy.init_node('breadcrumbs')
+        rospy.Subscriber('/tango_pose', PoseStamped, self.process_pose)
+        rospy.Subscriber('/keyboard/keydown', Key, self.key_pressed)
+        self.vis_pub = rospy.Publisher('/key_point', Marker, queue_size=10)
+
+    def process_pose(self, msg):
+        """ Determine Tango position as a 1x3 numpy array """
+        x = msg.pose.position.x
+        y = msg.pose.position.y
+        z = msg.pose.position.z
+        self.pose = np.asarray([[x, y, z]])
+
+        angles = euler_from_quaternion([msg.pose.orientation.x,
+                                        msg.pose.orientation.y,
+                                        msg.pose.orientation.z,
+                                        msg.pose.orientation.w])
+        self.yaw = angles[2]
+
+    def key_pressed(self, msg):
+        """ Change state based on keypresses """
+
+        #   Start laying out path on keypress
+        if msg.code == self.start_crumb_key:
+            self.drop_crumbs = True
+            self.crumbs_dropped = False
+            self.follow_crumbs = False
+            print "PATH RECORDING STARTED"
+            self.engine.say("Path recording started.")
+
+        #   Stop recording path on keypress
+        if self.drop_crumbs and msg.code == self.stop_crumb_key:
+            self.drop_crumbs = False
+            self.crumbs_dropped = True
+            self.crumb_list = self.crumb_list[::-1]
+            self.keypoint_list = self.calculate_keypoints(self.crumb_list)
+            print "PATH RECORDING STOPPED"
+            self.engine.say("Path recording stopped.")
+
+        #   Start following path on keypress
+        if self.crumbs_dropped and msg.code == self.start_nav_key:
+            self.follow_crumbs = True
+            print "PATH FOLLOWING STARTED"
+            self.engine.say("Path navigation started.")
+
+        #   Stop following path on keypress
+        if self.follow_crumbs and msg.code == self.stop_nav_key:
+            self.follow_crumbs = False
+            print "PATH FOLLOWING STOPPED"
+            self.engine.say("Path navigation stopped.")
 
     def calculate_keypoints(self, crumb_list):
         """ Takes in list of points in an x by 3 numpy
@@ -24,6 +119,7 @@ class Breadcrumbs():
             edible_crumbs = edible_crumbs[next_keypoint_index + 1:, :]
             keypoints = np.vstack((keypoints, next_keypoint))
 
+        print keypoints
         return keypoints
 
     def get_next_keypoint(self, last_keypoint, edible_crumbs):
@@ -71,25 +167,75 @@ class Breadcrumbs():
                 return False
         return False
 
+    def get_clock_angle(self, target_point):
+        """ Determine angle from Tango, in clock numbers, to a target point. """
+        target_point = target_point.reshape(1, 3)
+        xdif = target_point[0][0] - self.pose[0][0]
+        ydif = target_point[0][1] - self.pose[0][1]
+        target_yaw = math.atan2(ydif, xdif)
+        difference = angle_diff(self.yaw, target_yaw)
+
+        difference = difference * 6/math.pi + 0.5
+        clock_direction = int(difference % 12)
+        if clock_direction == 0:
+            clock_direction = 12
+        return clock_direction
+
+    def start_speech_engine(self):
+        if not self.has_spoken:
+            self.engine.say("Starting up.")
+            a = self.engine.runAndWait()
+            self.engine.say("Hello.")
+            a = self.engine.runAndWait()
+            self.has_spoken = True
+
+    def run(self):
+        r = rospy.Rate(10)
+        last_crumb = rospy.Time.now()
+        self.start_speech_engine()
+        while not rospy.is_shutdown():
+            #   Wait until Tango starts receiving pose
+            if self.pose != None:
+                if self.drop_crumbs:
+                    if rospy.Time.now() - last_crumb > \
+                                rospy.Duration(self.crumb_interval):
+                        last_crumb = rospy.Time.now()
+                        if self.crumb_list == None:
+                            self.crumb_list = self.pose
+                        else:
+                            self.crumb_list = np.vstack((self.crumb_list,
+                                                        self.pose))
+                if self.follow_crumbs:
+                    print self.keypoint_list
+                    self.vis_pub.publish(Marker(header=Header(frame_id="odom", stamp=rospy.Time.now()),
+                                                type=Marker.SPHERE,
+                                                pose=Pose(position=Point(x=self.keypoint_list[0][0], y=self.keypoint_list[0][1])),
+                                                scale=Vector3(x=self.crumb_radius,y=self.crumb_radius,z=self.crumb_radius),
+                                                color=ColorRGBA(r=1.0,a=1.0)))
+                    self.dist = np.linalg.norm(self.pose - self.keypoint_list[0, :])
+                    print self.dist
+                    if self.dist <= self.crumb_radius and len(self.keypoint_list) > 1:
+                        print("KEYPOINT FOUND")
+                        self.keypoint_list = self.keypoint_list[1:, :]
+                        self.new_dist = np.linalg.norm(self.pose - self.keypoint_list[0, :])
+                        self.engine.say(self.announce_directions())
+                    elif self.dist <= self.crumb_radius:
+                        self.engine.say("You have arrived.")
+                        self.follow_crumbs = False
+            r.sleep()
+
+    def announce_directions(self, distances = True):
+        direction = self.direction_dict[self.get_clock_angle(self.keypoint_list[0, :])]
+        if distances:
+            direction = direction + "for %s meters" % round(self.new_dist, 1)
+        return direction
+
+
 if __name__ == '__main__':
-    trail = np.asarray([[0, 0, 0],
-                        [0, 1, 0],
-                        [0, 2, 0],
-                        [0, 3, 0],
-                        [0, 4, 0],
-                        [0, 5, 0],
-                        [1, 5, 0],
-                        [2, 5, 0],
-                        [3, 5, 0],
-                        [4, 5, 0],
-                        [5, 5, 0],
-                        [5, 6, 0],
-                        [5, 7, 0],
-                        [5, 8, 0],
-                        [5, 9, 0],
-                        [5, 10, 0]])
     a = Breadcrumbs()
     a.path_width = 0.5
     a.crumb_threshold = 1
     a.backtrack = 1
-    print(a.calculate_keypoints(trail))
+    a.crumb_interval = 0.1
+    a.crumb_radius = 1
+    a.run()
