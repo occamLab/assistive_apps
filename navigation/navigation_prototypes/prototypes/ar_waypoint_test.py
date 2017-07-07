@@ -45,7 +45,8 @@ class ArWaypointTest(object):
         # self.start_time = None              # Starting time -- starts when user types in destination
         # self.end_time = None                # End time -- stops when user finds destination
         # self.distance_to_destination = 999  # Distance to destination from current position
-        self.proximity_to_destination = 4 #rospy.get_param('~proximity_to_destination', 0.8)
+        self.proximity_to_destination = .5 #rospy.get_param('~proximity_to_destination', 0.8)
+        self.search_dist = 5
 
         self.x = None                       # x position of Tango. Start at None because no data have been received yet.
         self.y = None                       # z position of Tango
@@ -266,6 +267,10 @@ class ArWaypointTest(object):
                     self.origin_tag = tag_id
                     self.tag_seen = True
                     self.distance_traveled = [0,0,0,0]
+            if tag_id == self.origin_tag:
+                print "Origin Tag Refound!"
+                self.origin_msg = curr_tag_transformed_pose
+
             if self.tag_seen and tag_id == self.testing_tag_id:
                 #print total distance traveled since seeing the origin tag
                 #print total distance between this tag and the origin tag
@@ -293,9 +298,54 @@ class ArWaypointTest(object):
 
     def key_pressed(self, msg):
         # Switch to run mode
+        if msg.code == ord(' '):
+            nearways = []
+            for waypoint in self.waypoints:
+                disttopoint = math.sqrt((self.waypoints[waypoint][0] - self.x)**2 + (self.waypoints[waypoint][1] - self.z)**2)
+                if(disttopoint < self.search_dist):
+                    nearways.append(waypoint)
+            if len(nearways) > 0:
+                self.engine.say('Here are some nearby waypoints ')
+                for way in nearways:
+                    self.engine.say(way)
+            else:
+                self.engine.say('No nearby waypoints')
+
+        if msg.code == ord('.'):
+            if self.calibration_mode:
+                while True:
+                    tmpwaydict = {}
+                    ways = 0
+                    for waypoint in self.waypoints:
+                        #if self.waypoints_detected[waypoint]:
+                        ways += 1
+                        tmpwaydict[ways] = waypoint
+                    print("Enter the number of the waypoint to delete (enter 0 to not delete):")
+                    waylist = tmpwaydict.items()
+                    for i in range(len(waylist)):
+                        entry = waylist[i]
+                        print(str(entry[0]) + ': ' + str(entry[1]))
+                    s = raw_input("")
+                    try:
+                        s = int(s)
+                    except (ValueError, TypeError) as inst:
+                        print ("That's not a number")
+                    deletedpoint = tmpwaydict.get(s, -1)
+                    if (s == 0):
+                        break
+                    elif (deletedpoint == -1):
+                        print(str(s) + ' is an invalid number.')
+                    else:
+                        self.waypoints.pop(deletedpoint, None)
+                        self.waypoints_detected.pop(deletedpoint, None)
+                        print('deleted waypoint: ' + str(deletedpoint))
+
         if msg.code == ord('a'):
-            print "\nStarting Run Mode..."
-            self.calibration_mode = False
+            self.calibration_mode = not self.calibration_mode
+            if self.calibration_mode:
+                print('switched to Calibration Mode')
+            else:
+                print('switched to Run Mode')
             # self.start_new_game()
 
         # Mark a waypoint
