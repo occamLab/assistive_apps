@@ -64,7 +64,6 @@ class Breadcrumbs():
         y = msg.pose.position.y
         z = msg.pose.position.z
         self.pose = np.asarray([[x, y, z]])
-
         angles = euler_from_quaternion([msg.pose.orientation.x,
                                         msg.pose.orientation.y,
                                         msg.pose.orientation.z,
@@ -72,7 +71,7 @@ class Breadcrumbs():
         self.yaw = angles[2]
 
     def key_pressed(self, msg):
-        """ Change state based on keypresses """
+        """ Change state based on keypresses. """
 
         #   Start laying out path on keypress
         if msg.code == self.start_crumb_key:
@@ -107,19 +106,19 @@ class Breadcrumbs():
         """ Takes in list of points in an x by 3 numpy
         array. Calculates keypoints where path turns """
 
+        #   Create a keypoint for the first point in list
         keypoints = crumb_list[0, :].reshape(1, 3)
         edible_crumbs = deepcopy(crumb_list)
 
+        #   Continue to add keypoints at turns until cycled through all points
         while len(edible_crumbs):
             last_keypoint = keypoints[-1, :]
-            #print(last_keypoint)
             next_keypoint_index = self.get_next_keypoint(last_keypoint,
                                                         edible_crumbs)
             next_keypoint = edible_crumbs[next_keypoint_index, :]
             edible_crumbs = edible_crumbs[next_keypoint_index + 1:, :]
             keypoints = np.vstack((keypoints, next_keypoint))
 
-        print keypoints
         return keypoints
 
     def get_next_keypoint(self, last_keypoint, edible_crumbs):
@@ -130,51 +129,58 @@ class Breadcrumbs():
             current_crumbs = deepcopy(edible_crumbs)
             current_crumbs = current_crumbs[:index + 1, :]
 
+            #   Calculate vector between current point and last keypoint
             point_vec = crumb - last_keypoint
-            #print(point_vec)
             point_vec = point_vec.T
 
-            #   Rotate point_vec 90 degrees to find normal vector
+            #   Rotate point_vec 90 degrees and find unit normal vector
             norm_vec = np.matmul(np.asarray([[0, 1, 0],
                                             [-1, 0, 0],
                                             [0, 0, 1]]), point_vec)
             unit_norm_vec = norm_vec/np.linalg.norm(norm_vec)
-            #print(unit_norm_vec)
 
             #   TODO make sure that calculating vectors in 3 dimensions
             #   doesn't reduce accuracy
 
+            #   Multiply list of crumbs by unit normal vector to find distance
+            #   from center of path of each point
             list_of_distances = np.matmul(current_crumbs - last_keypoint,
                                         unit_norm_vec)
             list_of_distances = np.absolute(list_of_distances)
             list_of_distances = np.sort(list_of_distances)[::-1]
 
             if self.has_turned(list_of_distances):
-                print("TURNED")
                 return index - self.backtrack
         return len(edible_crumbs) - 1
 
     def has_turned(self, list_of_distances):
-        #print(list_of_distances)
-        counter = 0
+        """ Given a list of distances from the centerline, determines whether
+        the path has turned. """
+
         for i, item in enumerate(list_of_distances):
-            #print(item)
-            if counter >= self.crumb_threshold:
+
+            #   Path has turned if there are more deviant crumbs than threshold
+            if i >= self.crumb_threshold:
                 return True
-            elif item > self.path_width:
-                counter += 1
-            elif i < self.crumb_threshold:
+
+            #   Path has not turned if one of first few crumbs is within path
+            elif item <= self.path_width:
                 return False
+
+        #   Path has not turned if list is very short and cycles through
         return False
 
     def get_clock_angle(self, target_point):
         """ Determine angle from Tango, in clock numbers, to a target point. """
+
+        #   Determine angle between current pose and target point
         target_point = target_point.reshape(1, 3)
         xdif = target_point[0][0] - self.pose[0][0]
         ydif = target_point[0][1] - self.pose[0][1]
         target_yaw = math.atan2(ydif, xdif)
         difference = angle_diff(self.yaw, target_yaw)
 
+        #   Round to the nearest clock direction
         difference = difference * 6/math.pi + 0.5
         clock_direction = int(difference % 12)
         if clock_direction == 0:
@@ -182,6 +188,8 @@ class Breadcrumbs():
         return clock_direction
 
     def start_speech_engine(self):
+        """ Initialize pyttsx engine, for text to speech. """
+
         if not self.has_spoken:
             self.engine.say("Starting up.")
             a = self.engine.runAndWait()
@@ -190,12 +198,17 @@ class Breadcrumbs():
             self.has_spoken = True
 
     def run(self):
+        """ Runs the main loop. """
+
         r = rospy.Rate(10)
         last_crumb = rospy.Time.now()
         self.start_speech_engine()
         while not rospy.is_shutdown():
+
             #   Wait until Tango starts receiving pose
             if self.pose != None:
+
+                #   Loop for path recording mode
                 if self.drop_crumbs:
                     if rospy.Time.now() - last_crumb > \
                                 rospy.Duration(self.crumb_interval):
@@ -205,19 +218,28 @@ class Breadcrumbs():
                         else:
                             self.crumb_list = np.vstack((self.crumb_list,
                                                         self.pose))
+
+                #   Loop for path following mode
                 if self.follow_crumbs:
-                    print self.keypoint_list
-                    self.vis_pub.publish(Marker(header=Header(frame_id="odom", stamp=rospy.Time.now()),
-                                                type=Marker.SPHERE,
-                                                pose=Pose(position=Point(x=self.keypoint_list[0][0], y=self.keypoint_list[0][1])),
-                                                scale=Vector3(x=self.crumb_radius,y=self.crumb_radius,z=self.crumb_radius),
-                                                color=ColorRGBA(r=1.0,a=1.0)))
-                    self.dist = np.linalg.norm(self.pose - self.keypoint_list[0, :])
-                    print self.dist
-                    if self.dist <= self.crumb_radius and len(self.keypoint_list) > 1:
+                    self.vis_pub.publish(Marker(header=Header(frame_id="odom",
+                            stamp=rospy.Time.now()),
+                            type=Marker.SPHERE,
+                            pose=Pose(position=Point(x=self.keypoint_list[0][0],
+                                y=self.keypoint_list[0][1])),
+                            scale=Vector3(x=self.crumb_radius,
+                                y=self.crumb_radius,
+                                z=self.crumb_radius),
+                            color=ColorRGBA(r=1.0,a=1.0)))
+                    diff_vec = self.pose - self.keypoint_list[0, :]
+                    self.dist = np.linalg.norm(diff_vec)
+
+                    #   If within some range of keypoint, navigate to next one.
+                    if self.dist <= self.crumb_radius and \
+                            len(self.keypoint_list) > 1:
                         print("KEYPOINT FOUND")
                         self.keypoint_list = self.keypoint_list[1:, :]
-                        self.new_dist = np.linalg.norm(self.pose - self.keypoint_list[0, :])
+                        new_diff_vec = self.pose - self.keypoint_list[0, :]
+                        self.new_dist = np.linalg.norm(new_diff_vec)
                         self.engine.say(self.announce_directions())
                     elif self.dist <= self.crumb_radius:
                         self.engine.say("You have arrived.")
@@ -225,7 +247,10 @@ class Breadcrumbs():
             r.sleep()
 
     def announce_directions(self, distances = True):
-        direction = self.direction_dict[self.get_clock_angle(self.keypoint_list[0, :])]
+        """ Generate text for giving auditory directions."""
+
+        clock_direction = self.get_clock_angle(self.keypoint_list[0, :])
+        direction = self.direction_dict[clock_direction]
         if distances:
             direction = direction + "for %s meters" % round(self.new_dist, 1)
         return direction
