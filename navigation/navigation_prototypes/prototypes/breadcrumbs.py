@@ -142,20 +142,26 @@ class Breadcrumbs():
             point_vec = crumb - last_keypoint
             point_vec = point_vec.T
 
-            #   Rotate point_vec 90 degrees and find unit normal vector
+            #   Rotate point_vec 90 degrees, project onto X-Y plane, and
+            #   find unit normal vectors
             norm_vec = np.matmul(np.asarray([[0, 1, 0],
                                             [-1, 0, 0],
-                                            [0, 0, 1]]), point_vec)
+                                            [0, 0, 0]]), point_vec)
             unit_norm_vec = norm_vec/np.linalg.norm(norm_vec)
+            unit_point_vec = point_vec/np.linalg.norm(point_vec)
+            unit_norm_vec_2 = np.cross(unit_point_vec, unit_norm_vec)
 
             #   TODO make sure that calculating vectors in 3 dimensions
             #   doesn't reduce accuracy
 
-            #   Multiply list of crumbs by unit normal vector to find distance
-            #   from center of path of each point
-            list_of_distances = np.matmul(current_crumbs - last_keypoint,
+            #   Multiply list of crumbs by unit normal vectors to find distance
+            #   from center of path of each point.
+            list_of_distances_ud = np.matmul(current_crumbs - last_keypoint,
+                                        unit_norm_vec_2)
+            list_of_distances_lr = np.matmul(current_crumbs - last_keypoint,
                                         unit_norm_vec)
-            list_of_distances = np.absolute(list_of_distances)
+            list_of_distances = np.sqrt(list_of_distances_ud**2 + \
+                                        list_of_distances_lr**2)
             list_of_distances = np.sort(list_of_distances)[::-1]
 
             if self.has_turned(list_of_distances):
@@ -242,6 +248,7 @@ class Breadcrumbs():
                         print("KEYPOINT FOUND")
                         self.keypoint_list = self.keypoint_list[1:, :]
                         new_diff_vec = self.pose - self.keypoint_list[0, :]
+                        new_diff_vec[0][2] = 0
                         self.new_dist = np.linalg.norm(new_diff_vec)
                         self.engine.say(self.announce_directions())
                     elif self.dist <= self.crumb_radius:
@@ -254,11 +261,11 @@ class Breadcrumbs():
 
         #   Change marker attributes and publisher depending on type
         if marker_type == "keypoint":
-            radius = self.crumb_radius
-            marker_color = ColorRGBA(r=1.0, g=0.3, b=0.3, a=1.0)
+            radius = self.crumb_radius * 2
+            marker_color = ColorRGBA(r=1.0, g=0.3, b=0.3, a=0.2)
             pub = self.vis_pub
         elif marker_type == "crumb":
-            radius = self.small_marker_radius
+            radius = self.small_marker_radius * 2
             marker_color = ColorRGBA(r=0.3, g=0.6, b=1.0, a=1.0)
             pub = self.crm_pub
 
@@ -279,6 +286,15 @@ class Breadcrumbs():
                     id=i)
             marker_array.markers.append(marker)
 
+            if marker_type == "keypoint":
+                inner_marker = deepcopy(marker)
+                inner_marker.color = ColorRGBA(r=1.0, g=0.3, b=0.3, a=1)
+                inner_marker.scale = Vector3(x=radius/4.0,
+                                            y=radius/4.0,
+                                            z=radius/4.0)
+                inner_marker.id = 500 + i
+                marker_array.markers.append(inner_marker)
+
         #   Publish markers to rviz
         pub.publish(marker_array)
 
@@ -293,19 +309,31 @@ class Breadcrumbs():
         self.create_marker(list_of_markers, marker_type="crumb", clear=True)
 
 
-    def announce_directions(self, distances = True):
+    def announce_directions(self, stairs = True, distances = True):
         """ Generate text for giving auditory directions."""
 
         clock_direction = self.get_clock_angle(self.keypoint_list[0, :])
         direction = self.direction_dict[clock_direction]
+
+        #   If height changes significantly, give instructions for stairways
+        if stairs:
+            height_diff = self.keypoint_list[0, 2] - self.pose[0][2]
+            slope = height_diff/self.new_dist
+            if slope >= 0.5:
+                direction = direction + "and walk up the stairs. "
+            elif slope <= -0.5:
+                direction = direction + "and walk down the stairs. "
+
+        #   Give information for distance to next waypoint
         if distances:
-            direction = direction + "for %s meters" % round(self.new_dist, 1)
+            direction = direction + "for %s meters." % round(self.new_dist, 1)
+
         return direction
 
 
 if __name__ == '__main__':
     a = Breadcrumbs()
-    a.path_width = 0.4
+    a.path_width = 0.7
     a.crumb_threshold = 1
     a.backtrack = 1
     a.crumb_interval = 0.5
