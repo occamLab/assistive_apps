@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import numpy as np
 import rospy
 from copy import deepcopy
@@ -7,7 +9,7 @@ from tf.transformations import euler_from_quaternion
 import pyttsx
 import math
 from mobility_games.utils.helper_functions import angle_diff
-from visualization_msgs.msg import Marker
+from visualization_msgs.msg import MarkerArray, Marker
 from std_msgs.msg import Header, ColorRGBA
 
 class Breadcrumbs():
@@ -18,6 +20,7 @@ class Breadcrumbs():
         self.backtrack = 0
         self.crumb_interval = 1
         self.crumb_radius = 1.5
+        self.small_marker_radius = 0.15
 
         #   Set initial conditions
         self.crumb_list = None
@@ -56,7 +59,8 @@ class Breadcrumbs():
         rospy.init_node('breadcrumbs')
         rospy.Subscriber('/tango_pose', PoseStamped, self.process_pose)
         rospy.Subscriber('/keyboard/keydown', Key, self.key_pressed)
-        self.vis_pub = rospy.Publisher('/key_point', Marker, queue_size=10)
+        self.vis_pub = rospy.Publisher('/key_point', MarkerArray, queue_size=10)
+        self.crm_pub = rospy.Publisher('/crm_point', MarkerArray, queue_size=10)
 
     def process_pose(self, msg):
         """ Determine Tango position as a 1x3 numpy array """
@@ -80,6 +84,9 @@ class Breadcrumbs():
             self.follow_crumbs = False
             print "PATH RECORDING STARTED"
             self.engine.say("Path recording started.")
+            self.crumb_list = None
+            self.keypoint_list = None
+            self.clear_all_markers()
 
         #   Stop recording path on keypress
         if self.drop_crumbs and msg.code == self.stop_crumb_key:
@@ -95,12 +102,14 @@ class Breadcrumbs():
             self.follow_crumbs = True
             print "PATH FOLLOWING STARTED"
             self.engine.say("Path navigation started.")
+            self.create_marker((), "keypoint")
 
         #   Stop following path on keypress
         if self.follow_crumbs and msg.code == self.stop_nav_key:
             self.follow_crumbs = False
             print "PATH FOLLOWING STOPPED"
             self.engine.say("Path navigation stopped.")
+            self.clear_all_markers()
 
     def calculate_keypoints(self, crumb_list):
         """ Takes in list of points in an x by 3 numpy
@@ -218,18 +227,12 @@ class Breadcrumbs():
                         else:
                             self.crumb_list = np.vstack((self.crumb_list,
                                                         self.pose))
+                        self.create_marker(self.crumb_list,
+                                            marker_type = "crumb")
 
                 #   Loop for path following mode
                 if self.follow_crumbs:
-                    self.vis_pub.publish(Marker(header=Header(frame_id="odom",
-                            stamp=rospy.Time.now()),
-                            type=Marker.SPHERE,
-                            pose=Pose(position=Point(x=self.keypoint_list[0][0],
-                                y=self.keypoint_list[0][1])),
-                            scale=Vector3(x=self.crumb_radius,
-                                y=self.crumb_radius,
-                                z=self.crumb_radius),
-                            color=ColorRGBA(r=1.0,a=1.0)))
+                    self.create_marker(self.keypoint_list, "keypoint")
                     diff_vec = self.pose - self.keypoint_list[0, :]
                     self.dist = np.linalg.norm(diff_vec)
 
@@ -246,6 +249,50 @@ class Breadcrumbs():
                         self.follow_crumbs = False
             r.sleep()
 
+    def create_marker(self, marker_pos, marker_type = "keypoint", clear = False):
+        """ Publishes a ros marker to visualize keypoints and breadcrumbs. """
+
+        #   Change marker attributes and publisher depending on type
+        if marker_type == "keypoint":
+            radius = self.crumb_radius
+            marker_color = ColorRGBA(r=1.0, g=0.3, b=0.3, a=1.0)
+            pub = self.vis_pub
+        elif marker_type == "crumb":
+            radius = self.small_marker_radius
+            marker_color = ColorRGBA(r=0.3, g=0.6, b=1.0, a=1.0)
+            pub = self.crm_pub
+
+        #   Set alpha to 0 if clear is true
+        if clear:
+            marker_color = ColorRGBA(r=0, g=0, b=0, a=0)
+
+        #   Assemble marker array of all crumb points
+        marker_array = MarkerArray()
+        for i, item in enumerate(marker_pos):
+            marker = Marker(header=Header(frame_id="odom",
+                    stamp=rospy.Time.now()),
+                    type=Marker.SPHERE,
+                    pose=Pose(position=Point(x=item[0], y=item[1])),
+                    scale=Vector3(x=radius, y=radius, z=radius),
+                    color=marker_color,
+                    lifetime=rospy.Duration(9999),
+                    id=i)
+            marker_array.markers.append(marker)
+
+        #   Publish markers to rviz
+        pub.publish(marker_array)
+
+    def clear_all_markers(self):
+        """ Clears all rviz markers, up to 1000. """
+
+        list_of_markers = []
+        for i in range(0, 1000):
+            list_of_markers.append([0, 0, 0])
+
+        self.create_marker(list_of_markers, marker_type="keypoint", clear=True)
+        self.create_marker(list_of_markers, marker_type="crumb", clear=True)
+
+
     def announce_directions(self, distances = True):
         """ Generate text for giving auditory directions."""
 
@@ -258,9 +305,9 @@ class Breadcrumbs():
 
 if __name__ == '__main__':
     a = Breadcrumbs()
-    a.path_width = 0.5
+    a.path_width = 0.4
     a.crumb_threshold = 1
     a.backtrack = 1
-    a.crumb_interval = 0.1
+    a.crumb_interval = 0.5
     a.crumb_radius = 1
     a.run()
