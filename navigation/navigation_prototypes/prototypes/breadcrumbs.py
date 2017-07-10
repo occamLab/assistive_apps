@@ -319,9 +319,9 @@ class Breadcrumbs():
         if stairs:
             height_diff = self.keypoint_list[0, 2] - self.pose[0][2]
             slope = height_diff/self.new_dist
-            if slope >= 0.5:
+            if slope >= 0.3:
                 direction = direction + "and walk up the stairs. "
-            elif slope <= -0.5:
+            elif slope <= -0.3:
                 direction = direction + "and walk down the stairs. "
 
         #   Give information for distance to next waypoint
