@@ -21,6 +21,7 @@ class Breadcrumbs():
         self.crumb_interval = 1
         self.crumb_radius = 1.5
         self.small_marker_radius = 0.15
+        self.voice_freq = 12
 
         #   Set initial conditions
         self.crumb_list = None
@@ -277,6 +278,7 @@ class Breadcrumbs():
 
         r = rospy.Rate(10)
         last_crumb = rospy.Time.now()
+        last_instruction = rospy.Time.now()
         self.start_speech_engine()
         while not rospy.is_shutdown():
 
@@ -305,15 +307,26 @@ class Breadcrumbs():
                     #   If within some range of keypoint, navigate to next one.
                     if self.dist <= self.crumb_radius and \
                             len(self.keypoint_list) > 1:
+
+                        #   Give instructions for next keypoint upon reaching.
+                        #   Determine slope to next keypoint to detect stairs.
                         print("KEYPOINT FOUND")
                         self.keypoint_list = self.keypoint_list[1:, :]
                         new_diff_vec = self.pose - self.keypoint_list[0, :]
                         new_diff_vec[0][2] = 0
                         self.new_dist = np.linalg.norm(new_diff_vec)
                         self.engine.say(self.announce_directions())
+                        last_instruction = rospy.Time.now()
+
                     elif self.dist <= self.crumb_radius:
                         self.engine.say("You have arrived.")
                         self.follow_crumbs = False
+
+                    #   Periodically point user toward next keypoint.
+                    since_last_instruction = rospy.Time.now() - last_instruction
+                    if since_last_instruction > rospy.Duration(self.voice_freq):
+                        self.engine.say(self.announce_directions(straight=True))
+                        last_instruction = rospy.Time.now()
             r.sleep()
 
     def create_marker(self, marker_pos, marker_type = "keypoint", clear = False):
@@ -369,7 +382,9 @@ class Breadcrumbs():
         self.create_marker(list_of_markers, marker_type="crumb", clear=True)
 
 
-    def announce_directions(self, stairs = True, distances = True):
+    def announce_directions(self, stairs = True,
+                            distances = True,
+                            straight = False):
         """ Generate text for giving auditory directions."""
 
         clock_direction = self.get_clock_angle(self.keypoint_list[0, :])
@@ -387,6 +402,10 @@ class Breadcrumbs():
         #   Give information for distance to next waypoint
         if distances:
             direction = direction + "for %s meters." % round(self.new_dist, 1)
+
+        #   Periodically give instructions to next waypoint
+        if straight and self.voice_freq:
+            direction = "The next turn is at %s o'clock." % clock_direction
 
         return direction
 
