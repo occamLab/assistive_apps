@@ -93,7 +93,7 @@ class Breadcrumbs():
             self.drop_crumbs = False
             self.crumbs_dropped = True
             self.crumb_list = self.crumb_list[::-1]
-            self.keypoint_list = self.calculate_keypoints(self.crumb_list)
+            self.keypoint_list = self.calculate_keypoints_RDP(self.crumb_list)
             print "PATH RECORDING STOPPED"
             self.engine.say("Path recording stopped.")
 
@@ -211,6 +211,66 @@ class Breadcrumbs():
             self.engine.say("Hello.")
             a = self.engine.runAndWait()
             self.has_spoken = True
+
+    def calculate_keypoints_RDP(self, list_of_crumbs):
+        """ Calls the ramer_douglas_peucher function, adds the endpoints as
+        keypoints, and converts to numpy array. """
+
+        keypoints = self.ramer_douglas_peucher(list_of_crumbs)
+        keypoints = [list_of_crumbs[0]] + keypoints + [list_of_crumbs[-1]]
+        return np.asarray(keypoints)
+
+    def ramer_douglas_peucher(self, list_of_crumbs):
+        """ Takes in a list of points. Returns a list of keypoints, not
+        including the first and last points, using the Ramer-Douglas-Peucher
+        path-simplification algorithm. """
+
+        # TODO check if this method detects stairs
+
+        current_crumbs = deepcopy(list_of_crumbs)
+
+        #   Calculate vector between current point and last keypoint
+        first_crumb = list_of_crumbs[0]
+        last_crumb = list_of_crumbs[-1]
+        point_vec = last_crumb - first_crumb
+        point_vec = point_vec.T
+
+        #   Rotate point_vec 90 degrees, project onto X-Y plane, and
+        #   find unit normal vectors
+        norm_vec = np.matmul(np.asarray([[0, 1, 0],
+                                        [-1, 0, 0],
+                                        [0, 0, 0]]), point_vec)
+        unit_norm_vec = norm_vec/np.linalg.norm(norm_vec)
+        unit_point_vec = point_vec/np.linalg.norm(point_vec)
+        unit_norm_vec_2 = np.cross(unit_point_vec, unit_norm_vec)
+
+        #   TODO make sure that calculating vectors in 3 dimensions
+        #   doesn't reduce accuracy
+
+        #   Multiply list of crumbs by unit normal vectors to find distance
+        #   from center of path of each point.
+        list_of_distances_ud = np.matmul(current_crumbs - first_crumb,
+                                    unit_norm_vec_2)
+        list_of_distances_lr = np.matmul(current_crumbs - first_crumb,
+                                    unit_norm_vec)
+        list_of_distances = np.sqrt(list_of_distances_ud**2 + \
+                                    list_of_distances_lr**2)
+
+        #   Determine the index of the point with greatest distance
+        list_of_keypoints = []
+        max_index, max_dist = max(enumerate(list_of_distances), key = lambda f: f[1])
+
+        if max_dist > self.path_width:
+            prev_keypoints = self.ramer_douglas_peucher(current_crumbs[:max_index + 1])
+            post_keypoints = self.ramer_douglas_peucher(current_crumbs[max_index:])
+            if prev_keypoints:
+                list_of_keypoints += prev_keypoints
+            list_of_keypoints.append(current_crumbs[max_index])
+            if post_keypoints:
+                list_of_keypoints += post_keypoints
+            return list_of_keypoints
+        else:
+            return False
 
     def run(self):
         """ Runs the main loop. """
