@@ -112,80 +112,6 @@ class Breadcrumbs():
             self.engine.say("Path navigation stopped.")
             self.clear_all_markers()
 
-    def calculate_keypoints(self, crumb_list):
-        """ Takes in list of points in an x by 3 numpy
-        array. Calculates keypoints where path turns """
-
-        #   Create a keypoint for the first point in list
-        keypoints = crumb_list[0, :].reshape(1, 3)
-        edible_crumbs = deepcopy(crumb_list)
-
-        #   Continue to add keypoints at turns until cycled through all points
-        while len(edible_crumbs):
-            last_keypoint = keypoints[-1, :]
-            next_keypoint_index = self.get_next_keypoint(last_keypoint,
-                                                        edible_crumbs)
-            next_keypoint = edible_crumbs[next_keypoint_index, :]
-            edible_crumbs = edible_crumbs[next_keypoint_index + 1:, :]
-            keypoints = np.vstack((keypoints, next_keypoint))
-
-        return keypoints
-
-    def get_next_keypoint(self, last_keypoint, edible_crumbs):
-        """ Calculates the index of the next keypoint in a path, given a list
-        of points and the position of the last keypoint. """
-
-        for index, crumb in enumerate(edible_crumbs):
-            current_crumbs = deepcopy(edible_crumbs)
-            current_crumbs = current_crumbs[:index + 1, :]
-
-            #   Calculate vector between current point and last keypoint
-            point_vec = crumb - last_keypoint
-            point_vec = point_vec.T
-
-            #   Rotate point_vec 90 degrees, project onto X-Y plane, and
-            #   find unit normal vectors
-            norm_vec = np.matmul(np.asarray([[0, 1, 0],
-                                            [-1, 0, 0],
-                                            [0, 0, 0]]), point_vec)
-            unit_norm_vec = norm_vec/np.linalg.norm(norm_vec)
-            unit_point_vec = point_vec/np.linalg.norm(point_vec)
-            unit_norm_vec_2 = np.cross(unit_point_vec, unit_norm_vec)
-
-            #   TODO make sure that calculating vectors in 3 dimensions
-            #   doesn't reduce accuracy
-
-            #   Multiply list of crumbs by unit normal vectors to find distance
-            #   from center of path of each point.
-            list_of_distances_ud = np.matmul(current_crumbs - last_keypoint,
-                                        unit_norm_vec_2)
-            list_of_distances_lr = np.matmul(current_crumbs - last_keypoint,
-                                        unit_norm_vec)
-            list_of_distances = np.sqrt(list_of_distances_ud**2 + \
-                                        list_of_distances_lr**2)
-            list_of_distances = np.sort(list_of_distances)[::-1]
-
-            if self.has_turned(list_of_distances):
-                return index - self.backtrack
-        return len(edible_crumbs) - 1
-
-    def has_turned(self, list_of_distances):
-        """ Given a list of distances from the centerline, determines whether
-        the path has turned. """
-
-        for i, item in enumerate(list_of_distances):
-
-            #   Path has turned if there are more deviant crumbs than threshold
-            if i >= self.crumb_threshold:
-                return True
-
-            #   Path has not turned if one of first few crumbs is within path
-            elif item <= self.path_width:
-                return False
-
-        #   Path has not turned if list is very short and cycles through
-        return False
-
     def get_clock_angle(self, target_point):
         """ Determine angle from Tango, in clock numbers, to a target point. """
 
@@ -381,7 +307,6 @@ class Breadcrumbs():
         self.create_marker(list_of_markers, marker_type="keypoint", clear=True)
         self.create_marker(list_of_markers, marker_type="crumb", clear=True)
 
-
     def announce_directions(self, stairs = True,
                             distances = True,
                             straight = False):
@@ -408,7 +333,6 @@ class Breadcrumbs():
             direction = "The next turn is at %s o'clock." % clock_direction
 
         return direction
-
 
 if __name__ == '__main__':
     a = Breadcrumbs()
