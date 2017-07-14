@@ -13,12 +13,14 @@ from geometry_msgs.msg import PoseStamped, Pose, Point, Vector3
 from tf.transformations import euler_from_quaternion
 import tf
 from std_msgs.msg import Header, ColorRGBA
-from visualization_msgs.msg import Marker
+from visualization_msgs.msg import Marker, MarkerArray
 import pyttsx
 from rospkg import RosPack
 from apriltags_ros.msg import AprilTagDetectionArray
 from std_msgs.msg import Header, ColorRGBA
 from keyboard.msg import Key
+from random import random
+#from mobility_games.utils.helper_functions #import convert_pose_transform
 # from dynamic_reconfigure.server import Server
 # from mobility_games.cfg import SemanticWaypointsConfig
 
@@ -26,13 +28,16 @@ from keyboard.msg import Key
 class ArWaypointTest(object):
     def __init__(self):
         self.calibration_mode = True        # Flag to keep track of game state -- Calibration/Run Modes
+        self.calibration_AR = False          # Flag to keep track of game state -- AR Calibration/Other Modes. (this supercedes other modes in priority if turned on)
         self.waypoints = {}
         self.waypoints_detected = {}
 
         self.origin_tag = None                  # Destination tag_id
+        self.supplement_tags = {}
         self.tag_seen = False
         self.translations = None
-
+        self.AR_Find_Try = False
+        self.ARNEWs = {}
         ####Testing Materials####
         self.origin_msg = None
         self.lastpose = None
@@ -45,7 +50,7 @@ class ArWaypointTest(object):
         # self.start_time = None              # Starting time -- starts when user types in destination
         # self.end_time = None                # End time -- stops when user finds destination
         # self.distance_to_destination = 999  # Distance to destination from current position
-        self.proximity_to_destination = .5 #rospy.get_param('~proximity_to_destination', 0.8)
+        self.proximity_to_destination = 2 #rospy.get_param('~proximity_to_destination', 0.8)
         self.search_dist = 5
 
         self.x = None                       # x position of Tango. Start at None because no data have been received yet.
@@ -66,13 +71,19 @@ class ArWaypointTest(object):
 
         rospy.init_node('ar_waypoint_test')
         self.listener = tf.TransformListener()
+        self.broadcaster = tf.TransformBroadcaster()
         rospy.Subscriber('/tango_pose', PoseStamped, self.process_pose)
         rospy.Subscriber('/fisheye_undistorted/tag_detections',
                         AprilTagDetectionArray,
                         self.tag_callback)
         rospy.Subscriber('/keyboard/keydown', Key, self.key_pressed)
         # srv = Server(SemanticWaypointsConfig, self.config_callback)
+        self.markerlist = []
+        self.waypoint_viz_pub = rospy.Publisher('/waypoint_visualizer', MarkerArray, queue_size=10)
+        self.waypoint_id = 0 #Waypoint_id's
 
+        #self.last_record_time = 0 #Last time of a pose record
+        #self.record_interval = rospy.Duration(2) #Interval of time between pose recording for SLAM algorithm
     # def config_callback(self, config, level):
     #     self.proximity_to_destination = config['proximity_to_destination']
     #     return config
@@ -110,7 +121,7 @@ class ArWaypointTest(object):
                 if not self.calibration_mode:
                     for waypoint in self.waypoints:
                         #print math.sqrt((self.waypoints[waypoint][0] - self.x)**2 + (self.waypoints[waypoint][1] - self.z)**2)
-                        disttopoint = math.sqrt((self.waypoints[waypoint][0] - self.x)**2 + (self.waypoints[waypoint][1] - self.z)**2)
+                        disttopoint = math.sqrt((self.waypoints[waypoint][0] - self.x)**2 + (self.waypoints[waypoint][1] - self.y)**2 + (self.waypoints[waypoint][2] - self.z)**2)
                         if(disttopoint < self.proximity_to_destination):
                             if not self.waypoints_detected[waypoint]:
                                 mesg = "Found %s" % waypoint
@@ -124,12 +135,27 @@ class ArWaypointTest(object):
                         else:
                             self.waypoints_detected[waypoint] = False
             except Exception as inst:
-                pass
                 print "Exception is", inst
         self.lastpose = msg;
 
     def det_speech(self, yaw, cur_pos, goal_pos):
         print type(cur_pos[0])
+        #   Takes in angle, position, and position of goal. Determines relative
+        #   position of goal to Tango and returns text instructions.
+        dx = goal_pos[0] - cur_pos[0]
+        dy = goal_pos[1] - cur_pos[1]
+        angle = math.atan2(dy, dx) - yaw
+        angle %= 2*math.pi      #   Makes sure angle is between 0 and 2pi
+        if angle < math.pi/6:
+            text = "You're on the right path!"
+        #   Takes in angle, position, and position of goal. Determines relative
+        #   position of goal to Tango and returns text instructions.
+        dx = goal_pos[0] - cur_pos[0]
+        dy = goal_pos[1] - cur_pos[1]
+        angle = math.atan2(dy, dx) - yaw
+        angle %= 2*math.pi      #   Makes sure angle is between 0 and 2pi
+        if angle < math.pi/6:
+            text = "You're on the right path!"
 
         #   Takes in angle, position, and position of goal. Determines relative
         #   position of goal to Tango and returns text instructions.
@@ -188,7 +214,7 @@ class ArWaypointTest(object):
     #             print message + '\n'
     #             self.engine.say(message)
 
-    def update_origin_pose(self):
+    """def update_origin_pose(self):
         if (self.listener.frameExists("odom")
                 and self.listener.frameExists('AR')):
 
@@ -205,7 +231,7 @@ class ArWaypointTest(object):
             except (tf.ExtrapolationException,
                     tf.LookupException,
                     tf.ConnectivityException) as e:
-                print e
+                print e"""
 
     # Starts new game
     #   - Prompt user to enter destination
@@ -258,15 +284,34 @@ class ArWaypointTest(object):
             curr_tag_pose.header.stamp = rospy.Time(0)
             curr_tag_transformed_pose = self.listener.transformPose('odom', curr_tag_pose)
             tag_id = curr_tag.id
-            if self.calibration_mode:
+            if (self.calibration_mode and not self.calibration_AR) or (self.calibration_AR and self.AR_Find_Try):
                 # Only prompt user to input tag name once
+                newfound = False
                 if not self.tag_seen:
-                    print "Origin Tag Found! "
-                    print tag_id
+                    print "Origin Tag Found: " + str(tag_id)
                     self.origin_msg = curr_tag_transformed_pose;
                     self.origin_tag = tag_id
                     self.tag_seen = True
                     self.distance_traveled = [0,0,0,0]
+                    newfound = True
+                if not (tag_id == self.origin_tag):
+                    if not (tag_id in self.supplement_tags.keys()):
+                        print "Supplementary Tag Found: " + str(tag_id)
+                        self.supplement_tags[tag_id] = curr_tag_transformed_pose
+                        print(self.supplement_tags.keys())
+                        newfound = True
+                if not newfound and not (tag_id == self.origin_tag):
+                    #try:
+                        #posediff = self.listener.transformPose('AR_'+str(tag_id), curr_tag_transformed_pose)
+                        #(trans, rot) = convert_pose_transform(posediff.pose)
+                        #self.ARNEWs[tag_id] = (trans, rot)
+                    print "Found Old Tag: " + str(tag_id)
+                    #except Exception as inst:
+                    #    print "Exception is", inst
+
+
+
+
             if tag_id == self.origin_tag:
                 print "Origin Tag Refound!"
                 self.origin_msg = curr_tag_transformed_pose
@@ -289,19 +334,47 @@ class ArWaypointTest(object):
                 drift_dist[3] = math.sqrt(math.pow(drift_dist[0], 2) + math.pow(drift_dist[1], 2) + math.pow(drift_dist[2], 2))
                 print("Distance Traveled: " + str(self.distance_traveled))
                 print("Distance Drifted: " + str(drift_dist));
+        self.AR_Find_Try = False
         # if self.origin_tag:
         #     if msg.detections:
         #         tag_id = msg.detections[0].id
         #         if tag_id == self.origin_tag:
         #             pass #UPDATE TRANSFORM HERE
 
+    """def broadcast_ARNEW_AROLD_transform(self, tag_id):
+        "" Will broadcast the transform between parent node
+        odom with AR_x as the direct child.  Note that this
+        is a different intended TF tree structure than if
+        AR_x was a direct child of AR. ""
+        try:
+            self.broadcaster.sendTransform(
+                    self.ARNEWs[tag_id][0],
+                    self.ARNEWs[tag_id][1],
+                    rospy.get_rostime(),
+                    "AR_" + str(tag_id),
+                    "ARNew_" + str(tag_id))
+
+        except (KeyError) as e:
+            print e"""
+
 
     def key_pressed(self, msg):
         # Switch to run mode
+        if msg.code == ord('r'):
+            self.AR_Find_Try = True
+        if msg.code == ord('y'):
+            self.calibration_AR = not self.calibration_AR;
+            if self.calibration_AR:
+                print('switched to AR Calibration Mode')
+            else:
+                if self.calibration_mode:
+                    print('switched to Calibration Mode')
+                else:
+                    print('switched to Run Mode')
         if msg.code == ord(' '):
             nearways = []
             for waypoint in self.waypoints:
-                disttopoint = math.sqrt((self.waypoints[waypoint][0] - self.x)**2 + (self.waypoints[waypoint][1] - self.z)**2)
+                disttopoint = math.sqrt((self.waypoints[waypoint][0] - self.x)**2 + (self.waypoints[waypoint][1] - self.y)**2 + 4*(self.waypoints[waypoint][2] - self.z)**2)
                 if(disttopoint < self.search_dist):
                     nearways.append(waypoint)
             if len(nearways) > 0:
@@ -350,10 +423,20 @@ class ArWaypointTest(object):
 
         # Mark a waypoint
         if msg.code == ord('b'):
-            waypoint_location = [self.x, self.z, self.y]
+            waypoint_location = [self.x, self.y, self.z]
+            scale = 2*self.proximity_to_destination
+            newpoint = Marker(header=Header(frame_id="AR", stamp=rospy.Time(0)),
+                                        type=Marker.SPHERE,
+                                        pose=Pose(position=Point(x=self.x, y=self.y, z = self.z)),
+                                        scale=Vector3(x=scale,y=scale,z=scale),
+                                        color=ColorRGBA(r=random(), g=random(), b=random(), a=1.0),
+                                        id = self.waypoint_id)
             waypoint_name = raw_input("Name the Waypoint: ")
+            newpoint.ns = waypoint_name
+            self.markerlist.append(newpoint)
             self.waypoints[waypoint_name] = waypoint_location
             self.waypoints_detected[waypoint_name] = False
+            self.waypoint_id += 1
             print self.waypoints
 
     	# Save waypoints
@@ -368,6 +451,22 @@ class ArWaypointTest(object):
             print("WAYPOINTS LOADED")
             with open('/home/juicyslew/catkin_ws/saved_calibration.pkl', 'rb') as f:
                 self.waypoints = pickle.load(f)
+                self.markerlist = []
+                self.waypoint_id = 0
+                scale = 2*self.proximity_to_destination
+                for item in self.waypoints.items():
+                    """olditem1_1 = item[1][1]
+                    item[1][1] = item[1][2]
+                    item[1][2] = olditem1_1"""
+                    self.markerlist.append(Marker(header=Header(frame_id="AR", stamp=rospy.Time(0)),
+                                                type=Marker.SPHERE,
+                                                pose=Pose(position=Point(x=item[1][0], y=item[1][1], z = item[1][2])),
+                                                scale=Vector3(x=scale,y=scale,z=scale),
+                                                color=ColorRGBA(r=random(), g=random(), b=random(), a=1.0),
+                                                id = self.waypoint_id,
+                                                ns = item[0]))
+                    self.waypoint_id += 1
+
                 print(self.waypoints)
 
     def start_speech_engine(self):
@@ -378,13 +477,22 @@ class ArWaypointTest(object):
             a = self.engine.runAndWait()
             self.has_spoken = True
 
+    #def RecordTime(self, ofst):
+
     def run(self):
         r = rospy.Rate(10)  #   Runs loop at 10 times per second
         # self.start_speech_engine()
+        #self.last_record_time = rospy.Time.now()
         print("Searching for Tango...")
         self.start_speech_engine()
         print "Here we go"
         while not rospy.is_shutdown():
+            #toffset = rospy.Time.now() - self.last_record_time
+            #if toffset > self.record_interval:
+            #    self.RecordTime(toffset)
+            for marker in self.markerlist:
+                marker.header.stamp = rospy.Time.now()
+            self.waypoint_viz_pub.publish(self.markerlist)
 
             # if self.start_run and self.distance_to_destination > self.proximity_to_destination and self.x and self.y and self.translations:
             #     self.update_destination_pose()
@@ -403,6 +511,8 @@ class ArWaypointTest(object):
             #         self.last_play_time = rospy.Time.now()
             #         system('aplay ' + path.join(self.sound_folder, 'beep.wav'))
             #         # print self.distance_to_destination
+            """for tag_id in self.ARNEWs.keys():
+                self.broadcast_ARNEW_AROLD_transform(tag_id)"""
 
             r.sleep()
 
