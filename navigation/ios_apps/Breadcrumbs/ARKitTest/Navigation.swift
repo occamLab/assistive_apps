@@ -2,8 +2,9 @@
 //  Navigation.swift
 //  ARKitTest
 //
-//  Created by Chris Seonghwan Yoon on 7/11/17.
-//  Copyright © 2017 Stanford. All rights reserved.
+//  Created by Chris Seonghwan Yoon & Jeremy Ryan on 7/11/17.
+//
+//  Navigation class that provides direction information given 2 LocationInfo position
 //
 
 import Foundation
@@ -39,6 +40,7 @@ public let Directions = [12: "Continue straight",
                          10: "Slight left towards 10 o'clock",
                          11: "Slight left towards 11 o'clock"]
 
+/* Keypoint target dimensions */
 public var targetWidth: Scalar = 2
 public var targetDepth: Scalar = 0.5
 public var targetHeight: Scalar = 3
@@ -49,7 +51,7 @@ class Navigation {
                          powf((currentLocation.z - nextKeypoint.location.z), 2))
         let angle = atan2f((currentLocation.x - nextKeypoint.location.x), (currentLocation.z-nextKeypoint.location.z))
         
-        let angleDiff = getAngleDiff(angle1: currentLocation.a, angle2: angle)
+        let angleDiff = getAngleDiff(angle1: currentLocation.yaw, angle2: angle)
         let clockDir = getClockDirections(angle: angleDiff)
         
         let xDiff = Vector3([currentLocation.x - nextKeypoint.location.x, currentLocation.y - nextKeypoint.location.y, currentLocation.z - nextKeypoint.location.z]).dot(nextKeypoint.orientation)

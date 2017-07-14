@@ -2,8 +2,9 @@
 //  PathFinder.swift
 //  ARKitTest
 //
-//  Created by Chris Seonghwan Yoon on 7/11/17.
-//  Copyright © 2017 Stanford. All rights reserved.
+//  Created by Chris Seonghwan Yoon & Jeremy Ryan on 7/11/17.
+//
+// Pathfinder class calculates turns or "keypoints" given a path array of LocationInfo
 //
 
 import Foundation
@@ -12,13 +13,13 @@ public struct LocationInfo {
     public var x: Float
     public var y: Float
     public var z: Float
-    public var a: Float
+    public var yaw: Float
     
-    public init(x: Float, y: Float, z: Float, a: Float) {
+    public init(x: Float, y: Float, z: Float, yaw: Float) {
         self.x = x
         self.y = y
         self.z = z
-        self.a = a
+        self.yaw = yaw
     }
 }
 
@@ -29,29 +30,27 @@ public struct KeypointInfo {
 
 class PathFinder {
     
-    let pathWidth: Scalar = 0.7
-    var crums: [LocationInfo]
+    private let pathWidth: Scalar = 0.7
+    private var crumbs: [LocationInfo]
     
     init(crums: [LocationInfo]) {
-        self.crums = crums
+        self.crumbs = crums
     }
     
-    var keypoints: [KeypointInfo] {
+    public var keypoints: [KeypointInfo] {
         get {
-            return getKeypoints(edibleCrums: crums)
+            return getKeypoints(edibleCrums: crumbs)
         }
     }
     
-    func getKeypoints(edibleCrums: [LocationInfo]) -> [KeypointInfo] {
+    private func getKeypoints(edibleCrums: [LocationInfo]) -> [KeypointInfo] {
         var res = [KeypointInfo]()
-//        var firstKeypoint = KeypointInfo(location: <#LocationInfo#>, orientation: <#Vector3#>)
         let firstKeypointLocation = edibleCrums.first!
         let firstKeypointOrientation = Vector3.x
         res.append(KeypointInfo(location: firstKeypointLocation, orientation: firstKeypointOrientation))
         
         res += calculateKeypoints(edibleCrums: edibleCrums)
         
-//        var lastKeypoint: KeypointInfo!
         let lastKeypointLocation = edibleCrums.last!
         let lastKeypointOrientation = Vector3(_: [(res.last?.location.x)! - edibleCrums.last!.x,
                                                0,

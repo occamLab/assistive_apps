@@ -2,8 +2,7 @@
 //  ViewController.swift
 //  ARKitTest
 //
-//  Created by Chris Seonghwan Yoon on 7/10/17.
-//  Copyright © 2017 Stanford. All rights reserved.
+//  Created by Chris Seonghwan Yoon & Jeremy Ryan on 7/10/17.
 //
 
 import UIKit
@@ -93,7 +92,7 @@ class ViewController: UIViewController {
      * Adds TapGesture to the sceneView
      */
     func addGestures() {
-        let tapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(announceDirections))
+        let tapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(announceDirectionHelp))
         tapGestureRecognizer.numberOfTapsRequired = 2
         self.view.addGestureRecognizer(tapGestureRecognizer)
     }
@@ -103,7 +102,7 @@ class ViewController: UIViewController {
         getDirectionButton = UIButton(frame: CGRect(x: 0, y: 0, width: buttonFrameWidth, height: yOriginOfButtonFrame))
         getDirectionButton.isAccessibilityElement = true
         getDirectionButton.accessibilityLabel = "Get Directions"
-        getDirectionButton.addTarget(self, action: #selector(announceDirections), for: .touchUpInside)
+        getDirectionButton.addTarget(self, action: #selector(aannounceDirectionHelpPressed), for: .touchUpInside)
         
         // textlabel that displys directions
         directionText = UILabel(frame: CGRect(x: 0, y: (yOriginOfButtonFrame + textLabelBuffer), width: buttonFrameWidth, height: buttonFrameHeight*(1/6)))
@@ -185,11 +184,6 @@ class ViewController: UIViewController {
      * display RECORD PATH button/hide all other views
      */
     @objc func showRecordPathButton() {
-        // turn off annoucementTimer
-        if (announcementTimerOn) {
-            announcementTimer.invalidate()
-        }
-        
         recordPathView.isHidden = false
         stopRecordingView.isHidden = true
         startNavigationView.isHidden = true
@@ -203,7 +197,7 @@ class ViewController: UIViewController {
     /*
      * display STOP RECORDIN button/hide all other views
      */
-    func showStopRecordingButton() {
+    @objc func showStopRecordingButton() {
         recordPathView.isHidden = true
         stopRecordingView.isHidden = false
         startNavigationView.isHidden = true
@@ -217,7 +211,7 @@ class ViewController: UIViewController {
     /*
      * display START NAVIGATION button/hide all other views
      */
-    func showStartNavigationButton() {
+    @objc func showStartNavigationButton() {
         recordPathView.isHidden = true
         stopRecordingView.isHidden = true
         startNavigationView.isHidden = false
@@ -231,7 +225,7 @@ class ViewController: UIViewController {
     /*
      * display STOP NAVIGATION button/hide all other views
      */
-    func showStopNavigationButton() {
+    @objc func showStopNavigationButton() {
         recordPathView.isHidden = true
         stopRecordingView.isHidden = true
         startNavigationView.isHidden = true
@@ -270,7 +264,6 @@ class ViewController: UIViewController {
     var droppingCrumbs: Timer!
     var followingCrumbs: Timer!
     var announcementTimer: Timer!
-    var announcementTimerOn = false
     
     var nav = Navigation()                  // Navigation calculation class
     var navigationMode: Bool = false        // navigation flag 
@@ -278,44 +271,33 @@ class ViewController: UIViewController {
     @IBOutlet weak var sceneView: ARSCNView!
     
     @objc func recordPath() {
-        showStopRecordingButton()
+        announcementTimer = Timer.scheduledTimer(timeInterval: 0.5, target: self, selector: (#selector(showStopRecordingButton)), userInfo: nil, repeats: false)
         droppingCrumbs = Timer.scheduledTimer(timeInterval: 0.5, target: self, selector: #selector(dropCrum), userInfo: nil, repeats: true)
     }
     
     @objc func stopRecording(_ sender: UIButton) {
         droppingCrumbs.invalidate()
-        showStartNavigationButton()
+        announcementTimer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: (#selector(showStartNavigationButton)), userInfo: nil, repeats: false)
     }
     
     @objc func startNavigation(_ sender: UIButton) {
-        showStopNavigationButton()
         let path = PathFinder(crums: crumbs.reversed())
         keypoints = path.keypoints
         
-        renderCube(keypoints[0].location)
-        
+        renderKeypoint(keypoints[0].location)
+        announcementTimer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: (#selector(showStopNavigationButton)), userInfo: nil, repeats: false)
         followingCrumbs = Timer.scheduledTimer(timeInterval: 0.2, target: self, selector: (#selector(followCrum)), userInfo: nil, repeats: true)
     }
     
     @objc func stopNavigation(_ sender: UIButton) {
         followingCrumbs.invalidate()
         crumbs = []
-        showRecordPathButton()
+        announcementTimer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: (#selector(showRecordPathButton)), userInfo: nil, repeats: false)
     }
     
     @objc func dropCrum() {
         let curLocation = getRealCoordinates(sceneView: sceneView)
         crumbs.append(curLocation)
-    }
-    
-    @objc func announceDirections() {
-        if (navigationMode) {
-            let curLocation = getRealCoordinates(sceneView: sceneView)
-            let directionToNextKeypoint = getDirectionToNextKeypoint(currentLocation: curLocation)
-            
-            let dir = Directions[directionToNextKeypoint.clockDirection]! + "for \(directionToNextKeypoint.distance)"
-            updateDirectionText(dir, size: 16, distance: true)
-        }
     }
     
     @objc func followCrum() {
@@ -326,8 +308,8 @@ class ViewController: UIViewController {
             if (keypoints.count > 1) {
                 keypointNode.removeFromParentNode()
                 keypoints.remove(at: 0)
-                renderCube(keypoints[0].location)
-                speakDirection(currentLocation: curLocation)
+                renderKeypoint(keypoints[0].location)
+                setDirectionText(currentLocation: curLocation, direction: directionToNextKeypoint)
             } else {
                 keypointNode.removeFromParentNode()
                 announceArrival()
@@ -341,10 +323,27 @@ class ViewController: UIViewController {
         return nav.getDirections(currentLocation: currentLocation, nextKeypoint: keypoints[0])
     }
     
-    func speakDirection(currentLocation: LocationInfo) {
+    @objc func aannounceDirectionHelpPressed() {
+        announcementTimer = Timer.scheduledTimer(timeInterval: 0.5, target: self, selector: (#selector(announceDirectionHelp)), userInfo: nil, repeats: false)
+    }
+    
+    /*
+     * Announce directions at any given point to the next keypoint
+     */
+    @objc func announceDirectionHelp() {
+        if (navigationMode) {
+            let curLocation = getRealCoordinates(sceneView: sceneView)
+            let directionToNextKeypoint = getDirectionToNextKeypoint(currentLocation: curLocation)
+            setDirectionText(currentLocation: curLocation, direction: directionToNextKeypoint)
+        }
+    }
+    
+    /*
+     * Set direction text for text label and VoiceOver
+     */
+    func setDirectionText(currentLocation: LocationInfo, direction: DirectionInfo) {
         let xzNorm = sqrtf(powf(currentLocation.x - keypoints[0].location.x, 2) + powf(currentLocation.z - keypoints[0].location.z, 2))
         let slope = (keypoints[0].location.y - currentLocation.y) / xzNorm
-        let direction = getDirectionToNextKeypoint(currentLocation: currentLocation)
         var dir = ""
         
         if(slope > 0.3) { // Go upstairs
@@ -365,12 +364,12 @@ class ViewController: UIViewController {
         announcementTimer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: (#selector(showRecordPathButton)), userInfo: nil, repeats: false)
     }
     
-    func renderCube(_ location: LocationInfo) {
+    func renderKeypoint(_ location: LocationInfo) {
         keypointNode = SCNNode(geometry: SCNBox(width: 0.3, height: 0.3, length: 0.05, chamferRadius: 0.05))
         keypointNode.opacity = 0.5
         
         keypointNode.position = SCNVector3(location.x, location.y, location.z)
-        keypointNode.rotation = SCNVector4(0, 1, 0, location.a)
+        keypointNode.rotation = SCNVector4(0, 1, 0, location.yaw)
         
         sceneView.scene.rootNode.addChildNode(keypointNode)
     }
@@ -382,14 +381,14 @@ class ViewController: UIViewController {
         return LocationInfo(x: coordinates.translation.x,
                             y: coordinates.translation.y,
                             z: coordinates.translation.z,
-                            a: coordinates.rotation.y)
+                            yaw: coordinates.rotation.y)
     }
     
     func getRealCoordinates(sceneView: ARSCNView) -> LocationInfo{
         return LocationInfo(x: SCNMatrix4((sceneView.session.currentFrame?.camera.transform)!).m41,
                             y: SCNMatrix4((sceneView.session.currentFrame?.camera.transform)!).m42,
                             z: SCNMatrix4((sceneView.session.currentFrame?.camera.transform)!).m43,
-                            a: (sceneView.session.currentFrame?.camera.eulerAngles.y)!)
+                            yaw: (sceneView.session.currentFrame?.camera.eulerAngles.y)!)
     }
     
 }
