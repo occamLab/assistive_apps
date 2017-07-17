@@ -19,7 +19,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		4DFEF1431F14008400CE0721 /* ARKitTest.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ARKitTest.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4DFEF1431F14008400CE0721 /* BreadCrumbs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BreadCrumbs.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4DFEF1461F14008400CE0721 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		4DFEF1481F14008400CE0721 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
 		4DFEF14B1F14008400CE0721 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
@@ -47,7 +47,7 @@
 		4DFEF13A1F14008400CE0721 = {
 			isa = PBXGroup;
 			children = (
-				4DFEF1451F14008400CE0721 /* ARKitTest */,
+				4DFEF1451F14008400CE0721 /* BreadCrumbs */,
 				4DFEF1441F14008400CE0721 /* Products */,
 				4DFEF1581F1417DF00CE0721 /* Frameworks */,
 			);
@@ -56,12 +56,12 @@
 		4DFEF1441F14008400CE0721 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				4DFEF1431F14008400CE0721 /* ARKitTest.app */,
+				4DFEF1431F14008400CE0721 /* BreadCrumbs.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		4DFEF1451F14008400CE0721 /* ARKitTest */ = {
+		4DFEF1451F14008400CE0721 /* BreadCrumbs */ = {
 			isa = PBXGroup;
 			children = (
 				4DFEF1461F14008400CE0721 /* AppDelegate.swift */,
@@ -74,7 +74,7 @@
 				4DFEF14F1F14008400CE0721 /* LaunchScreen.storyboard */,
 				4DFEF1521F14008400CE0721 /* Info.plist */,
 			);
-			path = ARKitTest;
+			path = BreadCrumbs;
 			sourceTree = "<group>";
 		};
 		4DFEF1581F1417DF00CE0721 /* Frameworks */ = {
@@ -88,9 +88,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		4DFEF1421F14008400CE0721 /* ARKitTest */ = {
+		4DFEF1421F14008400CE0721 /* BreadCrumbs */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 4DFEF1551F14008400CE0721 /* Build configuration list for PBXNativeTarget "ARKitTest" */;
+			buildConfigurationList = 4DFEF1551F14008400CE0721 /* Build configuration list for PBXNativeTarget "BreadCrumbs" */;
 			buildPhases = (
 				4DFEF13F1F14008400CE0721 /* Sources */,
 				4DFEF1401F14008400CE0721 /* Frameworks */,
@@ -100,9 +100,9 @@
 			);
 			dependencies = (
 			);
-			name = ARKitTest;
+			name = BreadCrumbs;
 			productName = ARKitTest;
-			productReference = 4DFEF1431F14008400CE0721 /* ARKitTest.app */;
+			productReference = 4DFEF1431F14008400CE0721 /* BreadCrumbs.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -120,7 +120,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 4DFEF13E1F14008400CE0721 /* Build configuration list for PBXProject "ARKitTest" */;
+			buildConfigurationList = 4DFEF13E1F14008400CE0721 /* Build configuration list for PBXProject "BreadCrumbs" */;
 			compatibilityVersion = "Xcode 8.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -133,7 +133,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				4DFEF1421F14008400CE0721 /* ARKitTest */,
+				4DFEF1421F14008400CE0721 /* BreadCrumbs */,
 			);
 		};
 /* End PBXProject section */
@@ -294,7 +294,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				DEVELOPMENT_TEAM = DD2BU5ZDSZ;
-				INFOPLIST_FILE = ARKitTest/Info.plist;
+				INFOPLIST_FILE = BreadCrumbs/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = edu.stanford.csyoon95.ARKitTest;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -308,7 +308,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				DEVELOPMENT_TEAM = DD2BU5ZDSZ;
-				INFOPLIST_FILE = ARKitTest/Info.plist;
+				INFOPLIST_FILE = Breadcrumbs/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = edu.stanford.csyoon95.ARKitTest;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -320,7 +320,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		4DFEF13E1F14008400CE0721 /* Build configuration list for PBXProject "ARKitTest" */ = {
+		4DFEF13E1F14008400CE0721 /* Build configuration list for PBXProject "BreadCrumbs" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				4DFEF1531F14008400CE0721 /* Debug */,
@@ -329,13 +329,14 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		4DFEF1551F14008400CE0721 /* Build configuration list for PBXNativeTarget "ARKitTest" */ = {
+		4DFEF1551F14008400CE0721 /* Build configuration list for PBXNativeTarget "BreadCrumbs" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				4DFEF1561F14008400CE0721 /* Debug */,
 				4DFEF1571F14008400CE0721 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
