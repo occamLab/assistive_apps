@@ -9,6 +9,20 @@
 
 import Foundation
 
+public struct CurrentCoordinateInfo {
+    public var location: LocationInfo
+    public var transformMatrix: Matrix3 = Matrix3.identity
+    
+    public init(_ location: LocationInfo, transMatrix: Matrix3) {
+        self.location = location
+        self.transformMatrix = transMatrix
+    }
+    
+    public init(_ location: LocationInfo) {
+        self.location = location
+    }
+}
+
 public struct LocationInfo {
     public var x: Float
     public var y: Float

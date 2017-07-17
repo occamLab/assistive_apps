@@ -296,20 +296,21 @@ class ViewController: UIViewController {
     }
     
     @objc func dropCrum() {
-        let curLocation = getRealCoordinates(sceneView: sceneView)
+        let curLocation = getRealCoordinates(sceneView: sceneView).location
         crumbs.append(curLocation)
     }
     
     @objc func followCrum() {
         let curLocation = getRealCoordinates(sceneView: sceneView)
-        let directionToNextKeypoint = getDirectionToNextKeypoint(currentLocation: curLocation)
+        var directionToNextKeypoint = getDirectionToNextKeypoint(currentLocation: curLocation)
         
         if(directionToNextKeypoint.targetState == PositionState.atTarget) {
             if (keypoints.count > 1) {
                 keypointNode.removeFromParentNode()
                 keypoints.remove(at: 0)
                 renderKeypoint(keypoints[0].location)
-                setDirectionText(currentLocation: curLocation, direction: directionToNextKeypoint)
+                directionToNextKeypoint = getDirectionToNextKeypoint(currentLocation: curLocation)
+                setDirectionText(currentLocation: curLocation.location, direction: directionToNextKeypoint)
             } else {
                 keypointNode.removeFromParentNode()
                 announceArrival()
@@ -319,7 +320,7 @@ class ViewController: UIViewController {
         
     }
     
-    func getDirectionToNextKeypoint(currentLocation: LocationInfo) -> DirectionInfo {
+    func getDirectionToNextKeypoint(currentLocation: CurrentCoordinateInfo) -> DirectionInfo {
         return nav.getDirections(currentLocation: currentLocation, nextKeypoint: keypoints[0])
     }
     
@@ -334,7 +335,7 @@ class ViewController: UIViewController {
         if (navigationMode) {
             let curLocation = getRealCoordinates(sceneView: sceneView)
             let directionToNextKeypoint = getDirectionToNextKeypoint(currentLocation: curLocation)
-            setDirectionText(currentLocation: curLocation, direction: directionToNextKeypoint)
+            setDirectionText(currentLocation: curLocation.location, direction: directionToNextKeypoint)
         }
     }
     
@@ -353,8 +354,8 @@ class ViewController: UIViewController {
             dir = "\(Directions[direction.clockDirection]!) and proceed downstairs"
             updateDirectionText(dir, size: 14, distance: false)
         } else { // nromal directions
-            dir = Directions[direction.clockDirection]!
-            updateDirectionText(dir, size: 16, distance:  false)
+            dir = "\(Directions[direction.clockDirection]!) for \(direction.distance)"
+            updateDirectionText(dir, size: 16, distance:  true)
         }
     }
     
@@ -384,11 +385,18 @@ class ViewController: UIViewController {
                             yaw: coordinates.rotation.y)
     }
     
-    func getRealCoordinates(sceneView: ARSCNView) -> LocationInfo{
-        return LocationInfo(x: SCNMatrix4((sceneView.session.currentFrame?.camera.transform)!).m41,
-                            y: SCNMatrix4((sceneView.session.currentFrame?.camera.transform)!).m42,
-                            z: SCNMatrix4((sceneView.session.currentFrame?.camera.transform)!).m43,
-                            yaw: (sceneView.session.currentFrame?.camera.eulerAngles.y)!)
+    func getRealCoordinates(sceneView: ARSCNView) -> CurrentCoordinateInfo {
+        let x = SCNMatrix4((sceneView.session.currentFrame?.camera.transform)!).m41
+        let y = SCNMatrix4((sceneView.session.currentFrame?.camera.transform)!).m42
+        let z = SCNMatrix4((sceneView.session.currentFrame?.camera.transform)!).m43
+        
+        let yaw = sceneView.session.currentFrame?.camera.eulerAngles.y
+        let scn = SCNMatrix4((sceneView.session.currentFrame?.camera.transform)!)
+        let transMatrix = Matrix3([scn.m11, scn.m12, scn.m13,
+                                   scn.m21, scn.m22, scn.m23,
+                                   scn.m31, scn.m32, scn.m33])    
+        
+        return CurrentCoordinateInfo(LocationInfo(x: x, y: y, z: z, yaw: yaw!), transMatrix: transMatrix)
     }
     
 }

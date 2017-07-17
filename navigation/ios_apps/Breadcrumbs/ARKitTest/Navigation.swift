@@ -46,17 +46,37 @@ public var targetDepth: Scalar = 0.5
 public var targetHeight: Scalar = 3
 
 class Navigation {
-    public func getDirections(currentLocation: LocationInfo, nextKeypoint: KeypointInfo) -> DirectionInfo {
-        let dist = sqrtf(powf((currentLocation.x - nextKeypoint.location.x), 2) +
-                         powf((currentLocation.z - nextKeypoint.location.z), 2))
-        let angle = atan2f((currentLocation.x - nextKeypoint.location.x), (currentLocation.z-nextKeypoint.location.z))
+    public func getDirections(currentLocation: CurrentCoordinateInfo, nextKeypoint: KeypointInfo) -> DirectionInfo {
+        let zVector = Vector3.z * currentLocation.transformMatrix
+        let yVector = Vector3.x * currentLocation.transformMatrix
+        var trueVector: Vector3!
         
-        let angleDiff = getAngleDiff(angle1: currentLocation.yaw, angle2: angle)
+        if (abs(zVector.y) < abs(yVector.y)) {
+            trueVector = zVector * Matrix3([1, 0, 0, 0, 0, 0, 0, 0, 1])
+            print("Phone is upright.")
+        } else {
+            trueVector = yVector * Matrix3([1, 0, 0, 0, 0, 0, 0, 0, 1])
+            print("Phone is flat.")
+        }
+        let trueYaw = atan2f(trueVector.x, trueVector.z)
+        
+        let dist = sqrtf(powf((currentLocation.location.x - nextKeypoint.location.x), 2) +
+            powf((currentLocation.location.z - nextKeypoint.location.z), 2))
+        let angle = atan2f((currentLocation.location.x - nextKeypoint.location.x), (currentLocation.location.z-nextKeypoint.location.z))
+        
+        let angleDiff = getAngleDiff(angle1: trueYaw, angle2: angle)
+        
         let clockDir = getClockDirections(angle: angleDiff)
         
-        let xDiff = Vector3([currentLocation.x - nextKeypoint.location.x, currentLocation.y - nextKeypoint.location.y, currentLocation.z - nextKeypoint.location.z]).dot(nextKeypoint.orientation)
-        let yDiff = Vector3([currentLocation.x - nextKeypoint.location.x, currentLocation.y - nextKeypoint.location.y, currentLocation.z - nextKeypoint.location.z]).dot(Vector3.y)
-        let zDiff = Vector3([currentLocation.x - nextKeypoint.location.x, currentLocation.y - nextKeypoint.location.y, currentLocation.z - nextKeypoint.location.z]).dot(nextKeypoint.orientation.cross(Vector3.y))
+        let xDiff = Vector3([currentLocation.location.x - nextKeypoint.location.x,
+                             currentLocation.location.y - nextKeypoint.location.y,
+                             currentLocation.location.z - nextKeypoint.location.z]).dot(nextKeypoint.orientation)
+        let yDiff = Vector3([currentLocation.location.x - nextKeypoint.location.x,
+                             currentLocation.location.y - nextKeypoint.location.y,
+                             currentLocation.location.z - nextKeypoint.location.z]).dot(Vector3.y)
+        let zDiff = Vector3([currentLocation.location.x - nextKeypoint.location.x,
+                             currentLocation.location.y - nextKeypoint.location.y,
+                             currentLocation.location.z - nextKeypoint.location.z]).dot(nextKeypoint.orientation.cross(Vector3.y))
         
         var direction = DirectionInfo(distance: roundToTenths(n: dist), clockDirection: clockDir)
         
