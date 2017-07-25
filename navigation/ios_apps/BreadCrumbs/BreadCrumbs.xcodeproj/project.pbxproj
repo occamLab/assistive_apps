@@ -17,6 +17,7 @@
 		4D7602921F22588F00D66DEA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4D7602911F22588F00D66DEA /* Assets.xcassets */; };
 		4D7602951F22588F00D66DEA /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 4D7602931F22588F00D66DEA /* LaunchScreen.storyboard */; };
 		4DFDAC4D1F227A7B005DE86D /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 4DFDAC4C1F227A7B005DE86D /* Settings.bundle */; };
+		FC63AD9085F2A879B66AD685 /* Pods_BreadCrumbs.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FDD2A6F32327ADA8357228D0 /* Pods_BreadCrumbs.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +33,9 @@
 		4D7602941F22588F00D66DEA /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		4D7602961F22588F00D66DEA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		4DFDAC4C1F227A7B005DE86D /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
+		66FAF4DB9238515D6BA2037E /* Pods-BreadCrumbs.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-BreadCrumbs.release.xcconfig"; path = "Pods/Target Support Files/Pods-BreadCrumbs/Pods-BreadCrumbs.release.xcconfig"; sourceTree = "<group>"; };
+		D664FAA05A84027D13503FE3 /* Pods-BreadCrumbs.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-BreadCrumbs.debug.xcconfig"; path = "Pods/Target Support Files/Pods-BreadCrumbs/Pods-BreadCrumbs.debug.xcconfig"; sourceTree = "<group>"; };
+		FDD2A6F32327ADA8357228D0 /* Pods_BreadCrumbs.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_BreadCrumbs.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -39,17 +43,29 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FC63AD9085F2A879B66AD685 /* Pods_BreadCrumbs.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0E4A9B8023FF11A794DD4FF2 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				D664FAA05A84027D13503FE3 /* Pods-BreadCrumbs.debug.xcconfig */,
+				66FAF4DB9238515D6BA2037E /* Pods-BreadCrumbs.release.xcconfig */,
+			);
+			name = Pods;
+			sourceTree = "<group>";
+		};
 		4D76027E1F22588F00D66DEA = {
 			isa = PBXGroup;
 			children = (
 				4D7602891F22588F00D66DEA /* BreadCrumbs */,
 				4D7602881F22588F00D66DEA /* Products */,
+				0E4A9B8023FF11A794DD4FF2 /* Pods */,
+				BF94DDB18B96FA54E6D0CB0A /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -79,6 +95,14 @@
 			path = BreadCrumbs;
 			sourceTree = "<group>";
 		};
+		BF94DDB18B96FA54E6D0CB0A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				FDD2A6F32327ADA8357228D0 /* Pods_BreadCrumbs.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -86,9 +110,12 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 4D7602991F22588F00D66DEA /* Build configuration list for PBXNativeTarget "BreadCrumbs" */;
 			buildPhases = (
+				EF96BBDFE12709D6013F78CD /* [CP] Check Pods Manifest.lock */,
 				4D7602831F22588F00D66DEA /* Sources */,
 				4D7602841F22588F00D66DEA /* Frameworks */,
 				4D7602851F22588F00D66DEA /* Resources */,
+				7CFB88F02FCDD6EE609438CA /* [CP] Embed Pods Frameworks */,
+				B987B51B884F96A1C7689B5A /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -146,6 +173,54 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		7CFB88F02FCDD6EE609438CA /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/Pods/Target Support Files/Pods-BreadCrumbs/Pods-BreadCrumbs-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		B987B51B884F96A1C7689B5A /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "[CP] Copy Pods Resources";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/Pods/Target Support Files/Pods-BreadCrumbs/Pods-BreadCrumbs-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		EF96BBDFE12709D6013F78CD /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		4D7602831F22588F00D66DEA /* Sources */ = {
@@ -287,6 +362,7 @@
 		};
 		4D76029A1F22588F00D66DEA /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = D664FAA05A84027D13503FE3 /* Pods-BreadCrumbs.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				DEVELOPMENT_TEAM = DD2BU5ZDSZ;
@@ -301,6 +377,7 @@
 		};
 		4D76029B1F22588F00D66DEA /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 66FAF4DB9238515D6BA2037E /* Pods-BreadCrumbs.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				DEVELOPMENT_TEAM = DD2BU5ZDSZ;

@@ -6,7 +6,6 @@
 //
 //  Navigation class that provides direction information given 2 LocationInfo position
 //
-
 import Foundation
 
 public enum PositionState {
@@ -16,9 +15,9 @@ public enum PositionState {
 }
 
 public struct DirectionInfo {
+    //  Struct for storing relative position of keypoint to user
     public var distance: Float
     public var clockDirection: Int
-    
     public var targetState = PositionState.notAtTarget
     
     public init(distance: Float, clockDirection: Int) {
@@ -40,17 +39,28 @@ public let Directions = [12: "Continue straight",
                          10: "Slight left towards 10 o'clock",
                          11: "Slight left towards 11 o'clock"]
 
-/* Keypoint target dimensions */
+//  Keypoint target dimensions
+//  Further instructions will be given to the user once they pass inside
+//  this bounding box
 public var targetWidth: Scalar = 2
 public var targetDepth: Scalar = 0.5
 public var targetHeight: Scalar = 3
 
 class Navigation {
     public func getDirections(currentLocation: CurrentCoordinateInfo, nextKeypoint: KeypointInfo) -> DirectionInfo {
+        //  Given the iPhone's current position in odometry and the position of
+        //  the next keypoint, returns a DirectionsInfo object about their
+        //  relative position.
+        //  Transform a unit vector to be pointing upward from the top of the
+        //  phone and outward from the front of the phone.
         let zVector = Vector3.z * currentLocation.transformMatrix
         let yVector = Vector3.x * currentLocation.transformMatrix
         var trueVector: Vector3!
         
+        //  The vector with the lesser vertical component is more flat, so has
+        //  a more accurate direction. If the phone is more flat than 45 degrees
+        //  the upward vector is used for phone direction; if it is more upright
+        //  the outward vector is used.
         if (abs(zVector.y) < abs(yVector.y)) {
             trueVector = zVector * Matrix3([1, 0, 0, 0, 0, 0, 0, 0, 1])
             print("Phone is upright.")
@@ -60,6 +70,7 @@ class Navigation {
         }
         let trueYaw = atan2f(trueVector.x, trueVector.z)
         
+        //  Distance to next keypoint in meters
         let dist = sqrtf(powf((currentLocation.location.x - nextKeypoint.location.x), 2) +
             powf((currentLocation.location.z - nextKeypoint.location.z), 2))
         
@@ -69,6 +80,8 @@ class Navigation {
         
         let clockDir = getClockDirections(angle: angleDiff)
         
+        //  Determine the difference in position between the phone and the next
+        //  keypoint in the frame of the keypoint.
         let xDiff = Vector3([currentLocation.location.x - nextKeypoint.location.x,
                              currentLocation.location.y - nextKeypoint.location.y,
                              currentLocation.location.z - nextKeypoint.location.z]).dot(nextKeypoint.orientation)
@@ -81,6 +94,7 @@ class Navigation {
         
         var direction = DirectionInfo(distance: dist, clockDirection: clockDir)
         
+        //  Determine whether the phone is inside the bounding box of the keypoint
         if (xDiff <= targetDepth && yDiff <= targetHeight && zDiff <= targetWidth) {
             direction.targetState = .atTarget
         } else {
@@ -91,6 +105,8 @@ class Navigation {
     }
     
     private func getClockDirections(angle: Float) -> Int {
+        //  Determine clock direction, from 1-12, based on angle in radians,
+        //  where 0 radians is 12 o'clock.
         let a = (angle * (6/Float.pi)) + 12.5
         
         let clockDir = Int(a) % 12
@@ -98,6 +114,7 @@ class Navigation {
     }
     
     private func getAngleDiff(angle1: Float, angle2: Float) -> Float {
+        //  Function to determine the difference between two angles
         let a = angleNormalize(angle: angle1)
         let b = angleNormalize(angle: angle2)
         
@@ -117,5 +134,3 @@ class Navigation {
         return roundf(10 * n)/10
     }
 }
-
-

@@ -43,6 +43,14 @@ class ViewController: UIViewController {
         return UIScreen.main.bounds.size.height * (1/5)
     }
     
+    var displayWidth: CGFloat {
+        return UIScreen.main.bounds.size.width
+    }
+    
+    var displayHeight: CGFloat {
+        return UIScreen.main.bounds.size.height
+    }
+    
     // top margin of direction text label
     var textLabelBuffer: CGFloat {
         return buttonFrameHeight * (1/12)
@@ -60,6 +68,7 @@ class ViewController: UIViewController {
     var startNavigationView: UIView!
     var stopNavigationView: UIView!
     var directionText: UILabel!
+    var routeRatingView: UIView!
     
     // State of button views
     enum ButtonViewType {
@@ -161,13 +170,53 @@ class ViewController: UIViewController {
         stopNavigationView.isHidden = true
         addButtons(buttonView: stopNavigationView, buttonViewType: .stopNavigation)
         
+        routeRatingView = UIView(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.size.width, height: UIScreen.main.bounds.size.height))
+        routeRatingView.backgroundColor = UIColor.black.withAlphaComponent(0.4)
+        drawRouteRatingView()
+        
         self.view.addSubview(recordPathView)
         self.view.addSubview(stopRecordingView)
         self.view.addSubview(startNavigationView)
         self.view.addSubview(stopNavigationView)
         self.view.addSubview(directionText)
         self.view.addSubview(getDirectionButton)
+        self.view.addSubview(routeRatingView)
         showRecordPathButton()
+    }
+    
+    func drawRouteRatingView() {
+        let label = UILabel(frame: CGRect(x: 0, y: displayHeight/2.5, width: displayWidth, height: displayHeight/6))
+        label.text = "Please rate your navigation service."
+        label.textColor = UIColor.white
+        label.textAlignment = .center
+        
+        let buttonWidth = routeRatingView.bounds.size.width / 4.5
+        
+        let thumbsUpButton = UIButton(type: .custom)
+        thumbsUpButton.frame = CGRect(x: 0, y: 0, width: buttonWidth , height: buttonWidth)
+        thumbsUpButton.layer.cornerRadius = 0.5 * thumbsUpButton.bounds.size.width
+        thumbsUpButton.clipsToBounds = true
+        thumbsUpButton.setTitle("Good", for: .normal)
+        thumbsUpButton.layer.borderWidth = 2
+        thumbsUpButton.layer.borderColor = UIColor.white.cgColor
+        thumbsUpButton.center.x = routeRatingView.center.x + displayWidth/4
+        thumbsUpButton.center.y = routeRatingView.bounds.size.height * (2/3)
+       thumbsUpButton.addTarget(self, action: #selector(sendLogData), for: .touchUpInside)
+        
+        let thumbsDownButton = UIButton(type: .custom)
+        thumbsDownButton.frame = CGRect(x: 0, y: 0, width: buttonWidth , height: buttonWidth)
+        thumbsDownButton.layer.cornerRadius = 0.5 * thumbsUpButton.bounds.size.width
+        thumbsDownButton.clipsToBounds = true
+        thumbsDownButton.setTitle("Bad", for: .normal)
+        thumbsDownButton.layer.borderWidth = 2
+        thumbsDownButton.layer.borderColor = UIColor.white.cgColor
+        thumbsDownButton.center.x = routeRatingView.center.x - displayWidth/4
+        thumbsDownButton.center.y = routeRatingView.bounds.size.height * (2/3)
+        thumbsDownButton.addTarget(self, action: #selector(sendDebugLogData), for: .touchUpInside)
+        
+        routeRatingView.addSubview(thumbsDownButton)
+        routeRatingView.addSubview(thumbsUpButton)
+        routeRatingView.addSubview(label)
     }
     
     /*
@@ -218,6 +267,8 @@ class ViewController: UIViewController {
         recordPathView.isHidden = false
         stopNavigationView.isHidden = true
         getDirectionButton.isHidden = true
+        directionText.isHidden = false
+        routeRatingView.isHidden = true
         navigationMode = false
         currentButton = .recordPath
         updateDirectionText("Press to record path", distance: 0, size: 16, displayDistance: false)
@@ -252,7 +303,14 @@ class ViewController: UIViewController {
         startNavigationView.isHidden = true
         stopNavigationView.isHidden = false
         getDirectionButton.isHidden = false
-        navigationMode = true
+        currentButton = .stopNavigation
+    }
+    
+    @objc func showRouteRating() {
+        stopNavigationView.isHidden = true
+        getDirectionButton.isHidden = true
+        directionText.isHidden = true
+        routeRatingView.isHidden = false
         currentButton = .stopNavigation
     }
     
@@ -281,15 +339,26 @@ class ViewController: UIViewController {
             directionText.text = discription
             altText = discription
         }
+        if(navigationMode) {
+            speechData.append([altText, -dataTimer.timeIntervalSinceNow])
+            getRealCoordinates(sceneView: sceneView)
+        }
         UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification, altText)
     }
     
     /*                  BreadCrumbs main logic                 */
     /*---------------------------------------------------------*/
     
-    var crumbs = [LocationInfo]()       // List of crumbs dropped when recording path
-    var keypoints = [KeypointInfo]()    // List of keypoints calculated after path completion
+    var crumbs: [LocationInfo]!         // List of crumbs dropped when recording path
+    var keypoints: [KeypointInfo]!      // List of keypoints calculated after path completion
     var keypointNode: SCNNode!          // SCNNode of the next keypoint
+    
+    var dataTimer: Date!
+    var pathData: [Array<Any>]!
+    var pathDataTime: [Double]!
+    var navigationData: [Array<Any>]!
+    var navigationDataTime: [Double]!
+    var speechData: [Array<Any>]!
     
     /* Timers for background functions */
     var droppingCrumbs: Timer!
@@ -307,6 +376,10 @@ class ViewController: UIViewController {
     @IBOutlet weak var sceneView: ARSCNView!
     
     @objc func recordPath() {
+        crumbs = []
+        pathData = []
+        pathDataTime = []
+        dataTimer = Date()
         announcementTimer = Timer.scheduledTimer(timeInterval: 0.5, target: self, selector: (#selector(showStopRecordingButton)), userInfo: nil, repeats: false)
         droppingCrumbs = Timer.scheduledTimer(timeInterval: 0.5, target: self, selector: #selector(dropCrum), userInfo: nil, repeats: true)
     }
@@ -317,18 +390,52 @@ class ViewController: UIViewController {
     }
     
     @objc func startNavigation(_ sender: UIButton) {
+        navigationData = []
+        navigationDataTime = []
+        speechData = []
+        dataTimer = Date()
+        
         let path = PathFinder(crums: crumbs.reversed())
         keypoints = path.keypoints
         
         renderKeypoint(keypoints[0].location)
+        navigationMode = true
         announcementTimer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: (#selector(showStopNavigationButton)), userInfo: nil, repeats: false)
         followingCrumbs = Timer.scheduledTimer(timeInterval: 0.2, target: self, selector: (#selector(followCrum)), userInfo: nil, repeats: true)
     }
     
     @objc func stopNavigation(_ sender: UIButton) {
         followingCrumbs.invalidate()
-        crumbs = []
         announcementTimer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: (#selector(showRecordPathButton)), userInfo: nil, repeats: false)
+        showRouteRating()
+    }
+    
+    @objc func sendLogData() {
+        compileLogData(false)
+        showRecordPathButton()
+    }
+    
+    @objc func sendDebugLogData() {
+        compileLogData(true)
+        showRecordPathButton()
+    }
+    
+    func compileLogData(_ debug: Bool) {
+        print("compling log..")
+        let log: [String : Any] = ["pathData": pathData,
+                                   "pathDataTime": pathDataTime,
+                                   "navigationData": navigationData,
+                                   "navigationDataTime": navigationDataTime,
+                                   "speechData": speechData]
+        
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: log, options: .prettyPrinted)
+            // here "jsonData" is the dictionary encoded in JSON data
+            let string1 = String(data: jsonData, encoding: String.Encoding.utf8) ?? "Data could not be printed"
+            print(string1)
+        } catch {
+            print(error.localizedDescription)
+        }
     }
     
     @objc func dropCrum() {
@@ -405,9 +512,8 @@ class ViewController: UIViewController {
     }
     
     func announceArrival() {
-        crumbs = []
         updateDirectionText("You have arrived!", distance: 0, size: 16, displayDistance: false)
-        announcementTimer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: (#selector(showRecordPathButton)), userInfo: nil, repeats: false)
+        announcementTimer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: (#selector(showRouteRating)), userInfo: nil, repeats: false)
     }
     
     func renderKeypoint(_ location: LocationInfo) {
@@ -530,8 +636,20 @@ class ViewController: UIViewController {
                                    scn.m21, scn.m22, scn.m23,
                                    scn.m31, scn.m32, scn.m33])
         
+        if (navigationMode) {
+            navigationData.append([[scn.m11, scn.m12, scn.m13, scn.m14],
+                             [scn.m21, scn.m22, scn.m23, scn.m24],
+                             [scn.m31, scn.m32, scn.m33, scn.m34],
+                             [scn.m41, scn.m42, scn.m43, scn.m44]])
+            navigationDataTime.append(-dataTimer.timeIntervalSinceNow)
+        } else {
+            pathData.append([[scn.m11, scn.m12, scn.m13, scn.m14],
+                             [scn.m21, scn.m22, scn.m23, scn.m24],
+                             [scn.m31, scn.m32, scn.m33, scn.m34],
+                             [scn.m41, scn.m42, scn.m43, scn.m44]])
+            pathDataTime.append(-dataTimer.timeIntervalSinceNow)
+        }
+        
         return CurrentCoordinateInfo(LocationInfo(x: x, y: y, z: z, yaw: yaw!), transMatrix: transMatrix)
     }
-    
 }
-
