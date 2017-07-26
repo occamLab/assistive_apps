@@ -11,7 +11,7 @@ import Foundation
 public enum PositionState {
     case notAtTarget
     case atTarget
-    case pastTarget
+    case closeToTarget
 }
 
 public struct DirectionInfo {
@@ -47,6 +47,19 @@ public var targetDepth: Scalar = 0.5
 public var targetHeight: Scalar = 3
 
 class Navigation {
+    public func getTurnWarningDirections(_ currentLocation: CurrentCoordinateInfo,
+                                         curKeypoint: KeypointInfo,
+                                         nextKeypoint: KeypointInfo) -> DirectionInfo {
+        
+        let curKeypointDisplacementX = curKeypoint.location.x - currentLocation.location.x
+        let curKeypointDisplacementZ = curKeypoint.location.z - currentLocation.location.z
+        var adjustedNextKeypoint = nextKeypoint
+        adjustedNextKeypoint.location.x = nextKeypoint.location.x - curKeypointDisplacementX
+        adjustedNextKeypoint.location.z = nextKeypoint.location.z - curKeypointDisplacementZ
+        
+        return getDirections(currentLocation: currentLocation, nextKeypoint: adjustedNextKeypoint)
+    }
+    
     public func getDirections(currentLocation: CurrentCoordinateInfo, nextKeypoint: KeypointInfo) -> DirectionInfo {
         //  Given the iPhone's current position in odometry and the position of
         //  the next keypoint, returns a DirectionsInfo object about their
@@ -63,10 +76,8 @@ class Navigation {
         //  the outward vector is used.
         if (abs(zVector.y) < abs(yVector.y)) {
             trueVector = zVector * Matrix3([1, 0, 0, 0, 0, 0, 0, 0, 1])
-            print("Phone is upright.")
         } else {
             trueVector = yVector * Matrix3([1, 0, 0, 0, 0, 0, 0, 0, 1])
-            print("Phone is flat.")
         }
         let trueYaw = atan2f(trueVector.x, trueVector.z)
         
@@ -97,6 +108,8 @@ class Navigation {
         //  Determine whether the phone is inside the bounding box of the keypoint
         if (xDiff <= targetDepth && yDiff <= targetHeight && zDiff <= targetWidth) {
             direction.targetState = .atTarget
+        } else if (sqrtf(powf(Float(xDiff), 2) + powf(Float(zDiff), 2)) <= 3) {
+            direction.targetState = .closeToTarget
         } else {
             direction.targetState = .notAtTarget
         }

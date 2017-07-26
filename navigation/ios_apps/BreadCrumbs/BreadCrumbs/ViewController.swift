@@ -10,6 +10,7 @@ import ARKit
 import SceneKit
 import SceneKit.ModelIO
 import AVFoundation
+import AudioToolbox
 
 extension UIView {
     func fadeTransition(_ duration:CFTimeInterval) {
@@ -66,6 +67,8 @@ class ViewController: UIViewController {
     var recordPathView: UIView!
     var stopRecordingView: UIView!
     var startNavigationView: UIView!
+    var pauseTrackingView: UIView!
+    var resumeTrackingView: UIView!
     var stopNavigationView: UIView!
     var directionText: UILabel!
     var routeRatingView: UIView!
@@ -75,6 +78,8 @@ class ViewController: UIViewController {
         case recordPath
         case stopRecording
         case startNavigation
+        case pauseTracking
+        case resumeTracking
         case stopNavigation
     }
     
@@ -107,6 +112,12 @@ class ViewController: UIViewController {
         let defaults = UserDefaults.standard
         defaultUnit = defaults.integer(forKey: "units")
         defaultColor = defaults.integer(forKey: "crumbColor")
+        trackingOrientation = defaults.bool(forKey: "trackOrientation")
+        soundFeedback = defaults.bool(forKey: "soundFeedback")
+        voiceFeedback = defaults.bool(forKey: "voiceFeedback")
+        hapticFeedback = defaults.bool(forKey: "hapticFeedback")
+        print("hapticFeedbak: \(hapticFeedback)")
+         print("Orientation: \(trackingOrientation)")
     }
     
     @objc func defaultsChanged(){
@@ -117,7 +128,7 @@ class ViewController: UIViewController {
      * Creates a new ARSession with ARWorldTracking session config
      */
     func createARSession() {
-        let configuration = ARWorldTrackingSessionConfiguration()
+        configuration = ARWorldTrackingSessionConfiguration()
         configuration.planeDetection = .horizontal
         sceneView.session.run(configuration)
         sceneView.backgroundColor = UIColor(patternImage: UIImage(named: "SplashScreen")!)
@@ -164,6 +175,16 @@ class ViewController: UIViewController {
         startNavigationView.isHidden = true
         addButtons(buttonView: startNavigationView, buttonViewType: .startNavigation)
         
+        pauseTrackingView = UIView(frame: CGRect(x: 0, y: yOriginOfButtonFrame, width: buttonFrameWidth, height: buttonFrameHeight))
+        pauseTrackingView.backgroundColor = UIColor.black.withAlphaComponent(0.4)
+        pauseTrackingView.isHidden = true
+        addButtons(buttonView: pauseTrackingView, buttonViewType: .pauseTracking)
+        
+        resumeTrackingView = UIView(frame: CGRect(x: 0, y: yOriginOfButtonFrame, width: buttonFrameWidth, height: buttonFrameHeight))
+        resumeTrackingView.backgroundColor = UIColor.black.withAlphaComponent(0.4)
+        resumeTrackingView.isHidden = true
+        addButtons(buttonView: resumeTrackingView, buttonViewType: .resumeTracking)
+        
         // Stop Navigation button container
         stopNavigationView = UIView(frame: CGRect(x: 0, y: yOriginOfButtonFrame, width: buttonFrameWidth, height: buttonFrameHeight))
         stopNavigationView.backgroundColor = UIColor.black.withAlphaComponent(0.4)
@@ -177,6 +198,8 @@ class ViewController: UIViewController {
         self.view.addSubview(recordPathView)
         self.view.addSubview(stopRecordingView)
         self.view.addSubview(startNavigationView)
+        self.view.addSubview(pauseTrackingView)
+        self.view.addSubview(resumeTrackingView)
         self.view.addSubview(stopNavigationView)
         self.view.addSubview(directionText)
         self.view.addSubview(getDirectionButton)
@@ -193,13 +216,16 @@ class ViewController: UIViewController {
         let buttonWidth = routeRatingView.bounds.size.width / 4.5
         
         let thumbsUpButton = UIButton(type: .custom)
-        thumbsUpButton.frame = CGRect(x: 0, y: 0, width: buttonWidth , height: buttonWidth)
+        thumbsUpButton.frame = CGRect(x: 0, y: 0, width: buttonWidth, height: buttonWidth)
         thumbsUpButton.layer.cornerRadius = 0.5 * thumbsUpButton.bounds.size.width
         thumbsUpButton.clipsToBounds = true
-        thumbsUpButton.setTitle("Good", for: .normal)
-        thumbsUpButton.layer.borderWidth = 2
-        thumbsUpButton.layer.borderColor = UIColor.white.cgColor
-        thumbsUpButton.center.x = routeRatingView.center.x + displayWidth/4
+        let thumbsUpButtonImage = UIImage(named: "thumbs_up")
+        thumbsUpButton.setImage(thumbsUpButtonImage, for: .normal)
+        thumbsUpButton.accessibilityLabel = "Good"
+//        thumbsUpButton.setTitle("Good", for: .normal)
+//        thumbsUpButton.layer.borderWidth = 2
+//        thumbsUpButton.layer.borderColor = UIColor.white.cgColor
+        thumbsUpButton.center.x = routeRatingView.center.x + displayWidth/5
         thumbsUpButton.center.y = routeRatingView.bounds.size.height * (2/3)
        thumbsUpButton.addTarget(self, action: #selector(sendLogData), for: .touchUpInside)
         
@@ -207,10 +233,13 @@ class ViewController: UIViewController {
         thumbsDownButton.frame = CGRect(x: 0, y: 0, width: buttonWidth , height: buttonWidth)
         thumbsDownButton.layer.cornerRadius = 0.5 * thumbsUpButton.bounds.size.width
         thumbsDownButton.clipsToBounds = true
-        thumbsDownButton.setTitle("Bad", for: .normal)
-        thumbsDownButton.layer.borderWidth = 2
-        thumbsDownButton.layer.borderColor = UIColor.white.cgColor
-        thumbsDownButton.center.x = routeRatingView.center.x - displayWidth/4
+        let thumbsDownButtonImage = UIImage(named: "thumbs_down")
+        thumbsDownButton.setImage(thumbsDownButtonImage, for: .normal)
+        thumbsDownButton.accessibilityLabel = "Bad"
+//        thumbsDownButton.setTitle("Bad", for: .normal)
+//        thumbsDownButton.layer.borderWidth = 2
+//        thumbsDownButton.layer.borderColor = UIColor.white.cgColor
+        thumbsDownButton.center.x = routeRatingView.center.x - displayWidth/5
         thumbsDownButton.center.y = routeRatingView.bounds.size.height * (2/3)
         thumbsDownButton.addTarget(self, action: #selector(sendDebugLogData), for: .touchUpInside)
         
@@ -238,7 +267,7 @@ class ViewController: UIViewController {
         case .recordPath:
             let buttonImage = UIImage(named: "StartRecording")
             button.setImage(buttonImage, for: .normal)
-            button.accessibilityLabel = "Reecord Path"
+            button.accessibilityLabel = "Re-cord Path"
             button.addTarget(self, action: #selector(recordPath), for: .touchUpInside)
         case.stopRecording:
             let buttonImage = UIImage(named: "StopRecording")
@@ -250,6 +279,30 @@ class ViewController: UIViewController {
             button.setImage(buttonImage, for: .normal)
             button.accessibilityLabel = "Start Navigation"
             button.addTarget(self, action: #selector(startNavigation), for: .touchUpInside)
+            button.center.x = buttonView.center.x - displayWidth/4
+            
+            let pauseButton = UIButton(type: .custom)
+            pauseButton.frame = CGRect(x: 0, y: 0, width: buttonWidth , height: buttonWidth )
+            pauseButton.layer.cornerRadius = 0.5 * button.bounds.size.width
+            pauseButton.clipsToBounds = true
+            pauseButton.center.x = buttonView.center.x + displayWidth/4
+            pauseButton.center.y = buttonView.bounds.size.height * (6/10)
+            pauseButton.addTarget(self, action: #selector(showPauseTrackingButton), for: .touchUpInside)
+            pauseButton.setTitle("Pause", for: .normal)
+            pauseButton.layer.borderWidth = 2
+            pauseButton.layer.borderColor = UIColor.white.cgColor
+            
+            buttonView.addSubview(pauseButton)
+        case .pauseTracking:
+            button.addTarget(self, action: #selector(pauseTracking), for: .touchUpInside)
+            button.setTitle("Pause", for: .normal)
+            button.layer.borderWidth = 2
+            button.layer.borderColor = UIColor.white.cgColor
+        case .resumeTracking:
+            button.addTarget(self, action: #selector(resumeTracking), for: .touchUpInside)
+            button.setTitle("Resume", for: .normal)
+            button.layer.borderWidth = 2
+            button.layer.borderColor = UIColor.white.cgColor
         case.stopNavigation:
             let buttonImage = UIImage(named: "StopNavigation")
             button.setImage(buttonImage, for: .normal)
@@ -279,8 +332,8 @@ class ViewController: UIViewController {
      */
     @objc func showStopRecordingButton() {
         recordPathView.isHidden = true
+        recordPathView.isAccessibilityElement = false
         stopRecordingView.isHidden = false
-        navigationMode = false
         currentButton = .stopRecording
         updateDirectionText("Recording Path", distance: 0, size: 16, displayDistance: false)
     }
@@ -289,11 +342,30 @@ class ViewController: UIViewController {
      * display START NAVIGATION button/hide all other views
      */
     @objc func showStartNavigationButton() {
+        resumeTrackingView.isHidden = true
         stopRecordingView.isHidden = true
         startNavigationView.isHidden = false
-        navigationMode = false
         currentButton = .startNavigation
-        updateDirectionText("Press to start navigation", distance: 0, size: 16, displayDistance: false)
+        updateDirectionText("Press to start navigation or pause tracking", distance: 0, size: 14, displayDistance: false)
+    }
+    
+    @objc func showPauseTrackingButton() {
+        startNavigationView.isHidden = true
+        pauseTrackingView.isHidden = false
+        currentButton = .resumeTracking
+        
+        if (trackingOrientation) {
+            updateDirectionText("Press to pause, but keep the app runing", distance: 0, size: 15, displayDistance: false)
+        } else {
+            updateDirectionText("Place device against a flat surface and press to pause", distance: 0, size: 15, displayDistance: false)
+        }
+    }
+    
+    @objc func showResumeTrackingButton() {
+        pauseTrackingView.isHidden = true
+        resumeTrackingView.isHidden = false
+        currentButton = .resumeTracking
+        updateDirectionText("Return to the last tracking location", distance: 0, size: 15, displayDistance: false)
     }
     
     /*
@@ -312,6 +384,12 @@ class ViewController: UIViewController {
         directionText.isHidden = true
         routeRatingView.isHidden = false
         currentButton = .stopNavigation
+        
+        UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification, "Please rate your navigation service.")
+        hapticTimer.invalidate()
+        
+        feedbackGenerator = nil
+        waypointFeedbackGenerator = nil
     }
     
     /*
@@ -343,15 +421,20 @@ class ViewController: UIViewController {
             speechData.append([altText, -dataTimer.timeIntervalSinceNow])
             getRealCoordinates(sceneView: sceneView)
         }
-        UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification, altText)
+        
+        if (voiceFeedback) { UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification, altText) }
     }
     
     /*                  BreadCrumbs main logic                 */
     /*---------------------------------------------------------*/
     
+    var configuration: ARWorldTrackingSessionConfiguration!
+    
     var crumbs: [LocationInfo]!         // List of crumbs dropped when recording path
     var keypoints: [KeypointInfo]!      // List of keypoints calculated after path completion
     var keypointNode: SCNNode!          // SCNNode of the next keypoint
+    var prevKeypointYPosition: Float!
+    var turnWarning: Bool!
     
     var dataTimer: Date!
     var pathData: [Array<Any>]!
@@ -364,14 +447,22 @@ class ViewController: UIViewController {
     var droppingCrumbs: Timer!
     var followingCrumbs: Timer!
     var announcementTimer: Timer!
+    var hapticTimer: Timer!
     
     var nav = Navigation()                  // Navigation calculation class
     var navigationMode: Bool = false        // navigation flag
+    
+    var feedbackGenerator : UIImpactFeedbackGenerator? = nil
+    var waypointFeedbackGenerator: UINotificationFeedbackGenerator? = nil
     
     public let unit = [0: "ft", 1: "m"]
     public let unitText = [0: " feet", 1: " meters"]
     public var defaultUnit: Int!
     public var defaultColor: Int!
+    public var trackingOrientation: Bool!
+    public var soundFeedback: Bool!
+    public var voiceFeedback: Bool!
+    public var hapticFeedback: Bool!
     
     @IBOutlet weak var sceneView: ARSCNView!
     
@@ -400,14 +491,39 @@ class ViewController: UIViewController {
         
         renderKeypoint(keypoints[0].location)
         navigationMode = true
+        turnWarning = false
+        prevKeypointYPosition = getRealCoordinates(sceneView: sceneView).location.y
+        
+        feedbackGenerator = UIImpactFeedbackGenerator(style: .light)
+        waypointFeedbackGenerator = UINotificationFeedbackGenerator()
+        
         announcementTimer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: (#selector(showStopNavigationButton)), userInfo: nil, repeats: false)
         followingCrumbs = Timer.scheduledTimer(timeInterval: 0.2, target: self, selector: (#selector(followCrum)), userInfo: nil, repeats: true)
+        feedbackTimer = Date()
+        hapticTimer = Timer.scheduledTimer(timeInterval: 0.01, target: self, selector: (#selector(getHapticFeedback)), userInfo: nil, repeats: true)
     }
     
     @objc func stopNavigation(_ sender: UIButton) {
         followingCrumbs.invalidate()
+        hapticTimer.invalidate()
+        feedbackGenerator = nil
+        waypointFeedbackGenerator = nil
         announcementTimer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: (#selector(showRecordPathButton)), userInfo: nil, repeats: false)
         showRouteRating()
+    }
+    
+    @objc func pauseTracking() {
+        if (trackingOrientation) {
+            sceneView.session.run(ARSessionConfiguration())
+        } else {
+            sceneView.session.pause()
+        }
+        showResumeTrackingButton()
+    }
+    
+    @objc func resumeTracking() {
+        sceneView.session.run(configuration)
+        showStartNavigationButton()
     }
     
     @objc func sendLogData() {
@@ -443,18 +559,42 @@ class ViewController: UIViewController {
         crumbs.append(curLocation)
     }
     
+    var feedbackTimer: Date!
+    @objc func getHapticFeedback() {
+        let curLocation = getRealCoordinates(sceneView: sceneView)
+        let directionToNextKeypoint = getDirectionToNextKeypoint(currentLocation: curLocation)
+        
+        if(directionToNextKeypoint.clockDirection == 12) {
+            let timeInterval = feedbackTimer.timeIntervalSinceNow
+            if(-timeInterval > 0.4) {
+                print("hapticFeedback: \(hapticFeedback)")
+                if (hapticFeedback) { feedbackGenerator?.impactOccurred() }
+                if (soundFeedback) { AudioServicesPlaySystemSound(SystemSoundID(1103)) }
+                feedbackTimer = Date()
+            }
+        }
+    }
+    
     @objc func followCrum() {
         let curLocation = getRealCoordinates(sceneView: sceneView)
         var directionToNextKeypoint = getDirectionToNextKeypoint(currentLocation: curLocation)
         
-        if(directionToNextKeypoint.targetState == PositionState.atTarget) {
+        if (directionToNextKeypoint.targetState == PositionState.closeToTarget && !turnWarning && keypoints.count > 1) {
+            announceTurnWarning(curLocation)
+        } else if (directionToNextKeypoint.targetState == PositionState.atTarget) {
             if (keypoints.count > 1) {
+                waypointFeedbackGenerator?.notificationOccurred(.success)
+                if (soundFeedback) { AudioServicesPlaySystemSound(SystemSoundID(1016)) }
                 keypointNode.removeFromParentNode()
+                prevKeypointYPosition = keypoints[0].location.y
                 keypoints.remove(at: 0)
                 renderKeypoint(keypoints[0].location)
                 directionToNextKeypoint = getDirectionToNextKeypoint(currentLocation: curLocation)
                 setDirectionText(currentLocation: curLocation.location, direction: directionToNextKeypoint, displayDistance: false)
+                turnWarning = false
             } else {
+                waypointFeedbackGenerator?.notificationOccurred(.success)
+                if (soundFeedback) { AudioServicesPlaySystemSound(SystemSoundID(1016)) }
                 keypointNode.removeFromParentNode()
                 announceArrival()
                 followingCrumbs.invalidate()
@@ -463,11 +603,18 @@ class ViewController: UIViewController {
         
     }
     
-    func getDirectionToNextKeypoint(currentLocation: CurrentCoordinateInfo) -> DirectionInfo {
-        var dir = nav.getDirections(currentLocation: currentLocation, nextKeypoint: keypoints[0])
+    func announceTurnWarning(_ currentLocation: CurrentCoordinateInfo) {
+        var dir = nav.getTurnWarningDirections(currentLocation, curKeypoint: keypoints[0], nextKeypoint: keypoints[1])
         if(defaultUnit == 0) {
             dir.distance *= 3.28084
         }
+        dir.distance = roundToTenths(dir.distance)
+        turnWarning = true
+        setTurnWarningText(currentLocation: currentLocation.location, direction: dir)
+    }
+    
+    func getDirectionToNextKeypoint(currentLocation: CurrentCoordinateInfo) -> DirectionInfo {
+        var dir = nav.getDirections(currentLocation: currentLocation, nextKeypoint: keypoints[0])
         dir.distance = roundToTenths(dir.distance)
         return dir
     }
@@ -491,12 +638,35 @@ class ViewController: UIViewController {
         }
     }
     
+    func setTurnWarningText(currentLocation: LocationInfo, direction: DirectionInfo) {
+        let xzNorm = sqrtf(powf(currentLocation.x - keypoints[0].location.x, 2) + powf(currentLocation.z - keypoints[0].location.z, 2))
+        let slope = (keypoints[0].location.y - prevKeypointYPosition) / xzNorm
+        var dir = ""
+        
+        if(defaultUnit == 0) {
+            dir = "In 10 ft "
+        } else {
+            dir = "in 3 m "
+        }
+        
+        if(slope > 0.3) { // Go upstairs
+            dir += "\(Directions[direction.clockDirection]!) and proceed upstairs."
+            updateDirectionText(dir, distance: 0, size: 12, displayDistance: false)
+        } else if (slope < -0.3) { // Go downstairs
+            dir += "\(Directions[direction.clockDirection]!) and proceed downstairs."
+            updateDirectionText(dir, distance: direction.distance,size: 12, displayDistance: false)
+        } else { // nromal directions
+            dir += "\(Directions[direction.clockDirection]!)"
+            updateDirectionText(dir, distance: direction.distance, size: 16, displayDistance:  false )
+        }
+    }
+    
     /*
      * Set direction text for text label and VoiceOver
      */
     func setDirectionText(currentLocation: LocationInfo, direction: DirectionInfo, displayDistance: Bool) {
         let xzNorm = sqrtf(powf(currentLocation.x - keypoints[0].location.x, 2) + powf(currentLocation.z - keypoints[0].location.z, 2))
-        let slope = (keypoints[0].location.y - currentLocation.y) / xzNorm
+        let slope = (keypoints[0].location.y - prevKeypointYPosition) / xzNorm
         var dir = ""
         
         if(slope > 0.3) { // Go upstairs
