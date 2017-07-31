@@ -10,9 +10,9 @@ except:
 
 import rospy
 from geometry_msgs.msg import PoseStamped, Pose, Point, Vector3
-from tf.transformations import euler_from_quaternion
+from tf.transformations import euler_from_quaternion, quaternion_from_euler, quaternion_multiply
 import tf
-from std_msgs.msg import Header, ColorRGBA
+from std_msgs.msg import Header, ColorRGBA, String
 from visualization_msgs.msg import Marker, MarkerArray
 import pyttsx
 from rospkg import RosPack
@@ -20,8 +20,16 @@ from apriltags_ros.msg import AprilTagDetectionArray
 from std_msgs.msg import Header, ColorRGBA
 from keyboard.msg import Key
 from random import random
-from os import system
+from os import system, path
 from copy import deepcopy
+import numpy as np
+from scipy import linalg, matrix
+import scipy
+
+def null(a, rtol=1e-5):
+    u, s, v = np.linalg.svd(a)
+    rank = (s > rtol*s[0]).sum()
+    return rank, v[rank:].T.copy()
 
 class ArWaypointTest(object):
     def __init__(self):
@@ -33,14 +41,12 @@ class ArWaypointTest(object):
         rospy.init_node('ar_waypoint_test')                             # Initialization of a nother node.
         self.listener = tf.TransformListener()                          # The transform listener
         self.broadcaster = tf.TransformBroadcaster()                    # The transform broadcaster
-        rospy.Subscriber('/tango_pose', PoseStamped, self.process_pose) # Subscriber for the tango pose.
-        rospy.Subscriber('/fisheye_undistorted/tag_detections',         # SUBSCRIBER FOR THE TAG_DETECTION TRANSFORMS.
-                        AprilTagDetectionArray,
-                        self.tag_callback)
-        rospy.Subscriber('/keyboard/keydown', Key, self.key_pressed)    # Subscriber forthe keyboard information.
         self.waypoint_viz_pub = rospy.Publisher('/waypoint_visualizer', # Create a ros puplisher for the marker visualization
                                                 MarkerArray,
                                                 queue_size=10)
+        """self.place_pub = rospy.Publisher('/locations',
+                                         String,
+                                         queue_size=10)"""
         # srv = Server(SemanticWaypointsConfig, self.config_callback)
 
         #### Editing Variables ####
@@ -78,8 +84,22 @@ class ArWaypointTest(object):
         self.lastpose = None                                # Last pose of the phone
         self.distance_traveled = [0, 0, 0, 0]               # Counter for total traveled distance
         self.testing_tag_id = 1                             # Tag Id for Testing (debugging)
-        self.record_interval = self.record_interval_normal  #Interval of time between pose recording for SLAM algorithm
-        self.g2o_data = open(self.g2o_data_path, 'wb')      #save the data file as a variable and load it up, with the intention of writing over it / changing it.
+        self.record_interval = self.record_interval_normal  # Interval of time between pose recording for SLAM algorithm
+        self.g2o_data = None                                # Have variable to be prepared for file reading and writing
+        open(self.g2o_data_path, 'wb').close()              # Overwrite current g2o data file
+        self.tagtimes = {}                                  # Dictionary of Last recorded tag times
+        self.tagrecorded = {}
+        for i in range(587):
+            self.tagtimes[i] = rospy.Time(1)
+            self.tagrecorded[i] = False
+        self.pose_failure = False                           # Flag for whether record time has failed to update (most likely because of pose not updating)
+
+        #### ROS SUBSCRIBERS ####
+        rospy.Subscriber('/tango_pose', PoseStamped, self.process_pose) # Subscriber for the tango pose.
+        rospy.Subscriber('/fisheye_undistorted/tag_detections',         # SUBSCRIBER FOR THE TAG_DETECTION TRANSFORMS.
+                        AprilTagDetectionArray,
+                        self.tag_callback)
+        rospy.Subscriber('/keyboard/keydown', Key, self.key_pressed)    # Subscriber forthe keyboard information.
 
 
     def process_pose(self, msg):
@@ -128,7 +148,6 @@ class ArWaypointTest(object):
         Callback Function for AR tags
         """
         # Processes the april tags currently in Tango's view.
-
         self.tags_detected = None   #Initialize tags_detected
         self.record_interval = self.record_interval_normal   #Initialize the record_interval to normal intervals
         if msg.detections: #if a tag is detected
@@ -136,32 +155,44 @@ class ArWaypointTest(object):
             self.tags_detected = msg.detections #save the detected tags
             curr_tag = msg.detections[0] #get first tag (assume only 1 tag for the most part, if not then this code will just choose one.)
             curr_tag_pose = curr_tag.pose #save the tag pose.
-            curr_tag_pose.header.stamp = rospy.Time(0) # set the tag_pose stamp to now.
+            headdiff = curr_tag_pose.header.stamp - rospy.Time.now()
+            if headdiff > rospy.Duration(.5):
+                print("THIS IS BAD.")
+            #print "header difference", headdiff
+            #curr_tag_pose.header.stamp = rospy.Time(0) # set the tag_pose stamp to now.
+            self.listener.waitForTransform(curr_tag_pose.header.frame_id, "odom", curr_tag_pose.header.stamp, rospy.Duration(.5))
             curr_tag_transformed_pose = self.listener.transformPose('odom', curr_tag_pose)  #Transform the pose from the camera frame to the odom frame.
             tag_id = curr_tag.id #save tag_id
+            if not tag_id in self.tagtimes.keys():
+                self.tagtimes[tag_id] = rospy.Time(1)
 
             if (self.calibration_AR and self.AR_Find_Try): # if in Ar calibrate mode and user presses the update button:
+                tagfound = False
                 # Only prompt user to input tag name once
                 if not self.tag_seen: #if we haven't seen a tag
                     print "Origin Tag Found: " + str(tag_id) #
-                    self.origin_msg = curr_tag_transformed_pose #make this tag the origin tag
-                    self.origin_tag = tag_id
-                    self.tag_seen = True #set that you have seen the first tag
-                    self.distance_traveled = [0,0,0,0] #set distance to 0
+                    tagfound = self.RecordTag(curr_tag, True) # Record Tag Vertex (the True boolean is to denote that this is the origin tag and should create a FIX line in g2o)
+                    if tagfound:
+                        self.origin_msg = curr_tag_transformed_pose #make this tag the origin tag
+                        self.origin_tag = tag_id
+                        self.tag_seen = True #set that you have seen the first tag
+                        self.distance_traveled = [0,0,0,0] #set distance to 0
                     #newfound = True #unnecessary here.
-                    self.RecordTag(curr_tag, True) # Record Tag Vertex (the True boolean is to denote that this is the origin tag and should create a FIX line in g2o)
                 if not (tag_id == self.origin_tag): #if the tag_id isn't that of the origin tag.
-                    newfound = False #assume no new tags were found
                     if not (tag_id in self.supplement_tags.keys()): #if the tag is not in the supplementary tag list
-                        print "Supplementary Tag Found: " + str(tag_id)
-                        self.supplement_tags[tag_id] = curr_tag_transformed_pose #set new supplemental AR Tag
-                        print(self.supplement_tags.keys())
-                        newfound = True
-                        self.RecordTag(curr_tag, False) #Record Tag Vertex (for g2o)
-                    if not newfound: #If this is a previously found tag,
+                        tagfound = self.RecordTag(curr_tag, False) #Record Tag Vertex (for g2o)
+                        if tagfound:
+                            print "Supplementary Tag Found: " + str(tag_id)
+                            self.supplement_tags[tag_id] = curr_tag_transformed_pose #set new supplemental AR Tag
+                            print(self.supplement_tags.keys())
+                    else: #If this is a previously found tag,
+                        tagfound = True
                         print "Found Old Tag: " + str(tag_id)
+                if not tagfound:
+                    print("No tags found.")
 
                 if tag_id == self.origin_tag and self.tag_seen:
+                    tagfound = True
                     print "Origin Tag Refound!"
                     self.origin_msg = curr_tag_transformed_pose #Reset the origin tag
 
@@ -181,8 +212,31 @@ class ArWaypointTest(object):
                 drift_dist[3] = math.sqrt(math.pow(drift_dist[0], 2) + math.pow(drift_dist[1], 2) + math.pow(drift_dist[2], 2)) #make the 4th entry of the drift the total drift (magnitude)
                 print("Distance Traveled: " + str(self.distance_traveled))
                 print("Distance Drifted: " + str(drift_dist));
-
         self.AR_Find_Try = False #Finish trying to find a tag.
+
+
+    def start_record(self):
+        if self.calibration_AR and self.recording == False: #If we aren't recording and AR Calibration is on.
+            i = 0
+            while (i < 10):
+                try:
+                    self.nowtime = rospy.Time.now(); # Set Nowtime to Now
+                    self.listener.waitForTransform("odom", "real_device", self.nowtime, rospy.Duration(.5)) #Wait for...
+                    (trans, rot) = self.listener.lookupTransform("odom", "real_device", self.nowtime) # and lookup the transform for phone's current position.
+                    self.g2o_data.write("VERTEX_SE3:QUAT %i %f %f %f %f %f %f %f\n" % ((self.vertex_id+1,) + trans + rot)) # Write the vertex into g2o file.
+                    print('recording started')
+                    self.last_record_time = self.nowtime # set last record time to nowtime as well.
+                    self.vertex_id += 2 # add to the vertex id
+                    self.recording = True #set recording true
+                    self.tags_detected = None #set tags detected to none so as to not see tags during the first record.
+                    i = 10
+                except (tf.ExtrapolationException,
+                        tf.LookupException,
+                        tf.ConnectivityException,
+                        tf.Exception,
+                        ValueError) as e:
+                    print "recordStart Exception: " + str(e)
+                    i += 1
 
 
     def key_pressed(self, msg):
@@ -198,11 +252,16 @@ class ArWaypointTest(object):
 
         if msg.code == ord('y'): # When user presses Y
             """
-            Toggle AR_Calibration
+            Toggle AR_Calibration (and start and stop recording to file.)
             """
             self.calibration_AR = not self.calibration_AR; #Toggle calibration_AR
             if self.calibration_AR: # If AR Calibration just turned on,
                 print('switched to AR Calibration Mode') #print message
+                self.g2o_data = open(self.g2o_data_path, 'ab')
+                if path.getsize(self.g2o_data_path) > 0:
+                    self.g2o_data.write('\n')
+                self.start_record()
+
             else: #if AR Calibration just turned off.
                 try:
                     self.g2o_data.close() #Try closing the g2o file
@@ -225,26 +284,22 @@ class ArWaypointTest(object):
                 system("g2o -o %s %s" % (self.g2o_result_path, self.g2o_data_path)) #Run G2o
                 system("cp %s %s" % (self.g2o_data_path, self.g2o_data_copy_path)) #Copy Original Data
 
+        """if msg.code == ord('p'):
+            ""
+            Place Publisher
+            ""
+            if self.recording:
+                print("Where are you?")
+                s = raw_input("")
+                self.place_pub.publish(s)
+            else:
+                print("You must be recording to publish your place.")"""
         if msg.code == ord('-'):
             """
             Start Recording for G2O
             """
-            if self.calibration_AR and self.recording == False: #If we aren't recording and AR Calibration is on.
-                try:
-                    self.nowtime = rospy.Time.now(); # Set Nowtime to Now
-                    self.listener.waitForTransform("odom", "real_device", self.nowtime, rospy.Duration(.5)) #Wait for...
-                    (trans, rot) = self.listener.lookupTransform("odom", "real_device", self.nowtime) # and lookup the transform for phone's current position.
-                    self.g2o_data.write("VERTEX_SE3:QUAT %i %f %f %f %f %f %f %f\n" % ((self.vertex_id+1,) + trans + rot)) # Write the vertex into g2o file.
-                    print('recording started')
-                    self.last_record_time = self.nowtime # set last record time to nowtime as well.
-                    self.vertex_id += 1 # add to the vertex id
-                    self.recording = True #set recording true
-                    self.tags_detected = None #set tags detected to none so as to not see tags during the first record.
-                except (tf.ExtrapolationException,
-                        tf.LookupException,
-                        tf.ConnectivityException,
-                        tf.Exception) as e:
-                    print "recordStart Exception: " + str(e)
+            if self.recording:
+                self.nowtime = rospy.Time.now()
 
         if msg.code == ord(' '):
             """
@@ -309,21 +364,22 @@ class ArWaypointTest(object):
             """
             Place Waypoint
             """
-            waypoint_location = [self.x, self.y, self.z] #Get current position
-            waypoint_name = raw_input("Name the Waypoint: ") #name the waypoint.
-            scale = 2*self.proximity_to_destination #Scale
-            newpoint = Marker(header=Header(frame_id="AR", stamp=rospy.Time(0)), #Create marker for the point.
-                                        type=Marker.SPHERE,
-                                        pose=Pose(position=Point(x = waypoint_location[0], y = waypoint_location[1], z = waypoint_location[2])),
-                                        scale=Vector3(x=scale,y=scale,z=scale),
-                                        color=ColorRGBA(r=random(), g=random(), b=random(), a=1.0),
-                                        id = self.waypoint_id,
-                                        ns = waypoint_name)
-            self.markerlist.append(newpoint) # append the marker to the markerlist
-            self.waypoints[waypoint_name] = waypoint_location #add the new waypoint to the waypoints dictionary
-            self.waypoints_detected[waypoint_name] = False # add a false to the waypoint detected dictionary
-            self.waypoint_id += 1 #add to the waypoint id (this is just for setting markers as different ids.)
-            print self.waypoints
+            if self.calibration_mode and not self.calibration_AR:
+                waypoint_location = [self.x, self.y, self.z] #Get current position
+                waypoint_name = raw_input("Name the Waypoint: ") #name the waypoint.
+                scale = 2*self.proximity_to_destination #Scale
+                newpoint = Marker(header=Header(frame_id="AR", stamp=rospy.Time(0)), #Create marker for the point.
+                                            type=Marker.SPHERE,
+                                            pose=Pose(position=Point(x = waypoint_location[0], y = waypoint_location[1], z = waypoint_location[2])),
+                                            scale=Vector3(x=scale,y=scale,z=scale),
+                                            color=ColorRGBA(r=random(), g=random(), b=random(), a=1.0),
+                                            id = self.waypoint_id,
+                                            ns = waypoint_name)
+                self.markerlist.append(newpoint) # append the marker to the markerlist
+                self.waypoints[waypoint_name] = waypoint_location #add the new waypoint to the waypoints dictionary
+                self.waypoints_detected[waypoint_name] = False # add a false to the waypoint detected dictionary
+                self.waypoint_id += 1 #add to the waypoint id (this is just for setting markers as different ids.)
+                print self.waypoints
 
     	if msg.code == ord('s'):
             """
@@ -376,18 +432,26 @@ class ArWaypointTest(object):
         """
         This function records tags to the g2o file.
         """
-        try:
-            self.listener.waitForTransform("odom", "tag_"+str(tag.id), self.nowtime, rospy.Duration(.5)) # Wait for tag transform
-            (trans, rot) = self.listener.lookupTransform("odom", "tag_"+str(tag.id), self.nowtime) # Lookup tag transform
-            self.g2o_data.write("VERTEX_SE3:QUAT %i %f %f %f %f %f %f %f\n" % ((tag.id,) + trans + rot)) # Write into a G2O file
-            if is_origin_tag: #if the tag is the origin tag
-                self.g2o_data.write("FIX %i\n" % tag.id) #write it in as the fix point in g2o
-            print("recorded tag: " + str(tag.id))
-        except (tf.ExtrapolationException,
-                tf.LookupException,
-                tf.ConnectivityException,
-                tf.Exception) as e:
-            print "recordTag Exception: " + str(e)
+        if self.tagrecorded[tag.id]:
+            print("tag_%i already found." % tag.id)
+        else:
+            print("Attempted to find tag_%i" % tag.id)
+            try:
+                self.listener.waitForTransform("odom", "tag_"+str(tag.id), tag.pose.header.stamp, rospy.Duration(.5)) # Wait for tag transform
+                (trans, rot) = self.listener.lookupTransform("odom", "tag_"+str(tag.id), tag.pose.header.stamp) # Lookup tag transform
+                self.g2o_data.write("VERTEX_SE3:QUAT %i %f %f %f %f %f %f %f\n" % ((tag.id,) + trans + rot)) # Write into a G2O file
+                if is_origin_tag: #if the tag is the origin tag
+                    self.g2o_data.write("FIX %i\n" % tag.id) #write it in as the fix point in g2o
+                print("recorded tag: " + str(tag.id))
+                self.tagrecorded[tag.id] = True
+                return True
+            except (tf.ExtrapolationException,
+                    tf.LookupException,
+                    tf.ConnectivityException,
+                    tf.Exception,
+                    ValueError) as e:
+                print "recordTag Exception: " + str(e)
+                return False
 
 
     def RecordTime(self, ofst):
@@ -399,36 +463,86 @@ class ArWaypointTest(object):
             (trans2, rot2)= self.listener.lookupTransformFull("real_device", self.last_record_time, "real_device", self.nowtime, "odom") #lookup relative pose from last recorded tango pose to this tango pose
             tagtrans = {} # dictionary of tag translations
             tagrot = {} # dictionary of tag rotations
-            if self.tags_detected: #if there were tags detected
+            if self.tags_detected and self.tag_seen: #if there were tags detected
+                #print('1')
+                #print self.tags_detected
                 for tag in self.tags_detected: #for each tag
-                    if self.tag_seen: #if we have seen the origin tag
+                    #print('3')
+                    tag_stamp = tag.pose.header.stamp
+                    if (tag_stamp - self.tagtimes[tag.id]) > rospy.Duration(.025):
                         if tag.id == self.origin_tag: #if it is the origin tag
                             if self.listener.frameExists("AR"): #make sure transform exists
-                                self.listener.waitForTransformFull("real_device", self.nowtime, "tag_"+str(tag.id), self.nowtime, "odom", rospy.Duration(.5))
-                                (trans3, rot3)= self.listener.lookupTransformFull("real_device", self.nowtime, "tag_"+str(tag.id), self.nowtime, "odom") #lookup transform from phone to tag
+                                self.listener.waitForTransformFull("real_device", self.nowtime, "tag_"+str(tag.id), tag_stamp, "odom", rospy.Duration(.5))
+                                (trans3, rot3)= self.listener.lookupTransformFull("real_device", self.nowtime, "tag_"+str(tag.id), tag_stamp, "odom") #lookup transform from phone to tag
                                 tagtrans[tag.id] = trans3 #record findings
                                 tagrot[tag.id] = rot3
+                                self.tagtimes[tag.id] = tag.pose.header.stamp
+                                #print(self.tagtimes)
                         else:
+                            #print'4'
+                            #vvvv This isn't working
                             if self.listener.frameExists("AR_" + str(tag.id)): #make sure transform exists
-                                self.listener.waitForTransformFull("real_device", self.nowtime, "tag_"+str(tag.id), self.nowtime, "odom", rospy.Duration(.5))
-                                (trans3, rot3)= self.listener.lookupTransformFull("real_device", self.nowtime, "tag_"+str(tag.id), self.nowtime, "odom") #lookup transform from phone to tag
+                                #print'5'
+                                self.listener.waitForTransformFull("real_device", self.nowtime, "tag_"+str(tag.id), tag_stamp, "odom", rospy.Duration(.5))
+                                (trans3, rot3)= self.listener.lookupTransformFull("real_device", self.nowtime, "tag_"+str(tag.id), tag_stamp, "odom") #lookup transform from phone to tag
                                 tagtrans[tag.id] = trans3 #record findings
                                 tagrot[tag.id] = rot3
+                                self.tagtimes[tag.id] = tag.pose.header.stamp
+                                #print(self.tagtimes)
 
+            #for step in np.arange(0, 3*np.pi, .05):
+            q2 = quaternion_from_euler(0, 0, .05)
+            qsecondrotation = quaternion_multiply(q2, rot)
+            change = (qsecondrotation[0:3] - rot[0:3])
+            change = change / np.linalg.norm(change)
+
+
+
+            #changes = np.asarray(changes)
+            #print changes
+            v = change / np.linalg.norm(change)
+            #u = v / np.linalg.norm(v)
+            _, u = null(v[np.newaxis])
+            basis = np.hstack((v[np.newaxis].T, u))
+            # place high information content on pitch and roll and low on chanages in
+            I = basis.dot(np.diag([.001, 1000, 1000])).dot(basis.T)
+
+            indeces = np.triu_indices(3)
+
+            ## Writing Pose Information ##
             self.g2o_data.write("VERTEX_SE3:QUAT %i %f %f %f %f %f %f %f\n" % ((self.vertex_id+1,) + trans + rot)) #write vertex for the new pose
-            self.g2o_data.write("EDGE_SE3:QUAT %i %i %f %f %f %f %f %f %f " % ((self.vertex_id,self.vertex_id+1) + trans2 + rot2)) #write edge for moving from the last pose to the current pose
-            self.g2o_data.write("%f 0 0 0 0 0 %f 0 0 0 0 %f 0 0 0 %f 0 0 %f 0 %f\n" % (1, 1, 1, 1, 1, 1)) #write edge importance matrix
+            self.g2o_data.write("EDGE_SE3:QUAT %i %i %f %f %f %f %f %f %f " % ((self.vertex_id-1,self.vertex_id+1) + trans2 + rot2)) #write edge for moving from the last pose to the current pose
+            if (self.pose_failure):
+                self.g2o_data.write("%f 0 0 0 0 0 %f 0 0 0 0 %f 0 0 0 %f 0 0 %f 0 %f\n" % (0, 0, 0, 0, 0, 0)) #write edge importance matrix
+            else:
+                self.g2o_data.write("%f 0 0 0 0 0 %f 0 0 0 0 %f 0 0 0 %f 0 0 %f 0 %f\n" % (1, 1, 1, 1, 1, 1)) #write edge importance matrix
+
+            ## Writing Orientation Dummy ##
+            self.g2o_data.write("VERTEX_SE3:QUAT %i %f %f %f %f %f %f %f\n" % ((self.vertex_id+2,) + (0,0,0) + rot))
+            self.g2o_data.write("EDGE_SE3:QUAT %i %i %f %f %f %f %f %f %f " % ((self.vertex_id+1,self.vertex_id+2) + (0,0,0) + (0,0,0,1))) #write edge for moving from the last pose to the current pose
+            if (self.pose_failure):
+                self.g2o_data.write("0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 %f %f %f %f %f %f\n" % (tuple(I[indeces])))
+            else:
+                self.g2o_data.write("0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 %f %f %f %f %f %f\n" % (tuple(I[indeces])))
+            self.g2o_data.write("FIX %i\n" % (self.vertex_id+2))
+
+            ## Writing Tag Information ##
             for tag_id in tagtrans.keys(): # for each tag found in this recording
-                print("recorded old id")
+                print("recorded old id: %s" %tag_id)
                 self.g2o_data.write("EDGE_SE3:QUAT %i %i %f %f %f %f %f %f %f " % ((self.vertex_id+1, tag_id) + tagtrans[tag_id] + tagrot[tag_id])) #write edge from the phone to the tag
                 self.g2o_data.write("%f 0 0 0 0 0 %f 0 0 0 0 %f 0 0 0 %f 0 0 %f 0 %f\n" % (100, 100, 100, 100, 100, 100)) #write edge importance matrix
-            self.vertex_id += 1 #increment vertex id
+            #print('record pose')
+            self.vertex_id += 2 #increment vertex id
             self.last_record_time = self.nowtime #set previous record time to current record time.
+            self.pose_failure = False
         except (tf.ExtrapolationException,
                 tf.LookupException,
                 tf.ConnectivityException,
-                tf.Exception) as e:
+                tf.Exception,
+                ValueError) as e:
             print "recordTime Exception: " + str(e)
+            self.pose_failure = True
+            #self.nowtime = rospy.Time.now(); # Set Nowtime to Now
 
 
     def run(self):
