@@ -6,16 +6,19 @@ import numpy as np
 import mpl_toolkits.mplot3d.axes3d as p3
 import matplotlib.animation as animation
 import matplotlib.patches as mpatches
+from os import path
 #import math
 #import rospy
 #import os
 #import re
 import tf#.transformations import euler_from_quaternion as efq
+from rospkg import RosPack
 #from tf#.transformations import quaternion_from_euler as qfe
 from mobility_games.utils.helper_functions import convert_pose_inverse_transform, convert_translation_rotation_to_pose, invert_transform_2
 
 class G2O_Error_Viz:
-    def __init__(self):
+    def __init__(self, g2o_result_path, g2o_data_path, test_path, manual_rotation):
+        top = RosPack().get_path("navigation_prototypes")
         self.vertices = {}
         self.old_vertices = {}
         self.old_edges = {}
@@ -26,12 +29,13 @@ class G2O_Error_Viz:
         self.rotdifference = []
         self.AR_Edges = {}
         self.dummyidlist = []
-        self.g2o_result_path = '/home/juicyslew/catkin_ws/result.g2o'
-        self.g2o_data_path = '/home/juicyslew/catkin_ws/data_cp.g2o'
+        self.g2o_result_path = path.join(top, g2o_result_path)
+        self.g2o_data_path = path.join(top, g2o_data_path)
         self.testlist = []
         self.test_traj = []
-        self.test_path = "/home/juicyslew/catkin_ws/naive.txt"
+        self.test_path = path.join(top, test_path)
         self.origin_info = None
+        self.manual_rotation = manual_rotation
         #self.
     def GatherData(self):
         self.vertices = {}
@@ -92,7 +96,7 @@ class G2O_Error_Viz:
                     line = line.strip()
                     line = [float(i) for i in line.split(' ')[1:]]
                     transrot = (line[0:3], line[3:])
-                    rotation = ((0,0,0),tf.transformations.quaternion_from_euler(0,-.04,.005))
+                    rotation = ((0,0,0),tf.transformations.quaternion_from_euler(*self.manual_rotation))
                     origin_rotated = self.MultiplyTransform(self.origin_info, rotation)
                     matres = self.MultiplyTransform(origin_rotated, transrot)
                     self.testlist.append(np.hstack((matres[0], matres[1])))
@@ -100,7 +104,7 @@ class G2O_Error_Viz:
                     line = line.strip()
                     line = [float(i) for i in line.split(' ')[1:]]
                     transrot = (line[0:3], line[3:])
-                    rotation = ((0,0,0),tf.transformations.quaternion_from_euler(0,-.04,.005))
+                    rotation = ((0,0,0),tf.transformations.quaternion_from_euler(*self.manual_rotation))
                     origin_rotated = self.MultiplyTransform(self.origin_info, rotation)
                     matres = self.MultiplyTransform(origin_rotated, transrot)
                     self.test_traj.append(np.hstack((matres[0], matres[1])))
