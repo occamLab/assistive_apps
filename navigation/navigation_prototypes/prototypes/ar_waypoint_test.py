@@ -93,6 +93,8 @@ class ArWaypointTest(object):
             self.tagtimes[i] = rospy.Time(1)
             self.tagrecorded[i] = False
         self.pose_failure = False                           # Flag for whether record time has failed to update (most likely because of pose not updating)
+        self.testfile = "/home/juicyslew/catkin_ws/naive.txt"
+        self.test_data = open(self.testfile, 'wb')
 
         #### ROS SUBSCRIBERS ####
         rospy.Subscriber('/tango_pose', PoseStamped, self.process_pose) # Subscriber for the tango pose.
@@ -197,21 +199,31 @@ class ArWaypointTest(object):
                     self.origin_msg = curr_tag_transformed_pose #Reset the origin tag
 
             if self.tag_seen and tag_id == self.testing_tag_id: #If we have seen the origin and we are now looking at the testing tag:
-
-                self.distance_traveled[3] = math.sqrt(math.pow(self.distance_traveled[0], 2) #calculate how far we have traveled since we saw the origin.
+                try:
+                    print("tried to record test tag")
+                    self.listener.waitForTransform("AR", "tag_"+str(tag_id), curr_tag.pose.header.stamp, rospy.Duration(.5)) # Wait for tag transform
+                    (trans, rot) = self.listener.lookupTransform("AR", "tag_"+str(tag_id), curr_tag.pose.header.stamp) # Lookup tag transform
+                    self.test_data.write("TAG %f %f %f %f %f %f %f\n" % (trans + rot)) # Write into a G2O file
+                except (tf.ExtrapolationException,
+                        tf.LookupException,
+                        tf.ConnectivityException,
+                        tf.Exception,
+                        ValueError) as e:
+                    print "TestTag Exception: " + str(e)
+                """self.distance_traveled[3] = math.sqrt(math.pow(self.distance_traveled[0], 2) #calculate how far we have traveled since we saw the origin.
                                                       + math.pow(self.distance_traveled[1], 2)
                                                       + math.pow(self.distance_traveled[2], 2))
                 pose_now = curr_tag_transformed_pose.pose.position #Get the pose of the testing AR tag
                 pose_old = self.origin_msg.pose.position #Get pose of supposed origin tag location
                 drift_dist = [pose_now.x-pose_old.x, pose_now.y-pose_old.y, pose_now.z-pose_old.z, 0] #calculate the drift [x, y, z, 0]
 
-                """[curr_tag_pose.pose.position.x - self.origin_msg.pose.pose.position.x,
+                ""[curr_tag_pose.pose.position.x - self.origin_msg.pose.pose.position.x,
                 curr_tag_pose.pose.position.y - self.origin_msg.pose.pose.position.y,
-                curr_tag.pose.pose.position.z - self.origin_msg.pose.pose.position.z,0]"""
+                curr_tag.pose.pose.position.z - self.origin_msg.pose.pose.position.z,0]""
 
                 drift_dist[3] = math.sqrt(math.pow(drift_dist[0], 2) + math.pow(drift_dist[1], 2) + math.pow(drift_dist[2], 2)) #make the 4th entry of the drift the total drift (magnitude)
                 print("Distance Traveled: " + str(self.distance_traveled))
-                print("Distance Drifted: " + str(drift_dist));
+                print("Distance Drifted: " + str(drift_dist));"""
         self.AR_Find_Try = False #Finish trying to find a tag.
 
 
@@ -531,10 +543,19 @@ class ArWaypointTest(object):
                 print("recorded old id: %s" %tag_id)
                 self.g2o_data.write("EDGE_SE3:QUAT %i %i %f %f %f %f %f %f %f " % ((self.vertex_id+1, tag_id) + tagtrans[tag_id] + tagrot[tag_id])) #write edge from the phone to the tag
                 self.g2o_data.write("%f 0 0 0 0 0 %f 0 0 0 0 %f 0 0 0 %f 0 0 %f 0 %f\n" % (100, 100, 100, 100, 100, 100)) #write edge importance matrix
+
+
             #print('record pose')
             self.vertex_id += 2 #increment vertex id
             self.last_record_time = self.nowtime #set previous record time to current record time.
             self.pose_failure = False
+
+            ## Writing Testing Data ##
+            if self.listener.frameExists("AR"):
+                self.listener.waitForTransform("AR", "real_device", self.nowtime, rospy.Duration(.5))
+                (trans4, rot4) = self.listener.lookupTransform("AR", "real_device", self.nowtime) #lookup The AR to Real Device Transform
+                self.test_data.write("PATH %f %f %f %f %f %f %f\n" %(trans4 + rot4)) #write to test file.
+
         except (tf.ExtrapolationException,
                 tf.LookupException,
                 tf.ConnectivityException,
