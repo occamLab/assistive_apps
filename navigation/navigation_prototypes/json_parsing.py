@@ -149,7 +149,10 @@ if __name__ == '__main__':
         print("No data file selected. Use the following syntax:")
         print("python json_parsing.py data.json")
     else:
-        with open(sys.argv[1]) as data_file:
-            data = json.load(data_file)
+        try:
+            with open(sys.argv[1]) as data_file:
+                data = json.load(data_file)
+                data_map_3d(data)
+        except IOError:
+            print("File '%s' not found.") % sys.argv[1]
         #data_map_birdseye(data)
-        data_map_3d(data)
