@@ -9,6 +9,7 @@
 import UIKit
 import SceneKit
 import ARKit
+import SwiftyJSON
 
 class ViewController: UIViewController, ARSCNViewDelegate {
 
@@ -51,18 +52,19 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     var recordPathView: UIView!
     var stopRecordingView: UIView!
+    var gpsButtonView: UIView!
     
     // State of button views
     enum ButtonViewType {
         case recordPath
         case stopRecording
+//        case dropGPSPin
     }
     
     // current button in display
     var currentButton = ButtonViewType.recordPath
     
-    
-    var crumbs: [LocationInfo]!         // List of crumbs dropped when recording path
+    var viocrumbs: [LocationInfo]!         // List of crumbs dropped when recording path
     var pathData: [Array<Any>]!
     var pathDataTime: [Double]!
     
@@ -71,7 +73,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     var announcementTimer: Timer!
     
     @objc func recordPath() {
-        crumbs = []
+        viocrumbs = []
         pathData = []
         pathDataTime = []
         dataTimer = Date()
@@ -82,11 +84,42 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     @objc func stopRecording(_ sender: UIButton) {
         droppingCrumbs.invalidate()
         announcementTimer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: (#selector(showRecordPathButton)), userInfo: nil, repeats: false)
+        
+        let json: JSON = [
+            "vio_crumbs": serializeVIOCrumbs()
+        ]
+        if let string = json.rawString() {
+            print(string)
+            do {
+                // Write contents to file
+                // We can... but I have no clue how to access this later.
+                try string.write(toFile: NSTemporaryDirectory() + "crumbdata.json", atomically: false, encoding: String.Encoding.utf8)
+            }
+            catch let error as NSError {
+                print("Ooops! Something went wrong: \(error)")
+            }
+        }
+    }
+    
+    /*
+     * Turns the [LocationInfo] datastructure into a serializable format for JSON
+     */
+    func serializeVIOCrumbs() -> [[Float]] {
+        var vio_list: [[Float]] = []
+        if let crumbs = viocrumbs,
+            let points = crumbs as? [LocationInfo]
+        {
+            for object in points {
+                vio_list.append([object.x, object.y, object.z, object.yaw])
+            }
+        }
+        return vio_list
     }
     
     @objc func dropCrum() {
         let curLocation = getRealCoordinates(sceneView: sceneView).location
-        crumbs.append(curLocation)
+        viocrumbs.append(curLocation)
+        print(curLocation)
     }
     
     /*
@@ -106,7 +139,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         stopRecordingView.isHidden = false
         currentButton = .stopRecording
     }
-    
+
     override func viewDidLoad() {
         super.viewDidLoad()
         
@@ -114,7 +147,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         sceneView.delegate = self
         
         // Show statistics such as fps and timing information
-        sceneView.showsStatistics = true
+        sceneView.showsStatistics = false
         
         // Create a new scene
         let scene = SCNScene(named: "art.scnassets/ship.scn")!
@@ -160,8 +193,15 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         stopRecordingView.isHidden = true
         addButtons(buttonView: stopRecordingView, buttonViewType: .stopRecording)
         
+//        gpsButtonView = UIView(frame: CGRect(x: 0, y: yOriginOfButtonFrame, width: buttonFrameWidth, height: buttonFrameHeight))
+//        gpsButtonView.backgroundColor = UIColor.black.withAlphaComponent(0.4)
+//        gpsButtonView.isHidden = false
+//        addButtons(buttonView: gpsButtonView, buttonViewType: .dropGPSPin)
+//
         self.view.addSubview(recordPathView)
         self.view.addSubview(stopRecordingView)
+//        self.view.addSubview(gpsButtonView)
+        
         showRecordPathButton()
     }
     
@@ -176,22 +216,33 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         button.layer.cornerRadius = 0.5 * button.bounds.size.width
         button.clipsToBounds = true
         
-        button.center.x = buttonView.center.x
-        button.center.y = buttonView.bounds.size.height * (6/10)
+
         
         // Adds custom button labels
         switch buttonViewType {
         case .recordPath:
             let buttonImage = UIImage(named: "StartRecording")
+            button.center.x = buttonView.bounds.size.width * (1/4)
+            button.center.y = buttonView.bounds.size.height * (6/10)
             button.setImage(buttonImage, for: .normal)
             button.accessibilityLabel = "Re-cord Path"
             button.addTarget(self, action: #selector(recordPath), for: .touchUpInside)
         case.stopRecording:
             let buttonImage = UIImage(named: "StopRecording")
+            button.center.x = buttonView.bounds.size.width * (1/4)
+            button.center.y = buttonView.bounds.size.height * (6/10)
             button.setImage(buttonImage, for: .normal)
             button.accessibilityLabel = "Stop recording"
             button.addTarget(self, action: #selector(stopRecording), for: .touchUpInside)
         }
+//        case.dropGPSPin:
+//            let buttonImage = UIImage(named: "GPSButton")
+//            button.center.x = buttonView.bounds.size.width * (3/4)
+//            button.center.y = buttonView.bounds.size.height * (6/10)
+//            button.setImage(buttonImage, for: .normal)
+//            button.accessibilityLabel = "Drop GPS Pin"
+////            button.addTarget(self, action: #selector(dropGPS), for: .touchUpInside)
+//        }
         
         buttonView.addSubview(button)
     }
