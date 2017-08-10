@@ -2,10 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Needs your GPS Info to do GPS VIO fusing</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Needs your GPS info to do GPS VIO fusing</string>
+	<key>CFBundleGetInfoString</key>
+	<string></string>
 	<key>LSApplicationCategoryType</key>
 	<string></string>
 	<key>CFBundleDevelopmentRegion</key>
@@ -30,12 +28,18 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>This application will use the camera for Augmented Reality.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We need your GPS location!!!!</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>We still need your GPS location.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
+		<string>location-services</string>
+		<string>gps</string>
 		<string>armv7</string>
 		<string>arkit</string>
 	</array>

@@ -23,6 +23,7 @@
 		02E4B9F1318DABE423DA5FC0 /* Pods_gpsvionavigation.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_gpsvionavigation.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		049D0EE967ECDA1BD33D55A2 /* Pods-gpsvionavigation.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-gpsvionavigation.debug.xcconfig"; path = "Pods/Target Support Files/Pods-gpsvionavigation/Pods-gpsvionavigation.debug.xcconfig"; sourceTree = "<group>"; };
 		14FE9860FEF71339D495F5BC /* Pods-gpsvionavigation.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-gpsvionavigation.release.xcconfig"; path = "Pods/Target Support Files/Pods-gpsvionavigation/Pods-gpsvionavigation.release.xcconfig"; sourceTree = "<group>"; };
+		AD86F30E1F3BA34400AC7E2E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		ADF8492A1F3A363D008FA6AF /* gpsvionavigation.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = gpsvionavigation.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		ADF8492D1F3A363D008FA6AF /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		ADF8492F1F3A363D008FA6AF /* art.scnassets */ = {isa = PBXFileReference; lastKnownFileType = wrapper.scnassets; path = art.scnassets; sourceTree = "<group>"; };
@@ -30,7 +31,6 @@
 		ADF849341F3A363D008FA6AF /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		ADF849361F3A363D008FA6AF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		ADF849391F3A363D008FA6AF /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
-		ADF8493B1F3A363D008FA6AF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		ADF849411F3A4519008FA6AF /* PathFinder.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = PathFinder.swift; path = ../../BreadCrumbs/BreadCrumbs/PathFinder.swift; sourceTree = "<group>"; };
 		ADF849421F3A4519008FA6AF /* VectorMath.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VectorMath.swift; path = ../../BreadCrumbs/BreadCrumbs/VectorMath.swift; sourceTree = "<group>"; };
 		ADF849431F3A4519008FA6AF /* Navigation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = Navigation.swift; path = ../../BreadCrumbs/BreadCrumbs/Navigation.swift; sourceTree = "<group>"; };
@@ -93,9 +93,9 @@
 				ADF8492F1F3A363D008FA6AF /* art.scnassets */,
 				ADF849311F3A363D008FA6AF /* ViewController.swift */,
 				ADF849331F3A363D008FA6AF /* Main.storyboard */,
+				AD86F30E1F3BA34400AC7E2E /* Info.plist */,
 				ADF849361F3A363D008FA6AF /* Assets.xcassets */,
 				ADF849381F3A363D008FA6AF /* LaunchScreen.storyboard */,
-				ADF8493B1F3A363D008FA6AF /* Info.plist */,
 			);
 			path = gpsvionavigation;
 			sourceTree = "<group>";

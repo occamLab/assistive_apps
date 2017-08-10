@@ -10,6 +10,9 @@ import UIKit
 import SceneKit
 import ARKit
 import SwiftyJSON
+import CoreLocation
+import GoogleMaps
+import GooglePlaces
 
 class ViewController: UIViewController, ARSCNViewDelegate {
 
@@ -65,6 +68,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     var currentButton = ButtonViewType.recordPath
     
     var viocrumbs: [LocationInfo]!         // List of crumbs dropped when recording path
+    var gpscrumbs: [CLLocationCoordinate2D]!
     var pathData: [Array<Any>]!
     var pathDataTime: [Double]!
     
@@ -72,8 +76,14 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     var droppingCrumbs: Timer!
     var announcementTimer: Timer!
     
+    //* GPS attributes //
+    var locationManager = CLLocationManager()
+    var currentLocation: CLLocation?
+
+    
     @objc func recordPath() {
         viocrumbs = []
+        gpscrumbs = []
         pathData = []
         pathDataTime = []
         dataTimer = Date()
@@ -86,7 +96,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         announcementTimer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: (#selector(showRecordPathButton)), userInfo: nil, repeats: false)
         
         let json: JSON = [
-            "vio_crumbs": serializeVIOCrumbs()
+            "vio_crumbs": serializeVIOCrumbs(),
+            "gps_crumbs": serializeGPSCrumbs()
         ]
         if let string = json.rawString() {
             print(string)
@@ -106,20 +117,33 @@ class ViewController: UIViewController, ARSCNViewDelegate {
      */
     func serializeVIOCrumbs() -> [[Float]] {
         var vio_list: [[Float]] = []
-        if let crumbs = viocrumbs,
-            let points = crumbs as? [LocationInfo]
+        if let crumbs = viocrumbs
         {
-            for object in points {
+            for object in crumbs {
                 vio_list.append([object.x, object.y, object.z, object.yaw])
             }
         }
         return vio_list
     }
     
+    /*
+     * Turns the [CLLocationCoordinate2D] datastructure into a serializable format for JSON
+     */
+    func serializeGPSCrumbs() -> [[Double]] {
+        var gps_list: [[Double]] = []
+        if let crumbs = gpscrumbs
+        {
+            for object in crumbs {
+                gps_list.append([object.latitude, object.longitude])
+            }
+        }
+        return gps_list
+    }
+    
     @objc func dropCrum() {
         let curLocation = getRealCoordinates(sceneView: sceneView).location
         viocrumbs.append(curLocation)
-        print(curLocation)
+//        print(curLocation)
     }
     
     /*
@@ -154,6 +178,15 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         // Set the scene to the view
         sceneView.scene = scene
+        
+        // Initialize the location manager.
+        locationManager = CLLocationManager()
+        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+//        locationManager.requestAlwaysAuthorization()
+        locationManager.requestWhenInUseAuthorization()
+        locationManager.distanceFilter = kCLDistanceFilterNone
+        locationManager.startUpdatingLocation()
+        locationManager.delegate = self
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -294,3 +327,40 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         return CurrentCoordinateInfo(LocationInfo(x: x, y: y, z: z, yaw: yaw!), transMatrix: transMatrix)
     }
 }
+
+// Delegates to handle events for the location manager.
+extension ViewController: CLLocationManagerDelegate {
+
+    
+    // Handle incoming location events.
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        let location: CLLocation = locations.last!
+        print("Location: \(location)")
+        
+        if currentButton == .stopRecording {
+            gpscrumbs.append(location.coordinate)
+        }
+    }
+    
+    // Handle authorization for the location manager.
+    func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
+        switch status {
+        case .restricted:
+            print("Location access was restricted.")
+        case .denied:
+            print("User denied access to location.")
+        case .notDetermined:
+            print("Location status not determined.")
+        case .authorizedAlways: fallthrough
+        case .authorizedWhenInUse:
+            print("Location status is OK.")
+        }
+    }
+    
+    // Handle location manager errors.
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        manager.stopUpdatingLocation()
+        print("Error: \(error)")
+    }
+}
+
