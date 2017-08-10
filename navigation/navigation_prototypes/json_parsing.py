@@ -18,6 +18,9 @@ def get_json_data(userId):
     return(get_most_recent_path(data))
 
 def get_most_recent_path(data):
+    """ Returns path data from a recent DynamoDB entry. Second system argument
+    determines which index to return, with 1 being the most recent. """
+
     if len(sys.argv) < 2:
         pathid = data[u'Items'][-1][u'PathID'][u'S'][:-2]
     else:
@@ -27,7 +30,6 @@ def get_most_recent_path(data):
         if pathid in item[u'PathID'][u'S']:
             ind_list.append(ind)
     return data[u'Items'][ind_list[0]:ind_list[-1] + 1]
-
 
 def get_navigation_positions(data):
     """ Reads json file and returns a tuple of three numpy arrays
@@ -77,9 +79,9 @@ def get_path_positions(data):
             matrixData = matrix["L"]
             pathDataList.append([float(item[u'N']) for item in matrixData])
     pathDataList = np.asarray(pathDataList)
-    return (pathDataList[:, 12],
-        pathDataList[:, 13],
-        pathDataList[:, 14])
+    return (pathDataList[:, 12],    #   Rotation matrix X data
+        pathDataList[:, 13],        #   Y data
+        pathDataList[:, 14])        #   Z data
 
 def data_map_birdseye(data):
     """ Given json data, plots path and navigation route
@@ -190,34 +192,6 @@ def get_instruction_times(data):
     instrucitonTimeList = np.asarray(instructionTimeList)
     return instructionTimeList
 
-def nav_data_generator():
-    data = nav_data_generator.data
-    ts = get_navigation_times(data)
-    xs = get_navigation_positions(data)[0]
-    ys = get_navigation_positions(data)[1]
-    zs = get_navigation_positions(data)[2]
-    for idx, time in enumerate(ts):
-        yield zs[idx], xs[idx]
-
-def path_data_generator():
-    data = path_data_generator.data
-    xs = get_path_positions(data)[0]
-    ys = get_path_positions(data)[1]
-    zs = get_path_positions(data)[2]
-    for idx, time in enumerate(xs):
-        yield zs[idx], xs[idx]
-
-def animation_prep(xyinput):
-    ax = animation_prep.ax
-    line = animation_prep.line
-    # update the data
-    t, y = xyinput
-    animation_prep.xdata.append(t)
-    animation_prep.ydata.append(y)
-    xmin, xmax = ax.get_xlim()
-    line.set_data(animation_prep.xdata, animation_prep.ydata)
-    return line,
-
 def animation_run_3d(data, gen_func):
     try:
         animation_run_3d.fig == True
@@ -233,6 +207,7 @@ def animation_run_3d(data, gen_func):
     ax.set_ylim(xr)
     ax.set_zlim(yr)
 
+    #   Color depending on which part of plotting is occuring
     if gen_func == get_navigation_positions:
         color = 'r'
     elif gen_func == get_path_positions:
@@ -284,22 +259,6 @@ def determine_date(data):
         pathdate_text = pathdate
     return pathdate_text
 
-def animation_run(data, gen_func):
-    fig, ax = plt.subplots()
-    line, = ax.plot([], [], lw=2)
-    xs, ys, zs = get_navigation_positions(data)
-    xscale, yscale, zscale = iso_scale(xs, ys, zs)
-    ax.set_ylim(xscale)
-    ax.set_xlim(zscale)
-    ax.grid()
-    animation_prep.xdata, animation_prep.ydata = [], []
-    animation_prep.ax = ax
-    animation_prep.line = line
-    ani = animation.FuncAnimation(fig, animation_prep, gen_func, blit=True, interval=30,
-        repeat=False)
-    plt.show()
-    animation_prep.xdata, animation_prep.ydata = [], []
-
 if __name__ == '__main__':
     if len(sys.argv) <= 1:
         print("No data file selected. Use the following syntax:")
@@ -307,13 +266,9 @@ if __name__ == '__main__':
     else:
         try:
             data = get_json_data(sys.argv[1])
-            nav_data_generator.data = data
-            path_data_generator.data = data
             animation_run_3d(data, get_path_positions)
             plot_keypoints(data)
             animation_run_3d(data, get_navigation_positions)
             plt.show()
-            #data_map_3d(data)
         except IOError:
             print("File '%s' not found.") % sys.argv[1]
-        #data_map_birdseye(data)
