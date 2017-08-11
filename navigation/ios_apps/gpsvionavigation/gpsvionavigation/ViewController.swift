@@ -11,8 +11,7 @@ import SceneKit
 import ARKit
 import SwiftyJSON
 import CoreLocation
-import GoogleMaps
-import GooglePlaces
+import AWSS3
 
 class ViewController: UIViewController, ARSCNViewDelegate {
 
@@ -80,6 +79,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     var locationManager = CLLocationManager()
     var currentLocation: CLLocation?
 
+    let transferManager = AWSS3TransferManager.default()
     
     @objc func recordPath() {
         viocrumbs = []
@@ -99,17 +99,55 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             "vio_crumbs": serializeVIOCrumbs(),
             "gps_crumbs": serializeGPSCrumbs()
         ]
+        let date = Date(timeIntervalSince1970: Date().timeIntervalSince1970)
+        let dayTimePeriodFormatter = DateFormatter()
+        dayTimePeriodFormatter.dateFormat = "MMM dd YYYY hh:mm a"
+        let dateString = dayTimePeriodFormatter.string(from: date)
+        let fileName: String = dateString + ".json"
+        let filePath: String = NSTemporaryDirectory() + fileName
+        print(filePath)
         if let string = json.rawString() {
             print(string)
             do {
                 // Write contents to file
                 // We can... but I have no clue how to access this later.
-                try string.write(toFile: NSTemporaryDirectory() + "crumbdata.json", atomically: false, encoding: String.Encoding.utf8)
+                try string.write(toFile: filePath, atomically: false, encoding: String.Encoding.utf8)
             }
             catch let error as NSError {
                 print("Ooops! Something went wrong: \(error)")
             }
         }
+        
+        // Prepare S3 Upload Request
+        let uploadingFileURL = URL(fileURLWithPath: filePath)
+        
+        let uploadRequest = AWSS3TransferManagerUploadRequest()!
+        
+        uploadRequest.bucket = "occamlab.gpsvionavigation"
+        uploadRequest.key = fileName
+        uploadRequest.body = uploadingFileURL
+        
+        // Pass Request to S3 Upload Manager
+        transferManager.upload(uploadRequest).continueWith(executor: AWSExecutor.mainThread(), block: { (task:AWSTask<AnyObject>) -> Any? in
+            
+            if let error = task.error as? NSError {
+                if error.domain == AWSS3TransferManagerErrorDomain, let code = AWSS3TransferManagerErrorType(rawValue: error.code) {
+                    switch code {
+                    case .cancelled, .paused:
+                        break
+                    default:
+                        print("Error uploading: \(uploadRequest.key) Error: \(error)")
+                    }
+                } else {
+                    print("Error uploading: \(uploadRequest.key) Error: \(error)")
+                }
+                return nil
+            }
+            
+            let uploadOutput = task.result
+            print("Upload complete for: \(uploadRequest.key)")
+            return nil
+        })
     }
     
     /*

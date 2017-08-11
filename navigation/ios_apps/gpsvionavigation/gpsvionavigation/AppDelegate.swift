@@ -7,7 +7,8 @@
 //
 
 import UIKit
-import GoogleMaps
+import AWSCore
+import AWSCognito
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -16,8 +17,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
-        GMSServices.provideAPIKey("AIzaSyBRNWewsUjDOJuemGVTTPLNr3Ej66keEKc")
+        
+        // Setup for Xcode 7+ http://docs.aws.amazon.com/mobile/sdkforios/developerguide/ats.html
+        AWSLogger.default().logLevel = .verbose
+        
+        
+        let credentialProvider = AWSCognitoCredentialsProvider(regionType: .USEast1, identityPoolId: "us-east-1:ce88ca4a-65b9-469f-9bd7-2a5ed89ef710")
+//        let credentialProvider = AWSStaticCredentialsProvider(accessKey: "AKIAIR2V4ZYWZNZE5K5Q",
+//                                                              secretKey: "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")
+        let configuration = AWSServiceConfiguration(region: .USEast1, credentialsProvider: credentialProvider)
+        AWSServiceManager.default().defaultServiceConfiguration = configuration
         return true
     }
 
