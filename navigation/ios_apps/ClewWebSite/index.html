@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Bootstrap Theme Company Page</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+  <link href="https://fonts.googleapis.com/css?family=Montserrat" rel="stylesheet" type="text/css">
+  <link href="https://fonts.googleapis.com/css?family=Lato" rel="stylesheet" type="text/css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body id="myPage" data-spy="scroll" data-target=".navbar" data-offset="60">
+
+<nav class="navbar navbar-default navbar-fixed-top">
+  <div class="container">
+    <div class="navbar-header">
+       <a href="#myPage" class="navbar-left"><img style="width:40px; height:40px; margin-top: 4px; padding-right: 4px" src="images/ClewIcon.png"></a>
+       <a id="brand" class="navbar-brand" href="#myPage">Clew</a>
+    </div>
+    <div class="collapse navbar-collapse" id="myNavbar">
+      <ul class="nav navbar-nav navbar-right">
+        <li><a href="#overview">OVERVIEW</a></li>
+        <li><a href="#features">FEATURES</a></li>
+        <li><a href="#technology">TECHNOLOGY</a></li>
+        <li><a href="#faq">FAQ</a></li>
+        <li><a href="#contact">CONTACT</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<div class="bg-jumbotron">
+  <img id="jumbo-img" class="img-responsive" src="images/cover-1.jpg">
+</div>    
+
+<div class="jumbotron text-left">
+  <h1 class="padding-text">Clew</h1>  
+  <h3 class="padding-text">Revolutionary indoor navigation for iOS</h3>
+</div>
+
+<!-- Container (OVERVIEW Section) -->
+<div id="overview" class="container-fluid">
+  <div class="row">
+    <div class="col-sm-8 padding-text">
+      <h2 class="text-center">Overview</h2><br>
+      <h4>Clew is a path retracing app designed for blind and visually impaired users to help them independently return to any desired locations.</h4><br>
+      <p>Using Apple's new ARKit built for iOS 11 devices, Clew records a path and guides the user back to their starting location with a choice of voice directions, sound effects, and haptic feedback. Download the app and be part of our exciting beta program to help us test and improve the indoor navigation experience. </p>
+      <br><button class="btn btn-default btn-lg">Download Clew</button>
+    </div>
+    <div class="col-sm-4">
+      <img class="img-responsive slideanim" src="images/overview.png">
+    </div>
+  </div>
+</div>
+
+<!-- Container (Services Section) -->    
+<div id="features" class="container-fluid text-center bg-grey">
+  <h2>FEATURES</h2>
+  <div id="myCarousel" class="carousel slide text-center" data-ride="carousel">
+    
+    <ol class="carousel-indicators">
+      <li data-target="#myCarousel" data-slide-to="0" class="active"></li>
+      <li data-target="#myCarousel" data-slide-to="1"></li>
+    </ol>
+
+    
+    <div class="carousel-inner" role="listbox">
+      <div class="item active">
+        <div class="row">
+            <div class="feature col-sm-4 feature-active">
+              <span class="glyphicon glyphicon-road logo-small"></span>
+              <h4>RECORD PATH</h4>
+              <div class="recordPath">
+                  <p>Record a new path with a touch of a button.</p>
+                  <img id="feature-image" src="images/record.png">  
+              </div>
+            </div>
+            <div class="feature col-sm-4">
+              <span class="glyphicon glyphicon-pushpin logo-small"></span>
+              <h4>PAUSE</h4>
+              <div class="recordPath">
+                  <p>Pause until you're ready to head back.</p>
+                  <img id="feature-image" src="images/pause.png">  
+              </div>    
+            </div>
+            <div class="feature col-sm-4">
+              <span class="glyphicon glyphicon-play-circle logo-small"></span>
+              <h4>NAVIGATION</h4>
+              <div class="recordPath">
+                  <p>Follow Clew and retrace your steps.</p>
+                  <img id="feature-image" src="images/navigation.png">  
+              </div>
+            </div>
+          </div>
+      </div>
+      <div class="item">
+        <div class="row">
+            <div class="feature feature-active col-sm-4">
+              <span class="glyphicon glyphicon-map-marker logo-small"></span>
+              <h4>AR Markers</h4>
+              <div class="recordPath">
+                  <p>Visualize the path with flashing AR markers</p>
+                  <img id="feature-image" src="images/marker.png">  
+              </div>
+            </div>
+            <div class="feature col-sm-4">
+              <span class="glyphicon glyphicon-volume-up logo-small"></span>
+              <h4>GUIDENCE FEEDBACK</h4>
+              <div class="recordPath">
+                  <p>Rely on voice directions, sound, and haptic feedback</p>
+                  <img id="feature-image-wide" src="images/feedback.png">  
+              </div>
+            </div>
+            <div class="feature col-sm-4">
+              <span class="glyphicon glyphicon-cog logo-small"></span>
+              <h4>CUSTOMIZE</h4>
+              <div class="recordPath">
+                  <p>Customize your experience to fit your needs.</p>
+                  <img id="feature-image" src="images/customize.png">  
+              </div>
+            </div>
+          </div>
+      </div>
+    </div>
+
+    
+    <a class="left carousel-control" href="#myCarousel" role="button" data-slide="prev">
+      <span class="glyphicon glyphicon-chevron-left" aria-hidden="true"></span>
+      <span class="sr-only">Previous</span>
+    </a>
+    <a class="right carousel-control" href="#myCarousel" role="button" data-slide="next">
+      <span class="glyphicon glyphicon-chevron-right" aria-hidden="true"></span>
+      <span class="sr-only">Next</span>
+    </a>
+  </div>
+</div> 
+    
+<div id="technology" class="container-fluid">
+  <div class="row">
+    <div class="col-sm-5">
+      <span class="vertical-center slideanim">
+        <img id="how-it-works" class="img-responsive" src="images/source.gif">
+      </span>
+    </div>
+    <div class="col-sm-7 padding-text">
+      <h2 class="text-center">HOW IT WORKS</h2><br>
+      <h4>Augmented reality, exemplified by Apple's ARKit, superimposes virtual elements onto the real world. In this case, we add virtual "keypoints" to navigate you through unknown areas.</h4><br>
+      <h3>What it does</h4>
+        <ul>
+		  <li>As you walk to a location, your phone keeps track of its path with a series of virtual crumbs.</li>
+          <li>After you get there, your phone simplifies the path to a series of "keypoints" where you made a turn or used a stairway.</li>
+          <li>As you navigate back, your phone will give you instructions to each point, in reverse order, until you reach your starting location again.</li>
+          <li>You're now back at your seat, classroom, or restaurant table. Enjoy yourself </li>
+		</ul>
+    </div>
+  </div>
+</div>
+
+<!-- Container (Portfolio Section) -->
+<div id="faq" class="container-fluid bg-grey">
+  <div class="text-center"><h2>Frequently Asked Questions</h2><br></div>
+  <div class="row padding-text">
+    <div class="col-sm-6">
+      <p class="question">What is Clew?</p>
+      <p class="answer">Clew is an indoor, path tracing navigation app built for blind and visually impaired users. It is designed to remember a location like a seat or a room and assist you to return to that destination after exploring your surrounding environment.</p>  
+    </div>
+    <div class="col-sm-6">
+      <p class="question">How can I get Clew?</p>
+      <p class="answer">Clew is available for free on the App Store and is compatible with iPhone 6s and newer models running iOS11. For the full haptic experience, iPhone 7 and newer is recommended.</p>  
+    </div>
+  </div>
+  <br>
+  <div class="row padding-text">
+    <div class="col-sm-6">
+      <p class="question">What’s the best way to use Clew?</p>
+      <p class="answer">To ensure that the camera is fully capturing your surroundings, hold the phone in a vertical portrait position with the camera facing away from you while you use Clew. Also, make sure the camera is fairly stable to ensure accurate location tracking.</p>
+    </div>
+    <div class="col-sm-6">
+      <p class="question">In what environment does Clew work best?</p>
+      <p class="answer">Clew works best in well lit areas with distinct visual features and few moving objects like crowds and cars. Although Clew can be used outdoors, it is not as accurate in open areas and intense sunlight. Clew works optimally indoors over relatively short distances.</p>
+    </div>
+  </div>
+  <br>
+  <div class="row padding-text">
+    <div class="col-sm-6">
+      <p class="question">What is the pause feature?</p>
+      <p class="answer">You can pause Clew once you arrive at your destination and before you start navigating back. Press the pause button on the bottom right corner and follow the instructions. Once Clew is paused, you can exit the app to do other tasks or lock the phone as long as you don’t shut down Clew from the app switcher. When you are ready to return, press the resume button and follow the instructions to start tracking. </p>  
+    </div>
+    <div class="col-sm-6">
+      <p class="question">How can I report a problem?</p>
+      <p class="answer">Please use Clew at your own discretion. Clew is still in beta testing and therefore may not function correctly all the time. Help us improve the system by rating your routes as good or bad. Bad routes will examined to further refine the app.</p>  
+    </div>
+  </div> 
+</div>
+
+<!-- Container (Contact Section) --> 
+<div class="contact-center">
+<div id="contact" class="container-fluid padding-contact">
+  <h2 class="text-center">CONTACT</h2>
+  <div class="row">
+    <div class="col-sm-12">
+      <p class="text-center contact-text">Tell us about your Clew experience.</p>
+      <div class="row">
+        <div class="col-sm-6 form-group">
+          <input class="form-control" id="name" name="name" placeholder="Name" type="text" required>
+        </div>
+        <div class="col-sm-6 form-group">
+          <input class="form-control" id="email" name="email" placeholder="Email" type="email" required>
+        </div>
+      </div>
+      <textarea class="form-control" id="comments" name="comments" placeholder="Comment" rows="5"></textarea><br>
+      <div class="row">
+        <div class="col-sm-12 form-group">
+          <button class="btn btn-default pull-right" type="submit">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+  <!-- Footer -->
+  <footer class="container-fluid bg-black">
+    <div class="row">
+      <div class="col-sm-12">
+        <p class="text-center">Designed by a research group at <a href="https://www.olin.edu">Franklin W. Olin College of Engineering</a></p> 
+      </div> 
+    </div>
+  </div>
+</footer>
+
+<script>
+$(document).ready(function(){
+  // Add smooth scrolling to all links in navbar + footer link
+  $(".navbar a, footer a[href='#myPage']").on('click', function(event) {
+    // Make sure this.hash has a value before overriding default behavior
+    if (this.hash !== "") {
+      // Prevent default anchor click behavior
+      event.preventDefault();
+
+      // Store hash
+      var hash = this.hash;
+
+      // Using jQuery's animate() method to add smooth page scroll
+      // The optional number (900) specifies the number of milliseconds it takes to scroll to the specified area
+      $('html, body').animate({
+        scrollTop: $(hash).offset().top
+      }, 900, function(){
+   
+        // Add hash (#) to URL when done scrolling (default click behavior)
+        window.location.hash = hash;
+      });
+    } // End if
+  });
+  
+  $(window).scroll(function() {
+    $(".slideanim").each(function(){
+      var pos = $(this).offset().top;
+
+      var winTop = $(window).scrollTop();
+        if (pos < winTop + 600) {
+          $(this).addClass("slide");
+        }
+    });
+  });
+})
+
+var jumboHeight = $('.jumbotron').outerHeight();
+function parallax(){
+    var scrolled = $(window).scrollTop();
+    $('.bg-jumbotron').css('height', (jumboHeight-scrolled) + 'px');
+}
+
+$(window).scroll(function(e){
+    parallax();
+});
+</script>
+
+</body>
+</html>
