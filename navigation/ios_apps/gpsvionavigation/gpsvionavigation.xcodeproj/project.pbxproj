@@ -1,0 +1,463 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 48;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A914AA0E65FFB5EE7D3A23CD /* Pods_gpsvionavigation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 02E4B9F1318DABE423DA5FC0 /* Pods_gpsvionavigation.framework */; };
+		ADF8492E1F3A363D008FA6AF /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADF8492D1F3A363D008FA6AF /* AppDelegate.swift */; };
+		ADF849301F3A363D008FA6AF /* art.scnassets in Resources */ = {isa = PBXBuildFile; fileRef = ADF8492F1F3A363D008FA6AF /* art.scnassets */; };
+		ADF849321F3A363D008FA6AF /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADF849311F3A363D008FA6AF /* ViewController.swift */; };
+		ADF849351F3A363D008FA6AF /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = ADF849331F3A363D008FA6AF /* Main.storyboard */; };
+		ADF849371F3A363D008FA6AF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ADF849361F3A363D008FA6AF /* Assets.xcassets */; };
+		ADF8493A1F3A363D008FA6AF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = ADF849381F3A363D008FA6AF /* LaunchScreen.storyboard */; };
+		ADF849441F3A4519008FA6AF /* PathFinder.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADF849411F3A4519008FA6AF /* PathFinder.swift */; };
+		ADF849451F3A4519008FA6AF /* VectorMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADF849421F3A4519008FA6AF /* VectorMath.swift */; };
+		ADF849461F3A4519008FA6AF /* Navigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADF849431F3A4519008FA6AF /* Navigation.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		02E4B9F1318DABE423DA5FC0 /* Pods_gpsvionavigation.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_gpsvionavigation.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		049D0EE967ECDA1BD33D55A2 /* Pods-gpsvionavigation.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-gpsvionavigation.debug.xcconfig"; path = "Pods/Target Support Files/Pods-gpsvionavigation/Pods-gpsvionavigation.debug.xcconfig"; sourceTree = "<group>"; };
+		14FE9860FEF71339D495F5BC /* Pods-gpsvionavigation.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-gpsvionavigation.release.xcconfig"; path = "Pods/Target Support Files/Pods-gpsvionavigation/Pods-gpsvionavigation.release.xcconfig"; sourceTree = "<group>"; };
+		AD86F30E1F3BA34400AC7E2E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		ADF8492A1F3A363D008FA6AF /* gpsvionavigation.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = gpsvionavigation.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		ADF8492D1F3A363D008FA6AF /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		ADF8492F1F3A363D008FA6AF /* art.scnassets */ = {isa = PBXFileReference; lastKnownFileType = wrapper.scnassets; path = art.scnassets; sourceTree = "<group>"; };
+		ADF849311F3A363D008FA6AF /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
+		ADF849341F3A363D008FA6AF /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		ADF849361F3A363D008FA6AF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		ADF849391F3A363D008FA6AF /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		ADF849411F3A4519008FA6AF /* PathFinder.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = PathFinder.swift; path = ../../BreadCrumbs/BreadCrumbs/PathFinder.swift; sourceTree = "<group>"; };
+		ADF849421F3A4519008FA6AF /* VectorMath.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = VectorMath.swift; path = ../../BreadCrumbs/BreadCrumbs/VectorMath.swift; sourceTree = "<group>"; };
+		ADF849431F3A4519008FA6AF /* Navigation.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = Navigation.swift; path = ../../BreadCrumbs/BreadCrumbs/Navigation.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		ADF849271F3A363D008FA6AF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A914AA0E65FFB5EE7D3A23CD /* Pods_gpsvionavigation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0F2C9F69A975507F204D21AD /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				049D0EE967ECDA1BD33D55A2 /* Pods-gpsvionavigation.debug.xcconfig */,
+				14FE9860FEF71339D495F5BC /* Pods-gpsvionavigation.release.xcconfig */,
+			);
+			name = Pods;
+			sourceTree = "<group>";
+		};
+		5E0B7610C9DD27C9E931910A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				02E4B9F1318DABE423DA5FC0 /* Pods_gpsvionavigation.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		ADF849211F3A363D008FA6AF = {
+			isa = PBXGroup;
+			children = (
+				ADF8492C1F3A363D008FA6AF /* gpsvionavigation */,
+				ADF8492B1F3A363D008FA6AF /* Products */,
+				0F2C9F69A975507F204D21AD /* Pods */,
+				5E0B7610C9DD27C9E931910A /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		ADF8492B1F3A363D008FA6AF /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				ADF8492A1F3A363D008FA6AF /* gpsvionavigation.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		ADF8492C1F3A363D008FA6AF /* gpsvionavigation */ = {
+			isa = PBXGroup;
+			children = (
+				ADF849431F3A4519008FA6AF /* Navigation.swift */,
+				ADF849411F3A4519008FA6AF /* PathFinder.swift */,
+				ADF849421F3A4519008FA6AF /* VectorMath.swift */,
+				ADF8492D1F3A363D008FA6AF /* AppDelegate.swift */,
+				ADF8492F1F3A363D008FA6AF /* art.scnassets */,
+				ADF849311F3A363D008FA6AF /* ViewController.swift */,
+				ADF849331F3A363D008FA6AF /* Main.storyboard */,
+				AD86F30E1F3BA34400AC7E2E /* Info.plist */,
+				ADF849361F3A363D008FA6AF /* Assets.xcassets */,
+				ADF849381F3A363D008FA6AF /* LaunchScreen.storyboard */,
+			);
+			path = gpsvionavigation;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		ADF849291F3A363D008FA6AF /* gpsvionavigation */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = ADF8493E1F3A363D008FA6AF /* Build configuration list for PBXNativeTarget "gpsvionavigation" */;
+			buildPhases = (
+				978FAF4E65B0CD1FC24261DF /* [CP] Check Pods Manifest.lock */,
+				ADF849261F3A363D008FA6AF /* Sources */,
+				ADF849271F3A363D008FA6AF /* Frameworks */,
+				ADF849281F3A363D008FA6AF /* Resources */,
+				A0F871BB2ACE3EF4982706A8 /* [CP] Embed Pods Frameworks */,
+				975E48934F7F3B5B94E9134B /* [CP] Copy Pods Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = gpsvionavigation;
+			productName = gpsvionavigation;
+			productReference = ADF8492A1F3A363D008FA6AF /* gpsvionavigation.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		ADF849221F3A363D008FA6AF /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastSwiftUpdateCheck = 0900;
+				LastUpgradeCheck = 0900;
+				ORGANIZATIONNAME = occamlab;
+				TargetAttributes = {
+					ADF849291F3A363D008FA6AF = {
+						CreatedOnToolsVersion = 9.0;
+					};
+				};
+			};
+			buildConfigurationList = ADF849251F3A363D008FA6AF /* Build configuration list for PBXProject "gpsvionavigation" */;
+			compatibilityVersion = "Xcode 8.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = ADF849211F3A363D008FA6AF;
+			productRefGroup = ADF8492B1F3A363D008FA6AF /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				ADF849291F3A363D008FA6AF /* gpsvionavigation */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		ADF849281F3A363D008FA6AF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ADF849301F3A363D008FA6AF /* art.scnassets in Resources */,
+				ADF8493A1F3A363D008FA6AF /* LaunchScreen.storyboard in Resources */,
+				ADF849371F3A363D008FA6AF /* Assets.xcassets in Resources */,
+				ADF849351F3A363D008FA6AF /* Main.storyboard in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		975E48934F7F3B5B94E9134B /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${SRCROOT}/Pods/Target Support Files/Pods-gpsvionavigation/Pods-gpsvionavigation-resources.sh",
+				"${PODS_ROOT}/GoogleMaps/Maps/Frameworks/GoogleMaps.framework/Resources/GoogleMaps.bundle",
+				"${PODS_ROOT}/GooglePlaces/Frameworks/GooglePlaces.framework/Resources/GooglePlaces.bundle",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/Pods/Target Support Files/Pods-gpsvionavigation/Pods-gpsvionavigation-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		978FAF4E65B0CD1FC24261DF /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-gpsvionavigation-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		A0F871BB2ACE3EF4982706A8 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${SRCROOT}/Pods/Target Support Files/Pods-gpsvionavigation/Pods-gpsvionavigation-frameworks.sh",
+				"${BUILT_PRODUCTS_DIR}/AWSAutoScaling/AWSAutoScaling.framework",
+				"${BUILT_PRODUCTS_DIR}/AWSCloudWatch/AWSCloudWatch.framework",
+				"${BUILT_PRODUCTS_DIR}/AWSCognito/AWSCognito.framework",
+				"${BUILT_PRODUCTS_DIR}/AWSCognitoIdentityProvider/AWSCognitoIdentityProvider.framework",
+				"${BUILT_PRODUCTS_DIR}/AWSCore/AWSCore.framework",
+				"${BUILT_PRODUCTS_DIR}/AWSDynamoDB/AWSDynamoDB.framework",
+				"${BUILT_PRODUCTS_DIR}/AWSEC2/AWSEC2.framework",
+				"${BUILT_PRODUCTS_DIR}/AWSElasticLoadBalancing/AWSElasticLoadBalancing.framework",
+				"${BUILT_PRODUCTS_DIR}/AWSIoT/AWSIoT.framework",
+				"${BUILT_PRODUCTS_DIR}/AWSKinesis/AWSKinesis.framework",
+				"${BUILT_PRODUCTS_DIR}/AWSLambda/AWSLambda.framework",
+				"${BUILT_PRODUCTS_DIR}/AWSMachineLearning/AWSMachineLearning.framework",
+				"${BUILT_PRODUCTS_DIR}/AWSMobileAnalytics/AWSMobileAnalytics.framework",
+				"${BUILT_PRODUCTS_DIR}/AWSS3/AWSS3.framework",
+				"${BUILT_PRODUCTS_DIR}/AWSSES/AWSSES.framework",
+				"${BUILT_PRODUCTS_DIR}/AWSSNS/AWSSNS.framework",
+				"${BUILT_PRODUCTS_DIR}/AWSSQS/AWSSQS.framework",
+				"${BUILT_PRODUCTS_DIR}/AWSSimpleDB/AWSSimpleDB.framework",
+				"${BUILT_PRODUCTS_DIR}/SwiftyJSON/SwiftyJSON.framework",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/AWSAutoScaling.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/AWSCloudWatch.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/AWSCognito.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/AWSCognitoIdentityProvider.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/AWSCore.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/AWSDynamoDB.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/AWSEC2.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/AWSElasticLoadBalancing.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/AWSIoT.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/AWSKinesis.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/AWSLambda.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/AWSMachineLearning.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/AWSMobileAnalytics.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/AWSS3.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/AWSSES.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/AWSSNS.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/AWSSQS.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/AWSSimpleDB.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/SwiftyJSON.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/Pods/Target Support Files/Pods-gpsvionavigation/Pods-gpsvionavigation-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		ADF849261F3A363D008FA6AF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ADF849451F3A4519008FA6AF /* VectorMath.swift in Sources */,
+				ADF849321F3A363D008FA6AF /* ViewController.swift in Sources */,
+				ADF849461F3A4519008FA6AF /* Navigation.swift in Sources */,
+				ADF8492E1F3A363D008FA6AF /* AppDelegate.swift in Sources */,
+				ADF849441F3A4519008FA6AF /* PathFinder.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		ADF849331F3A363D008FA6AF /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				ADF849341F3A363D008FA6AF /* Base */,
+			);
+			name = Main.storyboard;
+			sourceTree = "<group>";
+		};
+		ADF849381F3A363D008FA6AF /* LaunchScreen.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				ADF849391F3A363D008FA6AF /* Base */,
+			);
+			name = LaunchScreen.storyboard;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		ADF8493C1F3A363D008FA6AF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 11.0;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		ADF8493D1F3A363D008FA6AF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 11.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		ADF8493F1F3A363D008FA6AF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 049D0EE967ECDA1BD33D55A2 /* Pods-gpsvionavigation.debug.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				DEVELOPMENT_TEAM = 787TUDMR8Q;
+				INFOPLIST_FILE = gpsvionavigation/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = occamlab.gpsvionavigation;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 4.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		ADF849401F3A363D008FA6AF /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 14FE9860FEF71339D495F5BC /* Pods-gpsvionavigation.release.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				DEVELOPMENT_TEAM = 787TUDMR8Q;
+				INFOPLIST_FILE = gpsvionavigation/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = occamlab.gpsvionavigation;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 4.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		ADF849251F3A363D008FA6AF /* Build configuration list for PBXProject "gpsvionavigation" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				ADF8493C1F3A363D008FA6AF /* Debug */,
+				ADF8493D1F3A363D008FA6AF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		ADF8493E1F3A363D008FA6AF /* Build configuration list for PBXNativeTarget "gpsvionavigation" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				ADF8493F1F3A363D008FA6AF /* Debug */,
+				ADF849401F3A363D008FA6AF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = ADF849221F3A363D008FA6AF /* Project object */;
+}
