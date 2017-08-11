@@ -7,10 +7,10 @@ import matplotlib.animation as animation
 import urllib2
 from mpl_toolkits.mplot3d import Axes3D
 
-def get_json_data(userId):
+def get_json_data(userid):
     """ Reads json data from url determined from userId. """
 
-    data_file = urllib2.urlopen("https://27bcct7nyg.execute-api.us-east-1.amazonaws.com/Test/pathid/%s" % userId)
+    data_file = urllib2.urlopen("https://27bcct7nyg.execute-api.us-east-1.amazonaws.com/Test/userid/%s" % userid)
     data = json.load(data_file)
     if data[u'Count'] == 0:
         print("No data for that user.")
