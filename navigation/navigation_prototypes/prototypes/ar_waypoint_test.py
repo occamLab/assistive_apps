@@ -1,296 +1,589 @@
 #!/usr/bin/env python
 
+from os import system, path
+import math
+import time
+try:
+    import cPickle as pickle
+except:
+    import pickle
+
 import rospy
 from geometry_msgs.msg import PoseStamped, Pose, Point, Vector3
-from tf.transformations import euler_from_quaternion
+from tf.transformations import euler_from_quaternion, quaternion_from_euler, quaternion_multiply
 import tf
-import math
-from std_msgs.msg import Header, ColorRGBA
-from visualization_msgs.msg import Marker
+from std_msgs.msg import Header, ColorRGBA, String
+from visualization_msgs.msg import Marker, MarkerArray
 import pyttsx
-from os import system, path
 from rospkg import RosPack
 from apriltags_ros.msg import AprilTagDetectionArray
 from std_msgs.msg import Header, ColorRGBA
 from keyboard.msg import Key
-import time
-# from dynamic_reconfigure.server import Server
-# from mobility_games.cfg import SemanticWaypointsConfig
+from random import random
+from os import system, path
+from copy import deepcopy
+import numpy as np
+from scipy import linalg, matrix
+import scipy
+
+def null(a, rtol=1e-5):
+    u, s, v = np.linalg.svd(a)
+    rank = (s > rtol*s[0]).sum()
+    return rank, v[rank:].T.copy()
 
 class ArWaypointTest(object):
     def __init__(self):
-        self.calibration_mode = True        # Flag to keep track of game state -- Calibration/Run Modes
-        self.waypoints = {}
+        #### ROS Variables ####
+        self.engine = pyttsx.init()                                     # Speech engine
+        top = RosPack().get_path('mobility_games')                      # Directory for this ros package
+        self.sound_folder = path.join(top, 'auditory/sound_files')      # Location of audio files
 
-        self.tag_id_to_name = {}            # Maps tag_id to string label
-        self.tag_name_to_id = {}            # Maps string label to tag_id
-        self.visited_tags_calibrate = []    # Keeps track of tags seen in calibration phase
-        self.tag_id = None                  # Destination tag_id
-        self.translations = None
+        rospy.init_node('ar_waypoint_test')                             # Initialization of a nother node.
+        self.listener = tf.TransformListener()                          # The transform listener
+        self.broadcaster = tf.TransformBroadcaster()                    # The transform broadcaster
+        self.waypoint_viz_pub = rospy.Publisher('/waypoint_visualizer', # Create a ros puplisher for the marker visualization
+                                                MarkerArray,
+                                                queue_size=10)
+        """self.place_pub = rospy.Publisher('/locations',
+                                         String,
+                                         queue_size=10)"""
+        # srv = Server(SemanticWaypointsConfig, self.config_callback)
 
-        self.tag_messages = {}              # Messages stored for each tag
-        self.create_test_messages()         # FOR DEMO ONLY -- Create fake messages
+        #### Editing Variables ####
+        self.proximity_to_destination = 1.8                 # Size in meters of the radius of the waypoints.
+        self.search_dist = 12                               # Distance that the waypoint searches for when user attempts to search.
+        self.record_interval_normal = rospy.Duration(.1)    #Interval of time between recording normally
+        self.record_interval_tag_seen = rospy.Duration(.1)  #Interval of time between recording when tag is seen
+        self.g2o_data_path = '/home/juicyslew/catkin_ws/data.g2o' #path to the data compiled into the g2o file
+        self.g2o_data_copy_path = '/home/juicyslew/catkin_ws/data_cp.g2o' #copy of the unedit data
+        self.g2o_result_path = '/home/juicyslew/catkin_ws/result.g2o' #result path of g2o
 
-        self.start_run = False              # Flag indicating state of gameplay in Run Mode
-        self.start_time = None              # Starting time -- starts when user types in destination
-        self.end_time = None                # End time -- stops when user finds destination
-        self.distance_to_destination = 999  # Distance to destination from current position
-        self.proximity_to_destination = 0.6 #rospy.get_param('~proximity_to_destination', 0.8)
+        #### Tracker Variables ####
+        self.calibration_mode = True                        # Flag to keep track of game state -- Calibration/Run Modes
+        self.calibration_AR = False                         # Flag to keep track of game state -- AR Calibration/Other Modes. (this supercedes other modes in priority if turned on)
+        self.waypoints = {}                                 # Dictionary of waypoints
+        self.waypoints_detected = {}                        # Dictionary of currently detected waypoints??
+        self.origin_tag = None                              # tag_id of main tag.
+        self.supplement_tags = {}                           # Dictionary of tag_id's connected to their poses.
+        self.tag_seen = False                               # boolean describing if the first tag has been seen or not.
+        self.AR_Find_Try = False                            # Boolean for whether person is finding an AR tag or not.
+        self.x = None                                       # x position of Tango. Start at None because no data have been received yet.
+        self.y = None                                       # y position of Tango
+        self.z = None                                       # z position of Tango
+        self.has_spoken = False                             # Boolean for if the speech engine has spoken
+        self.markerlist = []                                # Empty list, to contain waypoints.
+        self.waypoint_id = 0                                # Waypoint_id's
+        self.last_record_time = 0                           # Last time of a pose record
+        self.g2o_result = None                              # Result of g2o is the actual information from the file.e
+        self.vertex_id = 586                                # Start id is the id after all the tag ids
+        self.recording = False                              # Boolean for recording
+        self.tags_detected = None                           # list of detected tags.
+        self.nowtime = None                                 # Timing for the rose pose and
+        ## Testing Materials
+        self.origin_msg = None                              # Main Tag Msg with all the pose and id info.
+        self.lastpose = None                                # Last pose of the phone
+        self.distance_traveled = [0, 0, 0, 0]               # Counter for total traveled distance
+        self.testing_tag_id = 1                             # Tag Id for Testing (debugging)
+        self.record_interval = self.record_interval_normal  # Interval of time between pose recording for SLAM algorithm
+        self.g2o_data = None                                # Have variable to be prepared for file reading and writing
+        open(self.g2o_data_path, 'wb').close()              # Overwrite current g2o data file
+        self.tagtimes = {}                                  # Dictionary of Last recorded tag times
+        self.tagrecorded = {}
+        for i in range(587):
+            self.tagtimes[i] = rospy.Time(1)
+            self.tagrecorded[i] = False
+        self.pose_failure = False                           # Flag for whether record time has failed to update (most likely because of pose not updating)
+        self.testfile = "/home/juicyslew/catkin_ws/naive.txt"
+        self.test_data = open(self.testfile, 'wb')
 
-        self.x = None                       # x position of Tango. Start at None because no data have been received yet.
-        self.y = None                       # z position of Tango
-        self.yaw = None                     # yaw of Tango
-
-        self.last_play_time = None          #   Last time a beeping noise has been made
-        self.last_say_time = None           #   Last time voice instructions have been made                   #   Radius, in meters, game takes place (from initial position)
-        self.goal_found = None
-
-        self.has_spoken = False
-        self.engine = pyttsx.init()         # Speech engine
-        top = RosPack().get_path('mobility_games')
-        self.sound_folder = path.join(top, 'auditory/sound_files')
-
-        rospy.init_node('ar_waypoint_test')
-        self.listener = tf.TransformListener()
-        rospy.Subscriber('/tango_pose', PoseStamped, self.process_pose)
-        rospy.Subscriber('/fisheye_undistorted/tag_detections',
+        #### ROS SUBSCRIBERS ####
+        rospy.Subscriber('/tango_pose', PoseStamped, self.process_pose) # Subscriber for the tango pose.
+        rospy.Subscriber('/fisheye_undistorted/tag_detections',         # SUBSCRIBER FOR THE TAG_DETECTION TRANSFORMS.
                         AprilTagDetectionArray,
                         self.tag_callback)
-        rospy.Subscriber('/keyboard/keydown', Key, self.key_pressed)
-        # srv = Server(SemanticWaypointsConfig, self.config_callback)
-    
-    # def config_callback(self, config, level):
-    #     self.proximity_to_destination = config['proximity_to_destination']
-    #     return config
-   
-    
-    # FOR DEMO ONLY
-    #   - Creates fake messages
-    # def create_test_messages(self):
-    #    messages = []
-    #    message_1 = "Hi there! You found it!"
-    #    messages.append(message_1)
-    #    self.tag_messages[3] = messages
+        rospy.Subscriber('/keyboard/keydown', Key, self.key_pressed)    # Subscriber forthe keyboard information.
 
-    def process_pose(self, msg):       #    Onngoing function that updates current x, y, and yaw
-        if self.origin_tag:
-            try:
-                self.listener.waitForTransform('AR', 
-                                               msg.header.frame_id, 
-                                               msg.header.stamp, 
-                                               rospy.Duration(0.5))
-                newitem = self.listener.transformPose('AR', msg)
+
+    def process_pose(self, msg):
+        """
+        This function processes the pose, and saves it in the AR frame which can be useful for various features.
+        """
+        if self.origin_tag >= 0:
+            if (self.lastpose):                                                     # if we didn't just start up and have seen the origin tag
+                movement = [msg.pose.position.x - self.lastpose.pose.position.x,    # calculate the difference in the poses.
+                            msg.pose.position.y - self.lastpose.pose.position.y,
+                            msg.pose.position.z - self.lastpose.pose.position.z]
+                for i in range(3):                                                  # get the total distance that was traveled over that period
+                    self.distance_traveled[i] += abs(movement[i])                   # record it into the distance traveled.
+            try: # try
+                msg.header.stamp = rospy.Time(0)                                    # set the header stamp to now.
+                newitem = self.listener.transformPose('AR', msg)                    # transform the pose into the AR frame
                 self.x = newitem.pose.position.x
                 self.y = newitem.pose.position.y
-                self.z = newitem.pose.position.z
-                
-                # if self.translations:
-                #     self.distance_to_destination = math.sqrt((self.translations[0] - self.x)**2 + (self.translations[1] - self.y)**2)
-                angles = euler_from_quaternion([msg.pose.orientation.x,
-                                                msg.pose.orientation.y,
-                                                msg.pose.orientation.z,
-                                                msg.pose.orientation.w])
-                self.yaw = angles[2]
-
-                if not calibration_mode and self.translations:
-                    for waypoint in self.waypoints:
-                        if(math.sqrt((self.waypoints[waypoint][0] - self.x)**2 + (self.waypoints[waypoint][1] - self.z)**2) < 0.5):
-                            print found 
-                        
-
-            except Exception as inst:
-                print "Exception is", inst
-
-    def det_speech(self, yaw, cur_pos, goal_pos):
-        print type(cur_pos[0])
-
-        #   Takes in angle, position, and position of goal. Determines relative
-        #   position of goal to Tango and returns text instructions.
-        dx = goal_pos[0] - cur_pos[0]
-        dy = goal_pos[1] - cur_pos[1]
-        angle = math.atan2(dy, dx) - yaw
-        angle %= 2*math.pi      #   Makes sure angle is between 0 and 2pi
-        if angle < math.pi/6:
-            text = "You're on the right path!"
-        elif angle < math.pi/3:
-            text = "The goal is slightly to your left."
-        elif angle < 2*math.pi/3:
-            text = "The goal is to your left."
-        elif angle < 4*math.pi/3:
-            text = "The goal is behind you."
-        elif angle < 5*math.pi/3:
-            text = "The goal is to your right."
-        elif angle < 2*math.pi:
-            text = "The goal is slightly right."
-        else:
-            text = "Something funny happened."
-        return text
-
-    # Adds string labels to AR Tags
-    # def calibrate_tag(self, tag_id):    
-    #     self.visited_tags_calibrate.append(tag_id)
-    #     self.engine.say("Name the AR Tag!")
-    #     tag_name = raw_input("Name the AR Tag: ")
-    #     confirm_msg = "Labeled " + tag_name
-    #     self.engine.say(confirm_msg)
-    #     self.tag_id_to_name[tag_id] = tag_name
-    #     self.tag_name_to_id[tag_name] = tag_id
-    #     print self.tag_id_to_name
-
-    # Gives option to users to leave a message at an AR tag with tag_id
-    # def collect_message(self, tag_id):
-    #     prompt = "Would you like to leave a message at " + self.tag_id_to_name[tag_id] + "? [y/n] "
-    #     self.engine.say(prompt)
-    #     message_prompt = raw_input(prompt)
-    #     if message_prompt == 'y':
-    #         self.engine.say("Leve a message")
-    #         message = raw_input("Leave a message: ")
-    #         if tag_id in self.tag_messages:
-    #             self.tag_messages[tag_id].append(message)
-    #         else:
-    #             messages = []
-    #             messages.append(message)
-    #             self.tag_messages[tag_id] = messages
-
-    # Displays all messages at AR Tag with tag_id
-    # def display_messages(self, tag_id):
-    #     if tag_id in self.tag_messages:
-    #         print "Someone has left you a message:"
-    #         self.engine.say('Someone has left you a message')
-    #         for message in self.tag_messages[tag_id]:
-    #             print message + '\n'
-    #             self.engine.say(message)
-
-    def update_origin_pose(self):
-        if (self.listener.frameExists("odom")
-                and self.listener.frameExists('AR')):
-
-            try:
-                t = self.listener.getLatestCommonTime("odom", 'AR')
-
-                # get transform to make tag_frame (parent) & odom (child)
-                trans, rot = self.listener.lookupTransform(
-                        "odom", 'AR', t)
-
-                self.translations = trans
-                # self.rotations = rot
-
-            except (tf.ExtrapolationException,
-                    tf.LookupException,
-                    tf.ConnectivityException) as e:
-                print e
+                self.z = newitem.pose.position.z                                    # record the information from that transformed phone pose.
 
 
-    # Starts new game 
-    #   - Prompt user to enter destination
-    #   - Restart timer
-    #   - End game by typing 'done'
-    # def start_new_game(self):
-    #     self.engine.say("What would you like to find?")
-    #     search_tag_name = raw_input("What would you like to find? ")
-    #     if search_tag_name in self.tag_name_to_id:
-    #         confirm_msg = "Looking for %s" % search_tag_name
-    #         self.engine.say(confirm_msg)
-    #         self.tag_id = self.tag_name_to_id[search_tag_name]
-            
-    #         self.update_destination_pose()
-           
-    #         self.start_run = True
-    #         self.start_time = time.time()
-    #     elif search_tag_name == 'done':
-    #         print "Goodbye!"
-    #     else:
-    #         err_msg = '"%s" does not exist. Try again!' % search_tag_name
-    #         self.engine.say(err_msg)
-    #         print err_msg
-    #         self.start_new_game()
+                if not self.calibration_mode and not self.AR_Find_Try:              #if not calibrating. (aka if running)
+                    for waypoint in self.waypoints:                                 #iterate through the waypoints
+                        disttopoint = math.sqrt((self.waypoints[waypoint][0] - self.x)**2       #get the distance to each one
+                                                + (self.waypoints[waypoint][1] - self.y)**2
+                                                + (self.waypoints[waypoint][2] - self.z)**2)
+                        if(disttopoint < self.proximity_to_destination):                        # if the distance is less than the previously set waypoint radius
+                            if not self.waypoints_detected[waypoint]:                           # and the waypoint is not detected
+                                mesg = "Found %s" % waypoint
+                                print mesg                                                      # print the waypoint was found
+                                print "distance to point: " + str(disttopoint)                  # print the distance to the waypoint
+                                self.engine.say(mesg)                                           # have engine read out waypoint
+                                self.waypoints_detected[waypoint] = True                        # make this waypoint detected.
+                                break
+                            else:
+                                print "distance to point: " + str(disttopoint)                  # even if the tag has already been found, print out the distanc to the point
+                        else:                                                                   # if not inside waypoint
+                            self.waypoints_detected[waypoint] = False                           # set its detcted status to false
+            except Exception as inst: #Exception
+                print "Exception is", inst # print excetion
+        self.lastpose = msg;                                                                    # Lastpose is set to the this pose msg
 
-    # def finish_run(self, tag_id):
-    #     system('aplay ' + path.join(self.sound_folder, 'ding.wav'))
-    #     self.start_run = False
-    #     confirm_msg = "Found " + self.tag_id_to_name[tag_id]
-    #     print confirm_msg
-    #     self.engine.say(confirm_msg)
-
-    #     self.end_time = time.time()    
-    #     elapsed_time = self.end_time - self.start_time
-    #     time_msg = "Took %s seconds!" % round(elapsed_time, 1)
-    #     self.engine.say(time_msg)
-    #     print time_msg
-
-    #     self.display_messages(tag_id)
-    #     self.collect_message(tag_id)
-    #     print '==========================' + '\n'
-    #     self.start_new_game()
 
     def tag_callback(self, msg):
+        """
+        Callback Function for AR tags
+        """
         # Processes the april tags currently in Tango's view.
-        # Ask user to name april tags
-        if self.calibration_mode:
-            if msg.detections:
-                tag_id = msg.detections[0].id
-                
-                # Only prompt user to input tag name once
-                if not tag_seen:
-                    self.origin_tag = tag_id
-                    self.tag_seen = True
+        self.tags_detected = None   #Initialize tags_detected
+        self.record_interval = self.record_interval_normal   #Initialize the record_interval to normal intervals
+        if msg.detections: #if a tag is detected
+            self.record_interval = self.record_interval_tag_seen # record at the tag_seen record_interval
+            self.tags_detected = msg.detections #save the detected tags
+            curr_tag = msg.detections[0] #get first tag (assume only 1 tag for the most part, if not then this code will just choose one.)
+            curr_tag_pose = curr_tag.pose #save the tag pose.
+            headdiff = curr_tag_pose.header.stamp - rospy.Time.now()
+            if headdiff > rospy.Duration(.5):
+                print("THIS IS BAD.")
+            #print "header difference", headdiff
+            #curr_tag_pose.header.stamp = rospy.Time(0) # set the tag_pose stamp to now.
+            self.listener.waitForTransform(curr_tag_pose.header.frame_id, "odom", curr_tag_pose.header.stamp, rospy.Duration(.5))
+            curr_tag_transformed_pose = self.listener.transformPose('odom', curr_tag_pose)  #Transform the pose from the camera frame to the odom frame.
+            tag_id = curr_tag.id #save tag_id
+            if not tag_id in self.tagtimes.keys():
+                self.tagtimes[tag_id] = rospy.Time(1)
 
-        # Identify april tags with given string names            
-        else:
-            if msg.detections:
-                tag_id = msg.detections[0].id
-                if self.origin_tag == tag_id: 
-                    self.update_origin_pose()
+            if (self.calibration_AR and self.AR_Find_Try): # if in Ar calibrate mode and user presses the update button:
+                tagfound = False
+                # Only prompt user to input tag name once
+                if not self.tag_seen: #if we haven't seen a tag
+                    print "Origin Tag Found: " + str(tag_id) #
+                    tagfound = self.RecordTag(curr_tag, True) # Record Tag Vertex (the True boolean is to denote that this is the origin tag and should create a FIX line in g2o)
+                    if tagfound:
+                        self.origin_msg = curr_tag_transformed_pose #make this tag the origin tag
+                        self.origin_tag = tag_id
+                        self.tag_seen = True #set that you have seen the first tag
+                        self.distance_traveled = [0,0,0,0] #set distance to 0
+                    #newfound = True #unnecessary here.
+                if not (tag_id == self.origin_tag): #if the tag_id isn't that of the origin tag.
+                    if not (tag_id in self.supplement_tags.keys()): #if the tag is not in the supplementary tag list
+                        tagfound = self.RecordTag(curr_tag, False) #Record Tag Vertex (for g2o)
+                        if tagfound:
+                            print "Supplementary Tag Found: " + str(tag_id)
+                            self.supplement_tags[tag_id] = curr_tag_transformed_pose #set new supplemental AR Tag
+                            print(self.supplement_tags.keys())
+                    else: #If this is a previously found tag,
+                        tagfound = True
+                        print "Found Old Tag: " + str(tag_id)
+                if not tagfound:
+                    print("No tags found.")
+
+                if tag_id == self.origin_tag and self.tag_seen:
+                    tagfound = True
+                    print "Origin Tag Refound!"
+                    self.origin_msg = curr_tag_transformed_pose #Reset the origin tag
+
+            if self.tag_seen and tag_id == self.testing_tag_id: #If we have seen the origin and we are now looking at the testing tag:
+                try:
+                    print("tried to record test tag")
+                    self.listener.waitForTransform("AR", "tag_"+str(tag_id), curr_tag.pose.header.stamp, rospy.Duration(.5)) # Wait for tag transform
+                    (trans, rot) = self.listener.lookupTransform("AR", "tag_"+str(tag_id), curr_tag.pose.header.stamp) # Lookup tag transform
+                    self.test_data.write("TAG %f %f %f %f %f %f %f\n" % (trans + rot)) # Write into a G2O file
+                except (tf.ExtrapolationException,
+                        tf.LookupException,
+                        tf.ConnectivityException,
+                        tf.Exception,
+                        ValueError) as e:
+                    print "TestTag Exception: " + str(e)
+                """self.distance_traveled[3] = math.sqrt(math.pow(self.distance_traveled[0], 2) #calculate how far we have traveled since we saw the origin.
+                                                      + math.pow(self.distance_traveled[1], 2)
+                                                      + math.pow(self.distance_traveled[2], 2))
+                pose_now = curr_tag_transformed_pose.pose.position #Get the pose of the testing AR tag
+                pose_old = self.origin_msg.pose.position #Get pose of supposed origin tag location
+                drift_dist = [pose_now.x-pose_old.x, pose_now.y-pose_old.y, pose_now.z-pose_old.z, 0] #calculate the drift [x, y, z, 0]
+
+                ""[curr_tag_pose.pose.position.x - self.origin_msg.pose.pose.position.x,
+                curr_tag_pose.pose.position.y - self.origin_msg.pose.pose.position.y,
+                curr_tag.pose.pose.position.z - self.origin_msg.pose.pose.position.z,0]""
+
+                drift_dist[3] = math.sqrt(math.pow(drift_dist[0], 2) + math.pow(drift_dist[1], 2) + math.pow(drift_dist[2], 2)) #make the 4th entry of the drift the total drift (magnitude)
+                print("Distance Traveled: " + str(self.distance_traveled))
+                print("Distance Drifted: " + str(drift_dist));"""
+        self.AR_Find_Try = False #Finish trying to find a tag.
+
+
+    def start_record(self):
+        if self.calibration_AR and self.recording == False: #If we aren't recording and AR Calibration is on.
+            i = 0
+            while (i < 10):
+                try:
+                    self.nowtime = rospy.Time.now(); # Set Nowtime to Now
+                    self.listener.waitForTransform("odom", "real_device", self.nowtime, rospy.Duration(.5)) #Wait for...
+                    (trans, rot) = self.listener.lookupTransform("odom", "real_device", self.nowtime) # and lookup the transform for phone's current position.
+                    self.g2o_data.write("VERTEX_SE3:QUAT %i %f %f %f %f %f %f %f\n" % ((self.vertex_id+1,) + trans + rot)) # Write the vertex into g2o file.
+                    print('recording started')
+                    self.last_record_time = self.nowtime # set last record time to nowtime as well.
+                    self.vertex_id += 2 # add to the vertex id
+                    self.recording = True #set recording true
+                    self.tags_detected = None #set tags detected to none so as to not see tags during the first record.
+                    i = 10
+                except (tf.ExtrapolationException,
+                        tf.LookupException,
+                        tf.ConnectivityException,
+                        tf.Exception,
+                        ValueError) as e:
+                    print "recordStart Exception: " + str(e)
+                    i += 1
+
 
     def key_pressed(self, msg):
+        """
+        This is the callback function for the ROS keyboard.  The msg.code here returns the ord's of what's pressed.
+        """
         # Switch to run mode
-        if msg.code == 97:
-            print "\nStarting Run Mode..."
-            self.calibration_mode = False
-            # self.start_new_game()   
-        
-        # Mark a waypoint
-        if msg.code == 119:
-            waypoint_location = [self.x, self.z, self.y]
-            waypoint_name = raw_input("Name the Waypoint: ")
-            self.waypoints[waypoint_name] = waypoint_location
-            print waypoints
+        if msg.code == ord('r'): #when user presses R
+            """
+            Detect AR tag
+            """
+            self.AR_Find_Try = True #Try to find and record an AR tag next time possible.
+
+        if msg.code == ord('y'): # When user presses Y
+            """
+            Toggle AR_Calibration (and start and stop recording to file.)
+            """
+            self.calibration_AR = not self.calibration_AR; #Toggle calibration_AR
+            if self.calibration_AR: # If AR Calibration just turned on,
+                print('switched to AR Calibration Mode') #print message
+                self.g2o_data = open(self.g2o_data_path, 'ab')
+                if path.getsize(self.g2o_data_path) > 0:
+                    self.g2o_data.write('\n')
+                self.start_record()
+
+            else: #if AR Calibration just turned off.
+                try:
+                    self.g2o_data.close() #Try closing the g2o file
+                    self.recording = False # Turn of the recording
+                    print('recording stopped')
+                except:
+                    print("file close exception")
+                if self.calibration_mode: #If Calibration is on.
+                    print('switched to Calibration Mode')
+                else: #If Calibration is off
+                    print('switched to Run Mode')
+
+        if msg.code == ord(']'): #when user presses ]
+            """
+            Record and Execute G2O
+            """
+            if self.recording:
+                print("Please finish AR_calibration before executing g2o")
+            else:
+                system("g2o -o %s %s" % (self.g2o_result_path, self.g2o_data_path)) #Run G2o
+                system("cp %s %s" % (self.g2o_data_path, self.g2o_data_copy_path)) #Copy Original Data
+
+        """if msg.code == ord('p'):
+            ""
+            Place Publisher
+            ""
+            if self.recording:
+                print("Where are you?")
+                s = raw_input("")
+                self.place_pub.publish(s)
+            else:
+                print("You must be recording to publish your place.")"""
+        if msg.code == ord('-'):
+            """
+            Start Recording for G2O
+            """
+            if self.recording:
+                self.nowtime = rospy.Time.now()
+
+        if msg.code == ord(' '):
+            """
+            Read out the nearby waypoints.
+            """
+            nearways = [] #set list of nearby waypoints to an empty list
+            for waypoint in self.waypoints: #for each waypoint
+                disttopoint = math.sqrt((self.waypoints[waypoint][0] - self.x)**2 + (self.waypoints[waypoint][1] - self.y)**2 + 4*(self.waypoints[waypoint][2] - self.z)**2) #determine distance
+                if(disttopoint < self.search_dist): #if distance is less than search distance
+                    nearways.append(waypoint) #add it to the list
+            if len(nearways) > 0: #if there are nearby waypoints
+                self.engine.say('Here are some nearby waypoints ') #say here are some nearby waypoints
+                for way in nearways:
+                    self.engine.say(way) #say each waypoint
+            else:
+                self.engine.say('No nearby waypoints') #if no nearby points say nothing.
+
+        if msg.code == ord('.'):
+            """
+            Deleting Waypoints
+            """
+            if self.calibration_mode and not self.calibration_AR: #only allow deleting if in calibration mode
+                while True:
+                    tmpwaydict = {} #create dictionary of waypoints
+                    ways = 0 #create counter
+                    for waypoint in self.waypoints: #for each waypoint
+                        #if self.waypoints_detected[waypoint]:
+                        ways += 1 #add to ways
+                        tmpwaydict[ways] = waypoint # put waypoint in dictionary at key ways
+                    print("Enter the number of the waypoint to delete (enter 0 to not delete):") #ask person to enter a number in the dictionary
+                    waylist = tmpwaydict.items() #get items in the dictionary
+                    for i in range(len(waylist)): #Print all of the keys and waypoint names
+                        entry = waylist[i]
+                        print(str(entry[0]) + ': ' + str(entry[1]))
+                    s = raw_input("") #get input from user
+                    try: #try to set the input to an integer
+                        s = int(s)
+                    except (ValueError, TypeError) as inst:
+                        print ("That's not a number")
+                    deletedpoint = tmpwaydict.get(s, -1) #get deleted point
+                    if (s == 0):
+                        print("Deletion Menu Closed.")
+                        break #if user puts 0 then break
+                    elif (deletedpoint == -1):
+                        print(str(s) + ' is an invalid number.')
+                    else:
+                        self.waypoints.pop(deletedpoint, None)
+                        self.waypoints_detected.pop(deletedpoint, None)
+                        print('deleted waypoint: ' + str(deletedpoint))
+
+        if msg.code == ord('a'):
+            """
+            Toggle Calibration Mode
+            """
+            self.calibration_mode = not self.calibration_mode #toggle calibration mode
+            if self.calibration_mode: #print which mode one is now in.
+                print('switched to Calibration Mode')
+            else:
+                print('switched to Run Mode')
+
+        if msg.code == ord('b'):
+            """
+            Place Waypoint
+            """
+            if self.calibration_mode and not self.calibration_AR:
+                waypoint_location = [self.x, self.y, self.z] #Get current position
+                waypoint_name = raw_input("Name the Waypoint: ") #name the waypoint.
+                scale = 2*self.proximity_to_destination #Scale
+                newpoint = Marker(header=Header(frame_id="AR", stamp=rospy.Time(0)), #Create marker for the point.
+                                            type=Marker.SPHERE,
+                                            pose=Pose(position=Point(x = waypoint_location[0], y = waypoint_location[1], z = waypoint_location[2])),
+                                            scale=Vector3(x=scale,y=scale,z=scale),
+                                            color=ColorRGBA(r=random(), g=random(), b=random(), a=1.0),
+                                            id = self.waypoint_id,
+                                            ns = waypoint_name)
+                self.markerlist.append(newpoint) # append the marker to the markerlist
+                self.waypoints[waypoint_name] = waypoint_location #add the new waypoint to the waypoints dictionary
+                self.waypoints_detected[waypoint_name] = False # add a false to the waypoint detected dictionary
+                self.waypoint_id += 1 #add to the waypoint id (this is just for setting markers as different ids.)
+                print self.waypoints
+
+    	if msg.code == ord('s'):
+            """
+            Save Everything.
+            """
+            print("WAYPOINTS SAVED")
+            # TODO(rlouie):
+            with open('/home/juicyslew/catkin_ws/saved_calibration.pkl', 'wb') as f: #write to waypoint file
+                pickle.dump(self.waypoints, f) #DUMP WAYPOINTS INTO THE PICKLE LOCATION
+
+        if msg.code == ord('l'):
+            """
+            Load Everything.
+            """
+            print("WAYPOINTS LOADED")
+            with open('/home/juicyslew/catkin_ws/saved_calibration.pkl', 'rb') as f: #read waypoint file
+                self.waypoints = pickle.load(f) #load pickle
+                self.markerlist = [] #start a markerlist
+                self.waypoint_id = 0 #set waypoint id to 0
+                scale = 2*self.proximity_to_destination #set scale
+                for item in self.waypoints.items(): #for each waypoint
+                    """olditem1_1 = item[1][1]
+                    item[1][1] = item[1][2]
+                    item[1][2] = olditem1_1"""
+                    self.markerlist.append(Marker(header=Header(frame_id="AR", stamp=rospy.Time(0)), #add markers for waypoints to the markerlist
+                                                type=Marker.SPHERE,
+                                                pose=Pose(position=Point(x=item[1][0], y=item[1][1], z = item[1][2])),
+                                                scale=Vector3(x=scale,y=scale,z=scale),
+                                                color=ColorRGBA(r=random(), g=random(), b=random(), a=1.0),
+                                                id = self.waypoint_id,
+                                                ns = item[0]))
+                    self.waypoint_id += 1 #add to waypoint id
+                print(self.waypoints)
+
 
     def start_speech_engine(self):
-        if not self.has_spoken:
+        """
+        Initialize the speech engine.
+        This janky speech engine requires this janky startup.
+        """
+        if not self.has_spoken: #this doesn't make sense, but it works.
             self.engine.say("Starting up.")
             a = self.engine.runAndWait()
             self.engine.say("Hello.")
             a = self.engine.runAndWait()
             self.has_spoken = True
 
+
+    def RecordTag(self, tag, is_origin_tag):
+        """
+        This function records tags to the g2o file.
+        """
+        if self.tagrecorded[tag.id]:
+            print("tag_%i already found." % tag.id)
+        else:
+            print("Attempted to find tag_%i" % tag.id)
+            try:
+                self.listener.waitForTransform("odom", "tag_"+str(tag.id), tag.pose.header.stamp, rospy.Duration(.5)) # Wait for tag transform
+                (trans, rot) = self.listener.lookupTransform("odom", "tag_"+str(tag.id), tag.pose.header.stamp) # Lookup tag transform
+                self.g2o_data.write("VERTEX_SE3:QUAT %i %f %f %f %f %f %f %f\n" % ((tag.id,) + trans + rot)) # Write into a G2O file
+                if is_origin_tag: #if the tag is the origin tag
+                    self.g2o_data.write("FIX %i\n" % tag.id) #write it in as the fix point in g2o
+                print("recorded tag: " + str(tag.id))
+                self.tagrecorded[tag.id] = True
+                return True
+            except (tf.ExtrapolationException,
+                    tf.LookupException,
+                    tf.ConnectivityException,
+                    tf.Exception,
+                    ValueError) as e:
+                print "recordTag Exception: " + str(e)
+                return False
+
+
+    def RecordTime(self, ofst):
+        try:
+            self.nowtime = rospy.Time.now() # set nowtime to now
+            self.listener.waitForTransform("odom", "real_device", self.nowtime, rospy.Duration(.5))
+            (trans, rot) = self.listener.lookupTransform("odom", "real_device", self.nowtime) #lookup current pose
+            self.listener.waitForTransformFull("real_device", self.last_record_time, "real_device", self.nowtime, "odom", rospy.Duration(.5))
+            (trans2, rot2)= self.listener.lookupTransformFull("real_device", self.last_record_time, "real_device", self.nowtime, "odom") #lookup relative pose from last recorded tango pose to this tango pose
+            tagtrans = {} # dictionary of tag translations
+            tagrot = {} # dictionary of tag rotations
+            if self.tags_detected and self.tag_seen: #if there were tags detected
+                #print('1')
+                #print self.tags_detected
+                for tag in self.tags_detected: #for each tag
+                    #print('3')
+                    tag_stamp = tag.pose.header.stamp
+                    if (tag_stamp - self.tagtimes[tag.id]) > rospy.Duration(.025):
+                        if tag.id == self.origin_tag: #if it is the origin tag
+                            if self.listener.frameExists("AR"): #make sure transform exists
+                                self.listener.waitForTransformFull("real_device", self.nowtime, "tag_"+str(tag.id), tag_stamp, "odom", rospy.Duration(.5))
+                                (trans3, rot3)= self.listener.lookupTransformFull("real_device", self.nowtime, "tag_"+str(tag.id), tag_stamp, "odom") #lookup transform from phone to tag
+                                tagtrans[tag.id] = trans3 #record findings
+                                tagrot[tag.id] = rot3
+                                self.tagtimes[tag.id] = tag.pose.header.stamp
+                                #print(self.tagtimes)
+                        else:
+                            #print'4'
+                            #vvvv This isn't working
+                            if self.listener.frameExists("AR_" + str(tag.id)): #make sure transform exists
+                                #print'5'
+                                self.listener.waitForTransformFull("real_device", self.nowtime, "tag_"+str(tag.id), tag_stamp, "odom", rospy.Duration(.5))
+                                (trans3, rot3)= self.listener.lookupTransformFull("real_device", self.nowtime, "tag_"+str(tag.id), tag_stamp, "odom") #lookup transform from phone to tag
+                                tagtrans[tag.id] = trans3 #record findings
+                                tagrot[tag.id] = rot3
+                                self.tagtimes[tag.id] = tag.pose.header.stamp
+                                #print(self.tagtimes)
+
+            #for step in np.arange(0, 3*np.pi, .05):
+            q2 = quaternion_from_euler(0, 0, .05)
+            qsecondrotation = quaternion_multiply(q2, rot)
+            change = (qsecondrotation[0:3] - rot[0:3])
+            change = change / np.linalg.norm(change)
+
+
+
+            #changes = np.asarray(changes)
+            #print changes
+            v = change / np.linalg.norm(change)
+            #u = v / np.linalg.norm(v)
+            _, u = null(v[np.newaxis])
+            basis = np.hstack((v[np.newaxis].T, u))
+            # place high information content on pitch and roll and low on chanages in
+            I = basis.dot(np.diag([.001, 1000, 1000])).dot(basis.T)
+
+            indeces = np.triu_indices(3)
+
+            ## Writing Pose Information ##
+            self.g2o_data.write("VERTEX_SE3:QUAT %i %f %f %f %f %f %f %f\n" % ((self.vertex_id+1,) + trans + rot)) #write vertex for the new pose
+            self.g2o_data.write("EDGE_SE3:QUAT %i %i %f %f %f %f %f %f %f " % ((self.vertex_id-1,self.vertex_id+1) + trans2 + rot2)) #write edge for moving from the last pose to the current pose
+            if (self.pose_failure):
+                self.g2o_data.write("%f 0 0 0 0 0 %f 0 0 0 0 %f 0 0 0 %f 0 0 %f 0 %f\n" % (0, 0, 0, 0, 0, 0)) #write edge importance matrix
+            else:
+                self.g2o_data.write("%f 0 0 0 0 0 %f 0 0 0 0 %f 0 0 0 %f 0 0 %f 0 %f\n" % (1, 1, 1, 1, 1, 1)) #write edge importance matrix
+
+            ## Writing Orientation Dummy ##
+            self.g2o_data.write("VERTEX_SE3:QUAT %i %f %f %f %f %f %f %f\n" % ((self.vertex_id+2,) + (0,0,0) + rot))
+            self.g2o_data.write("EDGE_SE3:QUAT %i %i %f %f %f %f %f %f %f " % ((self.vertex_id+1,self.vertex_id+2) + (0,0,0) + (0,0,0,1))) #write edge for moving from the last pose to the current pose
+            if (self.pose_failure):
+                self.g2o_data.write("0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 %f %f %f %f %f %f\n" % (tuple(I[indeces])))
+            else:
+                self.g2o_data.write("0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 %f %f %f %f %f %f\n" % (tuple(I[indeces])))
+            self.g2o_data.write("FIX %i\n" % (self.vertex_id+2))
+
+            ## Writing Tag Information ##
+            for tag_id in tagtrans.keys(): # for each tag found in this recording
+                print("recorded old id: %s" %tag_id)
+                self.g2o_data.write("EDGE_SE3:QUAT %i %i %f %f %f %f %f %f %f " % ((self.vertex_id+1, tag_id) + tagtrans[tag_id] + tagrot[tag_id])) #write edge from the phone to the tag
+                self.g2o_data.write("%f 0 0 0 0 0 %f 0 0 0 0 %f 0 0 0 %f 0 0 %f 0 %f\n" % (100, 100, 100, 100, 100, 100)) #write edge importance matrix
+
+
+            #print('record pose')
+            self.vertex_id += 2 #increment vertex id
+            self.last_record_time = self.nowtime #set previous record time to current record time.
+            self.pose_failure = False
+
+            ## Writing Testing Data ##
+            if self.listener.frameExists("AR"):
+                self.listener.waitForTransform("AR", "real_device", self.nowtime, rospy.Duration(.5))
+                (trans4, rot4) = self.listener.lookupTransform("AR", "real_device", self.nowtime) #lookup The AR to Real Device Transform
+                self.test_data.write("PATH %f %f %f %f %f %f %f\n" %(trans4 + rot4)) #write to test file.
+
+        except (tf.ExtrapolationException,
+                tf.LookupException,
+                tf.ConnectivityException,
+                tf.Exception,
+                ValueError) as e:
+            print "recordTime Exception: " + str(e)
+            self.pose_failure = True
+            #self.nowtime = rospy.Time.now(); # Set Nowtime to Now
+
+
     def run(self):
-        r = rospy.Rate(10)  #   Runs loop at 10 times per second
-        # self.start_speech_engine()
-        print("Searching for Tango...")
+        r = rospy.Rate(10)  #   Attempts to run loop at 10 times per second
+        self.last_record_time = rospy.Time.now() #set last record time to prevent crashing from it being none
+        print "Starting Up."
         self.start_speech_engine()
+        print "Ready to go."
         while not rospy.is_shutdown():
-            
-            if self.start_run and self.distance_to_destination > self.proximity_to_destination and self.x and self.y and self.translations:
-                self.update_destination_pose()
-                if not self.last_say_time or rospy.Time.now() - self.last_say_time > rospy.Duration(7.0):
-                    #   If it has been ten seconds since last speech, give voice instructions
-                    self.last_say_time = rospy.Time.now()
-                    speech = self.det_speech(self.yaw, (self.x, self.y), (self.translations[0], self.translations[1]))
-                    self.engine.say(speech)
-                    # print self.distance_to_destination
-    
-                if ((not self.last_play_time or
-                    rospy.Time.now() - self.last_play_time > rospy.Duration(6.0/(1+math.exp(-self.distance_to_destination*.3))-2.8)) and
-                    (not self.last_say_time or
-                    rospy.Time.now() - self.last_say_time > rospy.Duration(2.5))):
-
-                    self.last_play_time = rospy.Time.now()
-                    system('aplay ' + path.join(self.sound_folder, 'beep.wav'))
-                    # print self.distance_to_destination
-
+            if self.calibration_AR and self.recording: # if calibration_AR and recording
+                toffset = rospy.Time.now() - self.last_record_time # find the time offset between last recorded time and now
+                if toffset > self.record_interval: # if that offset is greater than the record interval
+                    self.RecordTime(toffset) #Record to g2o
+            for marker in self.markerlist: #for marker
+                marker.header.stamp = rospy.Time.now() #set the stamp to now.
+            self.waypoint_viz_pub.publish(self.markerlist) #publish the marker list.
             r.sleep()
 
-if __name__ == '__main__':
+
+
+if __name__ == '__main__': #run code
     waypoint_test = ArWaypointTest()
     waypoint_test.run()
