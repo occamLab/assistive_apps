@@ -4,12 +4,27 @@ body {
   color: #818181;
 }
 
+h1 {
+  font-size: 100px !important;
+  color: white;
+  font-weight: 600;
+  margin-bottom: 0px !important;
+}
+
+h3 {
+  margin-top: 0px !important;
+  font-size: 30px !important;
+  color: white;
+  font-weight: 50;
+}
+
 h2 {
   font-size: 50px;
   text-transform: uppercase;
   color: #303030;
   font-weight: 600;
-  margin-bottom: 30px;
+  margin-top: px !important;
+  margin-bottom: 20px !importatn;
 }
 
 h4 {
@@ -21,6 +36,10 @@ h4 {
   margin-bottom: 10px !important;
 } 
 
+.padding-video {
+    padding-bottom: 40px;
+}
+
 #nav-logo {
    width: 50px;
   height: 50px;
@@ -31,7 +50,13 @@ h4 {
 }
 
 #jumbo-img {
-    max-width: 12000px; !important;
+  margin-top: -90px;
+}
+
+.vertical-text {
+  position: relative;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .bg-jumbotron {
@@ -45,11 +70,10 @@ h4 {
 }
 
 .jumbotron {
-  height: 400px;
+  height: 600px;
   color: #fff;
   padding: 100px 25px;
   font-family: Montserrat, sans-serif;
-  text-shadow: black 0.3em 0.3em 0.3em;
   background:transparent;
 }
 
@@ -68,7 +92,6 @@ h4 {
 }
 
 .contact-center {
-  
   align-content: center;
   background: white;  
 }
@@ -196,8 +219,6 @@ h4 {
   color: #f4511e;
 }
 
-
-
 .carousel-indicators li {
   border-color: #f4511e;
 }
@@ -316,27 +337,29 @@ footer .glyphicon {
   visibility: visible;
 }
 
+/*
 @keyframes slide {
     0% {
         opacity: 0;
-        transform: translateY(70%);
+        transform: translateX(70%);
     } 
     100% {
         opacity: 1;
-        transform: translateY(0%);
+        transform: translateX(0%);
     }
 }
 
 @-webkit-keyframes slide {
     0% {
       opacity: 0;
-      -webkit-transform: translateY(70%);
+      -webkit-transform: translateX(70%);
     } 
     100% {
       opacity: 1;
-      -webkit-transform: translateY(0%);
+      -webkit-transform: translateX(0%);
     }
 }
+*/
 
 @media screen and (max-width: 768px) {
     .col-sm-4 {
