@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <title>Bootstrap Theme Company Page</title>
+  <title>Clew: Revolutionary Indoor Navigation for iOS</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
@@ -10,6 +10,17 @@
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
   <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
   <link rel="stylesheet" type="text/css" href="style.css">
+<style>
+@media (max-width: 767px) {
+    .container-fluid, .row {
+        padding:2px;
+    }
+
+    .navbar-header {
+        margin:0px;
+    }
+}
+</style>
 </head>
 <body id="myPage" data-spy="scroll" data-target=".navbar" data-offset="60">
 
@@ -50,17 +61,17 @@
   </div>
 </div>    
 
-<div class="jumbotron text-left">
+<div id="titleJumbo" class="jumbotron text-left">
     <h1 class="padding-text vertical-text">Clew</h1>  
     <h3 class="padding-text vertical-text">Revolutionary indoor navigation for iOS</h3>
 </div>
 
 <!-- Container (OVERVIEW Section) -->
 <div id="overview" class="container-fluid">
-  <diiv class="row">
+  <div class="row">
     <div class="col-sm-12 padding-video">
       <div class="embed-responsive embed-responsive-16by9">
-      <iframe class="embed-responsive-item" src="//www.youtube.com/embed/ePbKGoIGAXY"></iframe>
+      <iframe class="embed-responsive-item" src="//www.youtube.com/embed/smwVXZi7tgE"></iframe>
       </div>  
     </div>
   </diiv>
@@ -68,8 +79,7 @@
     <div class="col-sm-8 padding-text">
       <h2 class="text-center vertical-text">Overview</h2><br>
       <h4 clas="vertical-text">Clew is a path retracing app designed for blind and visually impaired users to help them independently return to any desired locations.</h4><br>
-      <p clas="vertical-text">Using Apple's new ARKit built for iOS 11 devices, Clew records a path and guides the user back to their starting location with a choice of voice directions, sound effects, and haptic feedback. Download the app and be part of our exciting beta program to help us test and improve the indoor navigation experience. </p>
-      <br><button class="btn btn-default btn-lg">Coming Soon</button>
+      <p clas="vertical-text">Using Apple's new ARKit built for iOS 11 devices, Clew records a path and guides the user back to their starting location with a choice of voice directions, sound effects, and haptic feedback. <a href="https://itunes.apple.com/us/app/clew/id1268077870?mt=8&ign-mpt=uo%3D4">Download the Clew app</a> and be part of our exciting beta program to help us test and improve the indoor navigation experience. </p>
     </div>
     <div class="col-sm-4">
       <img class="img-responsive" src="images/overview.png">
@@ -129,7 +139,7 @@
             </div>
             <div class="feature col-sm-4">
               <span class="glyphicon glyphicon-volume-up logo-small"></span>
-              <h4>GUIDENCE FEEDBACK</h4>
+              <h4>GUIDANCE FEEDBACK</h4>
               <div class="recordPath">
                   <p>Rely on voice directions, sound, and haptic feedback</p>
                   <img id="feature-image-wide" src="images/feedback.png">  
@@ -190,7 +200,7 @@
     </div>
     <div class="col-sm-6">
       <p class="question">How can I get Clew?</p>
-      <p class="answer">Clew is available for free on the App Store and is compatible with iPhone 6s and newer models running iOS11. For the full haptic experience, iPhone 7 and newer is recommended.</p>  
+      <p class="answer"><a href="https://itunes.apple.com/us/app/clew/id1268077870?mt=8&ign-mpt=uo%3D4">Clew is available for free on the App Store</a> and is compatible with iPhone 6s and newer models running iOS11. For the full haptic experience, iPhone 7 and newer is recommended.</p>  
     </div>
   </div>
   <br>
@@ -212,7 +222,7 @@
     </div>
     <div class="col-sm-6">
       <p class="question">How can I report a problem?</p>
-      <p class="answer">Please use Clew at your own discretion. Clew is still in beta testing and therefore may not function correctly all the time. Help us improve the system by rating your routes as good or bad. Bad routes will examined to further refine the app.</p>  
+      <p class="answer">Please use Clew at your own discretion. Clew is still in beta testing and therefore may not function correctly all the time. Help us improve the system by rating your routes as good or bad. Bad routes will examined to further refine the app. If you'd like to offer additional feedback, the easiest way to do so is to <a href="mailto:occamlabtango@gmail.com">e-mail the Clew team</a>.</p>  
     </div>
   </div> 
 </div>
@@ -223,21 +233,7 @@
   <h2 class="text-center">CONTACT</h2>
   <div class="row">
     <div class="col-sm-12">
-      <p class="text-center contact-text">Tell us about your Clew experience.</p>
-      <div class="row">
-        <div class="col-sm-6 form-group">
-          <input class="form-control" id="name" name="name" placeholder="Name" type="text" required>
-        </div>
-        <div class="col-sm-6 form-group">
-          <input class="form-control" id="email" name="email" placeholder="Email" type="email" required>
-        </div>
-      </div>
-      <textarea class="form-control" id="comments" name="comments" placeholder="Comment" rows="5"></textarea><br>
-      <div class="row">
-        <div class="col-sm-12 form-group">
-          <button class="btn btn-default pull-right" type="submit">Send</button>
-        </div>
-      </div>
+	    <p class="text-center contact-text">Tell us about your Clew experience by sending <a href="mailto:occamlabtango@gmail.com">the Clew team</a> an e-mail.</p>
     </div>
   </div>
 </div>
@@ -246,7 +242,7 @@
   <footer class="container-fluid bg-black">
     <div class="row">
       <div class="col-sm-12">
-        <p class="text-center">Designed by a research group at <a href="https://www.olin.edu">Franklin W. Olin College of Engineering</a></p> 
+        <p class="text-center">Designed by a research group at <a href="https://www.olin.edu">Olin College of Engineering</a></p> 
       </div> 
     </div>
   </div>
