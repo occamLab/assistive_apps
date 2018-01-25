@@ -52,7 +52,7 @@ class ArWaypointTest(object):
         #### Editing Variables ####
         self.proximity_to_destination = 1.8                 # Size in meters of the radius of the waypoints.
         self.search_dist = 12                               # Distance that the waypoint searches for when user attempts to search.
-        self.record_interval_normal = rospy.Duration(.1)    #Interval of time between recording normally
+        self.record_interval_normal = rospy.Duration(.5)    #Interval of time between recording normally
         self.record_interval_tag_seen = rospy.Duration(.1)  #Interval of time between recording when tag is seen
         self.g2o_data_path = '/home/juicyslew/catkin_ws/data.g2o' #path to the data compiled into the g2o file
         self.g2o_data_copy_path = '/home/juicyslew/catkin_ws/data_cp.g2o' #copy of the unedit data
@@ -410,6 +410,7 @@ class ArWaypointTest(object):
             with open('/home/juicyslew/catkin_ws/saved_calibration.pkl', 'rb') as f: #read waypoint file
                 self.waypoints = pickle.load(f) #load pickle
                 self.markerlist = [] #start a markerlist
+                self.origin_tag = 600
                 self.waypoint_id = 0 #set waypoint id to 0
                 scale = 2*self.proximity_to_destination #set scale
                 for item in self.waypoints.items(): #for each waypoint
