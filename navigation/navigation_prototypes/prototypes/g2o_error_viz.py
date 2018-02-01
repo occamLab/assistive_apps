@@ -4,8 +4,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import mpl_toolkits.mplot3d.axes3d as p3
-import matplotlib.animation as animation
-import matplotlib.patches as mpatches
+#import matplotlib.animation as animation
+#import matplotlib.patches as mpatches
 from os import path
 #import math
 #import rospy
