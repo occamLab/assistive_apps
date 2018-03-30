@@ -32,25 +32,47 @@
 </nav>
 
 <div class="bg-jumbotron">
-  <img id="jumbo-img" class="img-responsive" src="images/cover-1.jpg">
+  <div id="jumboCarousel" class="carousel slide text-center" data-ride="carousel">
+    <div class="carousel-inner" role="listbox">
+      <div class="item active">
+        <img id="jumbo-img" class="img-responsive" src="images/cover-1.jpg">
+      </div>
+      <div class="item">
+        <img id="jumbo-img" class="img-responsive" src="images/cover-2.jpg">
+      </div>  
+      <div class="item">
+        <img id="jumbo-img" class="img-responsive" src="images/cover-3.jpg">
+      </div> 
+      <div class="item">
+        <img id="jumbo-img" class="img-responsive" src="images/cover-4.jpg">
+      </div> 
+    </div>
+  </div>
 </div>    
 
 <div class="jumbotron text-left">
-  <h1 class="padding-text">Clew</h1>  
-  <h3 class="padding-text">Revolutionary indoor navigation for iOS</h3>
+    <h1 class="padding-text vertical-text">Clew</h1>  
+    <h3 class="padding-text vertical-text">Revolutionary indoor navigation for iOS</h3>
 </div>
 
 <!-- Container (OVERVIEW Section) -->
 <div id="overview" class="container-fluid">
+  <diiv class="row">
+    <div class="col-sm-12 padding-video">
+      <div class="embed-responsive embed-responsive-16by9">
+      <iframe class="embed-responsive-item" src="//www.youtube.com/embed/smwVXZi7tgE"></iframe>
+      </div>  
+    </div>
+  </diiv>
   <div class="row">
     <div class="col-sm-8 padding-text">
-      <h2 class="text-center">Overview</h2><br>
-      <h4>Clew is a path retracing app designed for blind and visually impaired users to help them independently return to any desired locations.</h4><br>
-      <p>Using Apple's new ARKit built for iOS 11 devices, Clew records a path and guides the user back to their starting location with a choice of voice directions, sound effects, and haptic feedback. Download the app and be part of our exciting beta program to help us test and improve the indoor navigation experience. </p>
-      <br><button class="btn btn-default btn-lg">Download Clew</button>
+      <h2 class="text-center vertical-text">Overview</h2><br>
+      <h4 clas="vertical-text">Clew is a path retracing app designed for blind and visually impaired users to help them independently return to any desired locations.</h4><br>
+      <p clas="vertical-text">Using Apple's new ARKit built for iOS 11 devices, Clew records a path and guides the user back to their starting location with a choice of voice directions, sound effects, and haptic feedback. Download the app and be part of our exciting beta program to help us test and improve the indoor navigation experience. </p>
+      <br><button class="btn btn-default btn-lg">Coming Soon</button>
     </div>
     <div class="col-sm-4">
-      <img class="img-responsive slideanim" src="images/overview.png">
+      <img class="img-responsive" src="images/overview.png">
     </div>
   </div>
 </div>
@@ -140,7 +162,7 @@
 <div id="technology" class="container-fluid">
   <div class="row">
     <div class="col-sm-5">
-      <span class="vertical-center slideanim">
+      <span class="vertical-center">
         <img id="how-it-works" class="img-responsive" src="images/source.gif">
       </span>
     </div>
