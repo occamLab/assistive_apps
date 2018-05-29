@@ -362,6 +362,10 @@ footer .glyphicon {
 }
 */
 
+#bannerfooter {
+	font-size: 30px;
+}
+
 @media screen and (max-width: 768px) {
     .col-sm-4 {
       text-align: center;
@@ -371,6 +375,11 @@ footer .glyphicon {
         width: 100%;
         margin-bottom: 35px;
     }
+
+    #bannerfooter {
+	font-size: 20px;
+    }
+
 h1 {
   font-size: 50px !important;
   color: white;
