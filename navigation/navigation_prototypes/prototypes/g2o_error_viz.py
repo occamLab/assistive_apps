@@ -11,9 +11,8 @@ from os import path
 #import rospy
 #import os
 #import re
-import tf#.transformations import euler_from_quaternion as efq
+from tf.transformations import quaternion_from_euler, quaternion_matrix, translation_from_matrix, quaternion_from_matrix
 from rospkg import RosPack
-#from tf#.transformations import quaternion_from_euler as qfe
 from mobility_games.utils.helper_functions import convert_pose_inverse_transform, convert_translation_rotation_to_pose, invert_transform_2
 
 class G2O_Error_Viz:
@@ -96,7 +95,7 @@ class G2O_Error_Viz:
                     line = line.strip()
                     line = [float(i) for i in line.split(' ')[1:]]
                     transrot = (line[0:3], line[3:])
-                    rotation = ((0,0,0),tf.transformations.quaternion_from_euler(*self.manual_rotation))
+                    rotation = ((0,0,0), quaternion_from_euler(*self.manual_rotation))
                     origin_rotated = self.MultiplyTransform(self.origin_info, rotation)
                     matres = self.MultiplyTransform(origin_rotated, transrot)
                     self.testlist.append(np.hstack((matres[0], matres[1])))
@@ -104,7 +103,7 @@ class G2O_Error_Viz:
                     line = line.strip()
                     line = [float(i) for i in line.split(' ')[1:]]
                     transrot = (line[0:3], line[3:])
-                    rotation = ((0,0,0),tf.transformations.quaternion_from_euler(*self.manual_rotation))
+                    rotation = ((0,0,0), quaternion_from_euler(*self.manual_rotation))
                     origin_rotated = self.MultiplyTransform(self.origin_info, rotation)
                     matres = self.MultiplyTransform(origin_rotated, transrot)
                     self.test_traj.append(np.hstack((matres[0], matres[1])))
@@ -122,10 +121,10 @@ class G2O_Error_Viz:
             (trans2, rot2) = self.vertices[ind+1]
             #print(rot)
 
-            T0_1 = tf.transformations.quaternion_matrix(rot)
+            T0_1 = quaternion_matrix(rot)
             T0_1[:-1, -1] = np.asarray(trans).T
 
-            T2_0 = tf.transformations.quaternion_matrix(rot2)
+            T2_0 = quaternion_matrix(rot2)
             T2_0[:-1, -1] = np.asarray(trans2)
             #print T2_0
             #print T0_1
@@ -133,8 +132,8 @@ class G2O_Error_Viz:
             FinTransform = np.matmul(T0_1, T2_0)
             #print FinTransform
 
-            rot_fin = tuple(tf.transformations.quaternion_from_matrix(FinTransform))
-            trans_fin = tuple(tf.transformations.translation_from_matrix(FinTransform))
+            rot_fin = tuple(quaternion_from_matrix(FinTransform))
+            trans_fin = tuple(translation_from_matrix(FinTransform))
             self.new_edges[ind] = (trans_fin, rot_fin)
             #print("comparison: %s" % ind)
             #print(rot_fin)
@@ -156,10 +155,10 @@ class G2O_Error_Viz:
             (trans2, rot2) = self.vertices[ind+1]
             #print(rot)
 
-            T0_1 = tf.transformations.quaternion_matrix(rot)
+            T0_1 = quaternion_matrix(rot)
             T0_1[:-1, -1] = np.asarray(trans).T
 
-            T2_0 = tf.transformations.quaternion_matrix(rot2)
+            T2_0 = quaternion_matrix(rot2)
             T2_0[:-1, -1] = np.asarray(trans2)
             #print T2_0
             #print T0_1
@@ -167,8 +166,8 @@ class G2O_Error_Viz:
             FinTransform = np.matmul(T0_1, T2_0)
             #print FinTransform
 
-            rot_fin = tuple(tf.transformations.quaternion_from_matrix(FinTransform))
-            trans_fin = tuple(tf.transformations.translation_from_matrix(FinTransform))
+            rot_fin = tuple(quaternion_from_matrix(FinTransform))
+            trans_fin = tuple(translation_from_matrix(FinTransform))
             self.new_edges[ind] = (trans_fin, rot_fin)
             #print("comparison: %s" % ind)
             #print(rot_fin)
@@ -187,8 +186,8 @@ class G2O_Error_Viz:
         while i < len(self.old_edges.keys()):
             transdiff = [self.new_edges[ind][0][j] - self.old_edges[ind][0][j] for j in range(3)]
             #print(transdiff)
-            euler_rot0 = tf.transformations.euler_from_quaternion(self.old_edges[ind][1])
-            euler_rot1 = tf.transformations.euler_from_quaternion(self.new_edges[ind][1])
+            euler_rot0 = euler_from_quaternion(self.old_edges[ind][1])
+            euler_rot1 = euler_from_quaternion(self.new_edges[ind][1])
             rotdiff = euler_rot1[2] - euler_rot0[2]
 
             self.transdifference.append(np.linalg.norm(np.asarray(transdiff)))
@@ -196,15 +195,15 @@ class G2O_Error_Viz:
             ind += 1
             i += 1"""
     def MultiplyTransform(self, tr1, tr2):
-        T = tf.transformations.quaternion_matrix(tr1[1])
+        T = quaternion_matrix(tr1[1])
         T[:-1, -1] = np.squeeze(np.asarray(tr1[0]))
 
-        T2 = tf.transformations.quaternion_matrix(tr2[1])
+        T2 = quaternion_matrix(tr2[1])
         T2[:-1, -1] = np.squeeze(np.asarray(tr2[0]))
 
         Tres = np.matmul(T, T2)
-        trans = tf.transformations.translation_from_matrix(Tres)
-        rot = tf.transformations.quaternion_from_matrix(Tres)
+        trans = translation_from_matrix(Tres)
+        rot = quaternion_from_matrix(Tres)
 
         return (trans, rot)
 
