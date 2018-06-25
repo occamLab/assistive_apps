@@ -1,14 +1,28 @@
 # assistive_apps
 applications to assist visually impaired users
 
+**Documentation To Do** (delete this checklist later)
+- [ ] Invisible Map
+  - [ ] General Overview - get Paul's input
+  - [ ] Project Architecture
+  - [ ] Current Status and big picture To Do list
+  - [ ] Rosdoc setup?
+- [ ] Clew
+  - [ ] literally everything......there is no documentation.............heck
+  - [ ] Jazzy Documentation
+
 ## Contents
-* [General Overview](#General-Overview)
-* [Invisible Map project](#Invisible-Map)
+* [General Overview](#general-overview)
+* [Invisible Map project](#invisible-map)
   * [Project Architecture](#project-architecture)
-  * [Current Status](#current-status)
+  * [Current Status](#current-progress)
   * [Setup and Running the Programs](#setup-and-running-the-programs)
   * [Troubleshooting and Resources](#troubleshooting-and-resources)
-* [Clew App for iOS](#Clew-App)
+* [Clew App for iOS](#clew-app)
+  * [Project Architecture](#architecture)
+  * [Current Status](#current-status)
+  * [Setup and Running the Programs](#setup-installs-and-running-the-app)
+  * [Troubleshooting and Resources](#troubleshooting-resources)
 
 ## General Overview
 This is a repository consisting of several applications being developed by [OCCaM Lab](http://occam.olin.edu/) at the [Olin College of Engineering](http://olin.edu/) to assist visually impaired users. Two of the projects within this folder being actively developed as of summer 2018 are the **Invisible Map** project (which you can find within `navigation/navigation_prototypes/prototypes`) and the **Clew** iOS app (which you can find within `navigation/ios_apps`).
@@ -17,12 +31,32 @@ We're in the process of building up documentation for everything in this reposit
 
 ## Invisible Map
 <!--- what is this project? What’s the goal, why are we working on it? How does it fit into other things we’re working on? Who’s involved, and when (e.g. “active as of summer 2018”)? -->
+The Invisible Map is a phone app aimed at helping people who are blind or visually impaired navigate new spaces by perceiving pre-calibrated markers within a building and giving precise directions to any location from the user's determined position and orientation.
+
+### User Interaction and Sample Use Case
+By pulling up the Invisible Map app on a phone and holding the camera facing forwards in front of them, a user can then activate the voice functionality and speak a command into the app, such as "direct me to the women's restroom." The app will then parse that command, find the nearest women's restroom to the user on the pre-calibrated map, and begin giving precise walking directions to that location and use haptic feedback to guide the user along the correct path. The app also informs the user of important nearby rooms, upcoming sets of stairs, and other important objects along the way as needed so they can properly orient themselves and learn the building layout as much as they desire. When the user arrives at the destination, the app will conclude navigation and await further instructions.
+
+### Technology Overview
+
+Currently, this project uses a Google Tango phone to run the perception module, which is built off of Google's ARCore. This information is then passed via ROS to a laptop nearby, which runs a set of python scripts to process the visual information and subsequently locate itself, stitch together a map, or navigate within a preexisting map. The perception and location is based off of April Tags, a system of visual fiducials, placed intermittently along the walls of the building in question.
+
+Our end vision for this project is for it to run solely within an iPhone app using ARKit, and connect to the building's map somehow.
 
 ### Project Architecture
 <!--- How does this work overall? What do all the files in this repo do: why do they exist, and where do their distinctions lie? How do each of the files, classes, and important functions interact with each other? What algorithms/etc. are we using, how do they work? -->
+!!!!!Project Architecture here
 
-### Current Status
+Here's a [link to the paper](http://ais.informatik.uni-freiburg.de/publications/papers/kuemmerle11icra.pdf) explaining the g2o algorithm and some of its applications.
+
+### Current Progress
 <!--- Where are we in development of this? Who is working on this, and where (on what general branches, etc.) is progress being made vs. what branches are inactive/we don’t even know what they are anymore? What are next steps, bugs to fix, or things to do? (<-- this last bit can be particularly good to make sure you update every time you commit, both with big picture and short term things!!) -->
+We're currently developing on the [summer2018 branch](https://github.com/occamLab/assistive_apps/tree/summer2018) of this repo. Please visit that branch for the most up-to-date versions of the apps! Current developers include [Sherrie Shen](https://github.com/xieruishen) (Olin '21) and [Lauren Gulland](https://github.com/laurengulland) (Olin '19), among other members of the OCCaM team.
+
+!!!!!Current Status description here
+
+!!!!!**To Do on the Invisible Map:**
+- [ ] sample1
+- [ ] sample2
 
 ### Setup and Running the Programs
 <!---  if someone new were to approach this repo and try to get up to speed, what would they need to know? (Are there any knowledge prerequisites, or tutorials they should go through? What do they need to install, and where would they install it? What are the processes for package management for the project and how do they get the right dependencies? -->
@@ -128,32 +162,31 @@ sudo python setup.py install
 ### Running the Invisible Map
 
 1. Connecting to the Tango
-  1. Make sure you're connected to the correct network (the same network as the Tango). At Olin, this will be the OLIN-ROBOTICS network.
-  - Run `$ ifconfig` in your terminal to find your laptop's IP address on the network. It'll probably be something like "192.168.XX.XX", but if you're confused by the output of ifconfig, ask the internet to help decipher what it means.
-  - Open up the Tango and launch the "Testing ROS Streamer" app. It should launch a simple page that has a text box, a Connect button, and a scan checkbox.
-  - Put your laptop's IP address (found above) into the textbox on the Tango, and hit "Connect".
+    - Make sure you're connected to the correct network (the same network as the Tango). At Olin, this will be the OLIN-ROBOTICS network.
+    - Run `$ ifconfig` in your terminal to find your laptop's IP address on the network. It'll probably be something like "192.168.XX.XX", but if you're confused by the output of ifconfig, ask the internet to help decipher what it means.
+    - Open up the Tango and launch the "Testing ROS Streamer" app. It should launch a simple page that has a text box, a Connect button, and a scan checkbox.
+    - Put your laptop's IP address (found above) into the textbox on the Tango, and hit "Connect".
 - Launch the ROS nodes
-  1. In a terminal window, run `$ roslaunch tango_streamer stream.launch`.
-
-    This should set up the connection to the Tango. If everything is working properly, you should get a whole bunch of ROS nodes and processes starting, and no errors.
-  - In a new terminal window, run `$ roslaunch navigation_prototypes ar_waypoint_test.launch`.
-
-    This should launch the actual detection and navigation program. If everything is working properly, you should get another group of ROS nodes, including `/fisheye_undistorted/apriltag_detector`, `/ar_waypoint_test`, `/keyboard`, and `/tag_frames`, and a couple of ROS processes starting. It should also load the April Tag IDs specified within the launch file.
-    [[#TODO: include information on using the popup keyboard!]]
+    - In a terminal window, run `$ roslaunch tango_streamer stream.launch`. This should set up the connection to the Tango.
+      - If everything is working properly, you should get a whole bunch of ROS nodes and processes starting, and no errors.
+    - In a new terminal window, run `$ roslaunch navigation_prototypes ar_waypoint_test.launch`.  This should launch the actual detection and navigation program.
+      - If everything is working properly, you should get another group of ROS nodes, including `/fisheye_undistorted/apriltag_detector`, `/ar_waypoint_test`, `/keyboard`, and `/tag_frames`, and a couple of ROS processes starting.
+      - It should also load the April Tag IDs specified within the launch file.
+      - When the keyboard node launches, you should get a fairly tiny window popup titled "ROS Keyboard" that seems to be blank. All of the key presses that you'll use to activate different parts of the functionality will be using this small area to register their presses -- when you press a key while focused on that window, it should flash a different color.
 - Navigating the program!
-  1. Within `assistive_apps/navigation/navigation_prototypes/prototypes/ar_waypoint_test.py`, there's a huge function called `key_pressed()` that takes in keyboard inputs from the keyboard module you installed as a part of the mobility games setup. Within this, there's essentially a long switch statement defining all the possible inputs and what they do.
+    - Within `assistive_apps/navigation/navigation_prototypes/prototypes/ar_waypoint_test.py`, there's a huge function called `key_pressed()` that takes in keyboard inputs from the keyboard module you installed as a part of the mobility games setup. Within this, there's essentially a long switch statement defining all the possible inputs and what they do.
 
-    Here's the shortlist for your convenience:
-    - Press “y” to toggle ar calibration mode
-    - Press “r” for new tag detection
-    - Press “]” to execute g2o
-    - Press “a” to toggle between waypoint calibration mode or run mode (start with waypoint)
-    - Press “b” to place new waypoints
-    - Press “l” to load previous waypoints
-    - Press “s” to dump waypoints to pickle
-    - Press “.” to delete waypoints
-    - Press “ ” to Read nearby waypoints
-    - Press “-” to set nowtime to current time (may not be necessary)
+      Here's the shortlist of keyboard commands for your convenience:
+      - Press “y” to toggle ar calibration mode
+      - Press “r” for new tag detection
+      - Press “]” to execute g2o
+      - Press “a” to toggle between waypoint calibration mode or run mode (start with waypoint)
+      - Press “b” to place new waypoints
+      - Press “l” to load previous waypoints
+      - Press “s” to dump waypoints to pickle
+      - Press “.” to delete waypoints
+      - Press “ ” to Read nearby waypoints
+      - Press “-” to set nowtime to current time (may not be necessary)
 
 
 ### Troubleshooting and Resources
@@ -198,3 +231,10 @@ Again, probably totally not the way to go about this, but….. it finished compi
 ## Clew App
 
 [documentation incoming!]
+### Architecture
+
+### Current Status
+
+### Setup, Installs, and Running the App
+
+### Troubleshooting & Resources
