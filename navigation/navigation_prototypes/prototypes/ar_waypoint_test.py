@@ -142,7 +142,7 @@ class ArWaypointTest(object):
                             msg.pose.position.z - self.lastpose.pose.position.z]
                 for i in range(3):  # get the total distance that was traveled over that period
                     self.distance_traveled[i] += abs(movement[i])  # record it into the distance traveled.
-            try:  # try
+            try:
                 msg.header.stamp = rospy.Time(0)  # set the header stamp to now.
                 newitem = self.listener.transformPose('AR', msg)  # transform the pose into the AR frame
                 self.x = newitem.pose.position.x
