@@ -15,10 +15,14 @@ class G2O_Viz:
         self.new_edges = {}
         self.transdifference = []
         self.rotdifference = []
+        self.vertex_id_start = 587
         self.g2o_result_path = path.expanduser(
-            '~') + '/catkin_ws/src/assistive_apps/navigation/navigation_prototypes/prototypes/data_g2o/result.g2o'
+            '~') + '/catkin_ws/src/assistive_apps/navigation/navigation_prototypes/prototypes/data_g2o/data_withnewline_optimized.g2o'
 
     def GatherData(self):
+        """
+        Record old edges computed by tango and published to tf. (g2o only change the vertices information, not edge.)
+        """
         self.vertices = {}
         self.old_edges = {}
         with open(self.g2o_result_path, 'rb') as g2o_result:
@@ -28,7 +32,7 @@ class G2O_Viz:
                     newline = []
                     for data in contents[1:]:
                         newline.append(float(data))
-                    if newline[0] >= 587:
+                    if newline[0] >= self.vertex_id_start:
                         self.vertices[int(newline[0])] = (tuple(newline[1:4]), tuple(newline[4:8]))
                         print("found vertex: " + str(newline[0]))
                 elif line.startswith("EDGE_SE3:QUAT "):
@@ -36,47 +40,16 @@ class G2O_Viz:
                     newline = []
                     for data in contents[1:]:
                         newline.append(float(data))
-                    if int(newline[0]) + 1 == int(newline[1]):
+                    if int(newline[0]) + 2 == int(newline[1]):
                         self.old_edges[int(newline[0])] = (tuple(newline[2:5]), tuple(newline[5:9]))
                         print("found edge: " + str(newline[0]))
 
-    # def CalculateNewEdges(self):
-    #     self.new_edges = {}
-    #     ind = 587
-    #     i = 0
-    #     # print(self.vertices.keys())
-    #     while i < len(self.old_edges.keys()):
-    #         pose = convert_translation_rotation_to_pose(self.vertices[ind][0], self.vertices[ind][1])
-    #         # print(self.vertices[ind][1])
-    #         # print pose
-    #         (trans, rot) = convert_pose_inverse_transform(pose)
-    #         (trans2, rot2) = self.vertices[ind + 1]
-    #         # print(rot)
-    #
-    #         T0_1 = quaternion_matrix(rot)
-    #         T0_1[:-1, -1] = np.asarray(trans).T
-    #
-    #         T2_0 = quaternion_matrix(rot2)
-    #         T2_0[:-1, -1] = np.asarray(trans2)
-    #         # print T2_0
-    #         # print T0_1
-    #
-    #         FinTransform = np.matmul(T0_1, T2_0)
-    #         # print FinTransform
-    #
-    #         rot_fin = tuple(quaternion_from_matrix(FinTransform))
-    #         trans_fin = tuple(translation_from_matrix(FinTransform))
-    #         self.new_edges[ind] = (trans_fin, rot_fin)
-    #         # print("comparison: %s" % ind)
-    #         # print(rot_fin)
-    #         # print(self.old_edges[ind][1])
-    #
-    #         ind += 1
-    #         i += 1
-
     def CalculateNewEdges(self):
+        """
+        Compute the new edges from updated vertices in result.g2o
+        """
         self.new_edges = {}
-        ind = 587
+        ind = self.vertex_id_start
         i = 0
         # print(self.vertices.keys())
         while i < len(self.old_edges.keys()):
@@ -84,11 +57,7 @@ class G2O_Viz:
             # print(self.vertices[ind][1])
             # print pose
             (trans, rot) = convert_pose_inverse_transform(pose)
-            if ind == 587:
-                rot_fin = rot
-
-
-            (trans2, rot2) = self.vertices[ind + 1]
+            (trans2, rot2) = self.vertices[ind + 2]
             # print(rot)
 
             T0_1 = quaternion_matrix(rot)
@@ -108,12 +77,12 @@ class G2O_Viz:
             # print("comparison: %s" % ind)
             # print(rot_fin)
             # print(self.old_edges[ind][1])
-
-            ind += 1
+            print ("compute new edge: " + str(ind))
+            ind += 2
             i += 1
 
     def CalculateDifference(self):
-        ind = 587
+        ind = self.vertex_id_start
         i = 0
         # len(self.old_edges.keys())
         self.transdifference = []
@@ -127,7 +96,7 @@ class G2O_Viz:
 
             self.transdifference.append(np.linalg.norm(np.asarray(transdiff)))
             self.rotdifference.append(rotdiff)
-            ind += 1
+            ind += 2
             i += 1
 
     def run(self):

@@ -102,11 +102,14 @@ class ArWaypointTest(object):
         self.recording = False  # Boolean for recording
         self.tags_detected = None  # list of detected tags.
         self.nowtime = None  # Timing for the rose pose and
+        self.offset = 1*10**-3 #offset for importance matrix eigenvalues to importance matrix positive semidefinte
+        self.error_count = 0 #count of pose failure
+        #self.offset = 0
         ## Testing Materials
         self.origin_msg = None  # Main Tag Msg with all the pose and id info.
         self.lastpose = None  # Last pose of the phone
         self.distance_traveled = [0, 0, 0, 0]  # Counter for total traveled distance
-        self.testing_tag_id = 586  # Tag Id for Testing (debugging)
+        self.testing_tag_id = 2  # Tag Id for Testing (debugging)
         self.record_interval = self.record_interval_normal  # Interval of time between pose recording for SLAM algorithm
         self.g2o_data = None  # Have variable to be prepared for file reading and writing
         open(self.g2o_data_path, 'wb+').close()  # Overwrite current g2o data file
@@ -188,9 +191,9 @@ class ArWaypointTest(object):
                 print("THIS IS BAD.")
             # print "header difference", headdiff
             # curr_tag_pose.header.stamp = rospy.Time(0) # set the tag_pose stamp to now.
+            self.listener.waitForTransform(curr_tag_pose.header.frame_id, "odom", curr_tag_pose.header.stamp,
+                                           rospy.Duration(.5))
             if self.listener.canTransform(curr_tag_pose.header.frame_id, "odom", curr_tag_pose.header.stamp):
-                self.listener.waitForTransform(curr_tag_pose.header.frame_id, "odom", curr_tag_pose.header.stamp,
-                                               rospy.Duration(.5))
                 curr_tag_transformed_pose = self.listener.transformPose('odom',
                                                                         curr_tag_pose)  # Transform the pose from the camera frame to the odom frame.
                 tag_id = curr_tag.id  # save tag_id
@@ -198,8 +201,7 @@ class ArWaypointTest(object):
                 if not tag_id in self.tagtimes.keys():
                     self.tagtimes[tag_id] = rospy.Time(1)
 
-                if (
-                        self.calibration_AR and self.AR_Find_Try):  # if in Ar calibrate mode and user presses the update button:
+                if (self.calibration_AR and self.AR_Find_Try):  # if in Ar calibrate mode and user presses the update button:
                     tagfound = False
                     print "AR_CALIBRATION: executing a find try", tag_id
                     # Only prompt user to input tag name once
@@ -261,6 +263,9 @@ class ArWaypointTest(object):
                 drift_dist[3] = math.sqrt(math.pow(drift_dist[0], 2) + math.pow(drift_dist[1], 2) + math.pow(drift_dist[2], 2)) #make the 4th entry of the drift the total drift (magnitude)
                 print("Distance Traveled: " + str(self.distance_traveled))
                 print("Distance Drifted: " + str(drift_dist));"""
+
+            else:
+                print "TRANSFORM FAILURE: from tag to odom in tag callback"
         self.AR_Find_Try = False  # Finish trying to find a tag.
 
     def start_record(self):
@@ -511,9 +516,9 @@ class ArWaypointTest(object):
         else:
             print("Attempted to find tag_%i" % tag.id)
             try:
+                self.listener.waitForTransform("odom", "tag_" + str(tag.id), tag.pose.header.stamp,
+                                               rospy.Duration(.5))  # Wait for tag transform
                 if self.listener.canTransform("odom", "tag_" + str(tag.id), tag.pose.header.stamp):
-                    self.listener.waitForTransform("odom", "tag_" + str(tag.id), tag.pose.header.stamp,
-                                                   rospy.Duration(.5))  # Wait for tag transform
                     (trans, rot) = self.listener.lookupTransform("odom", "tag_" + str(tag.id),
                                                                  tag.pose.header.stamp)  # Lookup tag transform
                     print trans, rot
@@ -538,8 +543,8 @@ class ArWaypointTest(object):
         try:
             # print "AR_CALIBRATION: recordtime"
             self.nowtime = rospy.Time.now()  # set nowtime to now
+            self.listener.waitForTransform("odom", "real_device", self.nowtime, rospy.Duration(.5))
             if self.listener.canTransform("odom", "real_device", self.nowtime):
-                self.listener.waitForTransform("odom", "real_device", self.nowtime, rospy.Duration(.5))
                 (trans, rot) = self.listener.lookupTransform("odom", "real_device", self.nowtime)  # lookup current pose
                 self.listener.waitForTransformFull("real_device", self.last_record_time, "real_device", self.nowtime,
                                                    "odom", rospy.Duration(.5))
@@ -557,11 +562,13 @@ class ArWaypointTest(object):
                         if (tag_stamp - self.tagtimes[tag.id]) > rospy.Duration(
                                 .025):  # time between now and last time the tag being recorded
                             if tag.id == self.origin_tag:  # if it is the origin tag
+                                self.listener.waitForTransformFull("real_device", self.nowtime,
+                                                                   "tag_" + str(tag.id), tag_stamp, "odom",
+                                                                   rospy.Duration(.5))
                                 if self.listener.canTransform("AR", "odom",
-                                                              self.last_record_time):  # make sure transform exists
-                                    self.listener.waitForTransformFull("real_device", self.nowtime,
-                                                                       "tag_" + str(tag.id), tag_stamp, "odom",
-                                                                       rospy.Duration(.5))
+                                                              self.last_record_time) and self.listener.canTransformFull(
+                                    "real_device", self.nowtime, "tag_" + str(tag.id), tag_stamp,
+                                    "odom"):  # make sure transform exists
                                     (trans3, rot3) = self.listener.lookupTransformFull("real_device", self.nowtime,
                                                                                        "tag_" + str(tag.id), tag_stamp,
                                                                                        "odom")  # lookup transform from phone to tag
@@ -569,12 +576,17 @@ class ArWaypointTest(object):
                                     tagrot[tag.id] = rot3
                                     self.tagtimes[tag.id] = tag.pose.header.stamp
                                     # print(self.tagtimes)
+                                else:
+                                    self.pose_failure = True
+                                    print "TRANSFORM FAILURE: from AR to odom and from real_device to tag"
                             else:
-                                if self.listener.frameExists("AR_" + str(tag.id)):  # make sure transform exists
-                                    # print'5'
-                                    self.listener.waitForTransformFull("real_device", self.nowtime,
-                                                                       "tag_" + str(tag.id), tag_stamp, "odom",
-                                                                       rospy.Duration(.5))
+                                self.listener.waitForTransformFull("real_device", self.nowtime,
+                                                                   "tag_" + str(tag.id), tag_stamp, "odom",
+                                                                   rospy.Duration(.5))
+                                if self.listener.canTransform("AR_" + str(tag.id), "odom",
+                                                              self.last_record_time) and self.listener.canTransformFull(
+                                    "real_device", self.nowtime, "tag_" + str(tag.id), tag_stamp,
+                                    "odom"):  # make sure transform exists
                                     (trans3, rot3) = self.listener.lookupTransformFull("real_device", self.nowtime,
                                                                                        "tag_" + str(tag.id), tag_stamp,
                                                                                        "odom")  # lookup transform from phone to tag
@@ -582,7 +594,11 @@ class ArWaypointTest(object):
                                     tagrot[tag.id] = rot3
                                     self.tagtimes[tag.id] = tag.pose.header.stamp
                                     # print(self.tagtimes)
-
+                                else:
+                                    self.pose_failure = True
+                                    print "TRANSFORM FAILURE: from AR to odom and from real_device to tag"
+                                    self.error_count += 1
+                                    print "pose_failure_count:", self.error_count
                 I = compute_basis_vector(rot)
                 indeces = np.triu_indices(3)  # return the indices of an upper triangle of a 3x3 array
 
@@ -604,11 +620,21 @@ class ArWaypointTest(object):
                 self.g2o_data.write("EDGE_SE3:QUAT %i %i %f %f %f %f %f %f %f " % (
                         (self.vertex_id + 1, self.vertex_id + 2) + (0, 0, 0) + (
                     0, 0, 0, 1)))  # write edge for moving from the last pose to the current pose
-                if (self.pose_failure):
-                    self.g2o_data.write("0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 %f %f %f %f %f %f\n" % (
-                        tuple(I[indeces])))  # no translation importance
-                else:
-                    self.g2o_data.write("0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 %f %f %f %f %f %f\n" % (tuple(I[indeces])))
+
+
+                importance = "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 %f %f %f %f %f %f\n" % (tuple(I[indeces]))
+                importance_floats = [float(x) for x in importance.split()]
+                for ind in np.cumsum([0] + range(6,1,-1))[3:6]:
+                    importance_floats[ind] += self.offset
+                self.g2o_data.write(' '.join([str(x) for x in importance_floats]) + '\n')
+                #self.g2o_data.write("0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 %f %f %f %f %f %f\n" % (tuple(I[indeces])))  # no translation importance
+
+                tri = np.zeros((6, 6))
+                tri[np.triu_indices(6, 0)] = importance_floats
+                tri_updated = tri + np.tril(tri.T, -1)
+                value = np.linalg.eigvals(tri_updated)
+                if min(value) < self.offset and min(value) != 0:
+                    print "found an unexpectedly low Eigenvalue", min(value)
                 self.g2o_data.write("FIX %i\n" % (self.vertex_id + 2))
 
                 ## Writing Tag Information ##
@@ -627,10 +653,15 @@ class ArWaypointTest(object):
                 self.vertex_id += 2  # increment vertex id
                 self.last_record_time = self.nowtime  # set previous record time to current record time.
                 self.pose_failure = False
+            else:
+                self.pose_failure = True
+                print "TRANSFORM FAILURE: odom and real_device at nowtime in self.RecordTime()"
+                self.error_count += 1
+                print "pose_failure_count:", self.error_count
 
             ## Writing Testing Data ##
-            if self.listener.frameExists("AR"):
-                self.listener.waitForTransform("AR", "real_device", self.nowtime, rospy.Duration(.5))
+            self.listener.waitForTransform("AR", "real_device", self.nowtime, rospy.Duration(.5))
+            if self.listener.canTransform("AR", "odom", self.last_record_time):
                 (trans4, rot4) = self.listener.lookupTransform("AR", "real_device",
                                                                self.nowtime)  # lookup The AR to Real Device Transform
                 self.test_data.write("PATH %f %f %f %f %f %f %f\n" % tuple(trans4 + rot4))  # write to test file.
@@ -640,8 +671,10 @@ class ArWaypointTest(object):
                 tf.ConnectivityException,
                 tf.Exception,
                 ValueError) as e:
-            print "AR_CALIBRATION: recordTime Exception: " + str(e)
+            #print "AR_CALIBRATION: recordTime Exception: " + str(e)
             self.pose_failure = True
+            self.error_count += 1
+            print "pose_failure_count:", self.error_count
             # self.nowtime = rospy.Time.now(); # Set Nowtime to Now
 
     def run(self):

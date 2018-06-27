@@ -1,19 +1,16 @@
 #!/usr/bin/env python
 
-#import matplotlib
+# import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import mpl_toolkits.mplot3d.axes3d as p3
 import matplotlib.animation as animation
 import matplotlib.patches as mpatches
 from os import path
-#import math
-#import rospy
-#import os
-#import re
 from tf.transformations import quaternion_from_euler, quaternion_matrix, translation_from_matrix, quaternion_from_matrix
 from rospkg import RosPack
-from mobility_games.utils.helper_functions import convert_pose_inverse_transform, convert_translation_rotation_to_pose, invert_transform_2
+#from mobility_games.utils.helper_functions import convert_pose_inverse_transform, convert_translation_rotation_to_pose, invert_transform_2
+
 
 class G2O_Error_Viz:
     def __init__(self, g2o_result_path, g2o_data_path, test_path, manual_rotation):
@@ -34,8 +31,9 @@ class G2O_Error_Viz:
         self.test_traj = []
         self.test_path = path.join(top, test_path)
         self.origin_info = None
+        self.vertex_id_start = 587
         self.manual_rotation = manual_rotation
-        #self.
+
     def GatherData(self):
         self.vertices = {}
         self.old_edges = {}
@@ -48,7 +46,7 @@ class G2O_Error_Viz:
                     line = line.strip()
                     line = line.split(' ')
                     dummyid = int(line[1])
-                    if dummyid >= 587:
+                    if dummyid >= self.vertex_id_start:
                         self.dummyidlist.append(dummyid)
                     else:
                         origin_tag = dummyid
@@ -56,61 +54,71 @@ class G2O_Error_Viz:
             for line in g2o_result:
                 if line.startswith("VERTEX_SE3:QUAT "):
                     line = line.strip()
-                    line = line.split(' ')
-                    line = [float(i) for i in line[1:]]
-                    if not line[0] in self.dummyidlist:
-                        if line[0] == origin_tag:
-                            self.origin_info = (tuple(line[1:4]), tuple(line[4:8]))
-                        if line[0] >= 587:
-                            self.vertices[int(line[0])] = (tuple(line[1:4]), tuple(line[4:8]))
-                            #print("found vertex: " + str(line[0]))
+                    line = line.split()
+                    newline = []
+                    for data in line[1:]:
+                        newline.append(float(data))
+                    if not newline[0] in self.dummyidlist:
+                        if newline[0] == origin_tag:
+                            self.origin_info = (tuple(newline[1:4]), tuple(newline[4:8]))
+                        if newline[0] >= self.vertex_id_start:
+                            self.vertices[int(newline[0])] = (tuple(newline[1:4]), tuple(newline[4:8]))
+                            # print("found vertex: " + str(newline[0]))
                         else:
-                            self.new_AR[int(line[0])] = (tuple(line[1:4]), tuple(line[4:8]))
-                            print("found tag: " + str(line[0]))
+                            self.new_AR[int(newline[0])] = (tuple(newline[1:4]), tuple(newline[4:8]))
+                            print("found tag: " + str(newline[0]))
                 elif line.startswith("EDGE_SE3:QUAT "):
                     line = line.strip()
-                    line = line.split(' ')
-                    line = [float(i) for i in line[1:]]
-                    if not line[1] in self.dummyidlist:
-                        if int(line[0]) + 2 == int(line[1]):
-                            self.old_edges[int(line[0])] = (tuple(line[2:5]), tuple(line[5:9]))
-                            print("found edge: " + str(line[0]))
+                    line = line.split()
+                    newline = []
+                    for data in line[1:]:
+                        newline.append(float(data))
+                    if not newline[1] in self.dummyidlist:
+                        if int(newline[0]) + 2 == int(newline[1]):
+                            self.old_edges[int(newline[0])] = (tuple(newline[2:5]), tuple(newline[5:9]))
+                            print("found edge: " + str(newline[0]))
                         else:
-                            self.AR_Edges[int(line[0])] = (line[1], tuple(line[2:5]), tuple(line[5:9]))
+                            self.AR_Edges[int(newline[0])] = (newline[1], tuple(newline[2:5]), tuple(newline[5:9]))
         with open(self.g2o_data_path, 'rb') as g2o_data:
             for line in g2o_data:
                 if line.startswith("VERTEX_SE3:QUAT "):
                     line = line.strip()
-                    line = line.split(' ')
-                    line = [float(i) for i in line[1:]]
-                    if line[0] >= 587:
-                        self.old_vertices[int(line[0])] = (tuple(line[1:4]), tuple(line[4:8]))
-                        #print("found vertex: " + str(line[0]))
-                    #else:
+                    line = line.split()
+                    newline = []
+                    for data in line[1:]:
+                        newline.append(float(data))
+                    if newline[0] >= self.vertex_id_start:
+                        self.old_vertices[int(newline[0])] = (tuple(newline[1:4]), tuple(newline[4:8]))
+                        # print("found vertex: " + str(line[0]))
+                    # else:
                     #    self.old_AR[int(line[0])] = (tuple(line[1:4]), tuple(line[4:8]))
                     #    print("found tag: " + str(line[0]))
         with open(self.test_path, 'rb') as test_data:
             for line in test_data:
                 if line.startswith("TAG "):
                     line = line.strip()
-                    line = [float(i) for i in line.split(' ')[1:]]
-                    transrot = (line[0:3], line[3:])
-                    rotation = ((0,0,0), quaternion_from_euler(*self.manual_rotation))
+                    newline = []
+                    for data in line.split()[1:]:
+                        newline.append(float(data))
+                    transrot = (newline[0:3], newline[3:])
+                    rotation = ((0, 0, 0), quaternion_from_euler(*self.manual_rotation))
                     origin_rotated = self.MultiplyTransform(self.origin_info, rotation)
                     matres = self.MultiplyTransform(origin_rotated, transrot)
                     self.testlist.append(np.hstack((matres[0], matres[1])))
                 elif line.startswith("PATH "):
                     line = line.strip()
-                    line = [float(i) for i in line.split(' ')[1:]]
-                    transrot = (line[0:3], line[3:])
-                    rotation = ((0,0,0), quaternion_from_euler(*self.manual_rotation))
+                    newline = []
+                    for data in line.split()[1:]:
+                        newline.append(float(data))
+                    transrot = (newline[0:3], newline[3:])
+                    rotation = ((0, 0, 0), quaternion_from_euler(*self.manual_rotation))
                     origin_rotated = self.MultiplyTransform(self.origin_info, rotation)
                     matres = self.MultiplyTransform(origin_rotated, transrot)
                     self.test_traj.append(np.hstack((matres[0], matres[1])))
 
     """def CalculateNewEdges(self):
         self.new_edges = {}
-        ind = 587
+        ind = self.vertex_id_start
         i = 0
         #print(self.vertices.keys())
         while i < len(self.old_edges.keys()):
@@ -143,7 +151,7 @@ class G2O_Error_Viz:
             i += 1
     def Calculate_Old_Vertices(self):
         # TODO make function for finding the old vertex locations based on the old edges.
-        ind = 587
+        ind = self.vertex_id_start
         i = 0
         #print(self.vertices.keys())
         fixpoint = self.vertices[0]
@@ -178,7 +186,7 @@ class G2O_Error_Viz:
         pass"""
 
     """def CalculateDifference(self):
-        ind = 587
+        ind = self.vertex_id_start
         i = 0
         #len(self.old_edges.keys())
         self.transdifference = []
@@ -194,6 +202,7 @@ class G2O_Error_Viz:
             self.rotdifference.append(rotdiff)
             ind += 1
             i += 1"""
+
     def MultiplyTransform(self, tr1, tr2):
         T = quaternion_matrix(tr1[1])
         T[:-1, -1] = np.squeeze(np.asarray(tr1[0]))
@@ -209,7 +218,7 @@ class G2O_Error_Viz:
 
     def run(self):
         self.GatherData()
-        #self.CalculateNewEdges()
+        # self.CalculateNewEdges()
         ordered_vertices = []
         old_ordered_vertices = []
 
@@ -218,7 +227,7 @@ class G2O_Error_Viz:
             old_ordered_vertices.append(self.old_vertices[key][0])
         traj_data = np.asarray(ordered_vertices)
         old_traj_data = np.asarray(old_ordered_vertices)
-        test_traj_data = np.asarray(self.test_traj)#np.asarray(self.testlist)
+        test_traj_data = np.asarray(self.test_traj)  # np.asarray(self.testlist)
         for i in self.AR_Edges.items():
             tag_id = int(i[1][0])
             pose_id = int(i[0])
@@ -230,16 +239,16 @@ class G2O_Error_Viz:
                 detections.append(res)
             self.old_AR[tag_id] = detections
         test_AR = np.asarray(self.testlist)
-        #print self.old_AR
-        #self.CalculateDifference()
-        #print("final info: ")
-        #print("translations: %s" % str(self.transdifference))
-        #print("rotations: %s" % str(self.rotdifference))
+        # print self.old_AR
+        # self.CalculateDifference()
+        # print("final info: ")
+        # print("translations: %s" % str(self.transdifference))
+        # print("rotations: %s" % str(self.rotdifference))
         # Two subplots, the axes array is 1-d
-        #f, axarr = plt.subplots(, sharex=True)
-        #axarr[0].plot(x, y)
-        #axarr[0].set_title('Sharing X axis')
-        #axarr[1].scatter(x, y)
+        # f, axarr = plt.subplots(, sharex=True)
+        # axarr[0].plot(x, y)
+        # axarr[0].set_title('Sharing X axis')
+        # axarr[1].scatter(x, y)
         fig = plt.figure()
         ax = p3.Axes3D(fig)
         """for tag in self.old_AR.items():
@@ -252,20 +261,22 @@ class G2O_Error_Viz:
             point = tag[1][0]
             plt.plot((point[0],), (point[1],), (point[2],), 'bo')
             ax.text(point[0], point[1], point[2], tag[0])
-        test_tags, = plt.plot(test_AR[:,0], test_AR[:,1], test_AR[:,2], 'mo', label = 'naive Test Tags')
+        #test_tags, = plt.plot(test_AR[:, 0], test_AR[:, 1], test_AR[:, 2], 'mo', label='naive Test Tags')
         print(np.shape(traj_data))
-        new_path, = plt.plot(traj_data[:,0], traj_data[:,1], traj_data[:,2], 'b-', label = 'corrected trajectory')
-        #old_path, = plt.plot(old_traj_data[:,0], old_traj_data[:,1], old_traj_data[:,2], 'r--', label = 'original trajectory')
+        new_path, = plt.plot(traj_data[:, 0], traj_data[:, 1], traj_data[:, 2], 'b-', label='corrected trajectory')
+        # old_path, = plt.plot(old_traj_data[:,0], old_traj_data[:,1], old_traj_data[:,2], 'r--', label = 'original trajectory')
         print (np.shape(test_traj_data))
-        test_path, = plt.plot(test_traj_data[:,0], test_traj_data[:,1], test_traj_data[:,2], 'm--', label = 'naive approach trajectory')
-        plt.legend(handles = [new_path, test_path]) #old_path,
+        test_path, = plt.plot(test_traj_data[:, 0], test_traj_data[:, 1], test_traj_data[:, 2], 'm--',label='naive approach trajectory')
+        plt.legend(handles=[new_path, test_path])  # old_path,
+        #plt.legend(handles=[new_path])
         plt.xlabel('X')
         plt.ylabel('Y')
-        #plt.zlabel('Z')
+        # plt.zlabel('Z')
         plt.title('G2O Trajectory Plot')
         plt.grid(True)
 
         plt.show()
+
 
 if __name__ == "__main__":
     g2o_viz = G2O_Error_Viz()
