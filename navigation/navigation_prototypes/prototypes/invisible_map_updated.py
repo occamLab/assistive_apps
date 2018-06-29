@@ -29,24 +29,24 @@ class DataCollection(object):
         self.nowtime = None
         self.last_record_time = None
         self.pose_failure = False
-        self.curr_pose = None
+        self.curr_pose = None  # current pose of the tango
         self.pose_failure_count = 0
         self.test_data_count = 0
 
         #### Tag Specific Parameters ####
         self.num_tags = num_tags
-        self.pose_vertex_id = self.num_tags + 1
-        self.tags_detected = None
-        self.tag_seen = False
-        self.origin_tag = None
+        self.pose_vertex_id = self.num_tags + 1  # starting vertex id for tango odometry data written to pose graph
+        self.tags_detected = None  # List of tags seen at the moment
+        self.tag_seen = False  # Boolean to indicate whether a tag
         self.tagtimes = {}
 
         #### Data Collection Mode ####
         self.AR_calibration = False
+        self.AR_Find_Try = False
         self.recording = False
 
         #### Pose Graph ####
-        self.pose_graph = PoseGraph(self.num_tags)
+        self.pose_graph = PoseGraph(2, self.num_tags)
 
         #### ROS SUBSCRIBERS ####
         rospy.Subscriber('/tango_pose', PoseStamped, self.process_pose)  # Subscriber for the tango pose.
@@ -63,27 +63,91 @@ class DataCollection(object):
 
     def key_pressed(self, msg):
         """
-        Process user command
+        This is the callback function for the ROS keyboard.  The msg.code here returns the ord's of what's pressed.
         """
+        # Switch to run mode
+        if msg.code == ord('r'):  # when user presses R
+            """
+            Detect AR tag
+            """
+            print self.AR_Find_Try
+            self.AR_Find_Try = True  # Try to find and record an AR tag next time possible.
+
         pass
 
     def tag_callback(self, msg):
         """
         Process tag
         """
-        
+        # Processes the april tags currently in Tango's view.
+        self.tags_detected = None  # Initialize tags_detected
+        self.record_interval = self.record_interval_normal  # Initialize the record_interval to normal intervals
+        if msg.detections:  # if a tag is detected
+            self.record_interval = self.record_interval_tag_seen  # record at the tag_seen record_interval
+            self.tags_detected = msg.detections  # save the detected tags
+            # get first tag (assume only 1 tag for the most part, if not then this code will just choose one.)
+            curr_tag = msg.detections[0]
 
-        pass
+            # difference between last time tag seen and current time
+            time_diff = curr_tag.pose.header.stamp - rospy.Time.now()
+            if time_diff > rospy.Duration(1):
+                print("THIS IS BAD.")
+            if self.gather_transformation(curr_tag.pose.header.frame_id, curr_tag.pose.header.stamp, "odom",
+                                          curr_tag.pose.header.stamp,
+                                          self.transform_wait_time):
+                # Transform the pose from the camera frame to the odom frame.
+                curr_tag_transformed_pose = self.listener.transformPose('odom', curr_tag.pose)
+
+                # check if the tag is in the dictionary of tag recording time or not
+                if curr_tag.id not in self.tagtimes.keys():
+                    self.tagtimes[curr_tag.id] = curr_tag.pose.header.stamp
+
+                # if in Ar calibrate mode and user presses the update button:
+                if self.AR_calibration and self.AR_Find_Try:
+                    self.record_tag_in_frame(curr_tag, curr_tag_transformed_pose)
+
+            else:
+                print "TRANSFORM FAILURE: from tag to odom in tag callback"
+        self.AR_Find_Try = False  # Finish trying to find a tag.
+
+    def record_tag_in_frame(self, tag, transformed_pose):
+        print "AR_CALIBRATION: executing a find try", tag.id
+        # Only prompt user to input tag name once
+        # if we haven't seen a tag
+        if not self.tag_seen:
+            if self.record_tag_vertex(tag, self.transform_wait_time, True):  # record tag vertex to pose graph
+                print "AR_CALIBRATION: Origin Tag Found: " + str(tag.id)
+                # make this tag the origin tag
+                self.pose_graph.origin_tag = tag.id
+                self.pose_graph.origin_tag_pose = transformed_pose  # make this tag the origin tag
+                self.tag_seen = True  # set that you have seen the first tag
+
+        # if the tag_id isn't that of the origin tag and if this tag has never been seen before
+        if not (tag.id == self.pose_graph.origin_tag or tag.id in self.pose_graph.supplement_tags.keys()):
+            if self.record_tag_vertex(tag, self.transform_wait_time):  # record tag vertex to pose graph
+                print "AR_CALIBRATION: Supplementary Tag Found: " + str(tag.id)
+                self.pose_graph.supplement_tags[tag.id] = transformed_pose  # set new supplemental AR Tag
+                print(self.pose_graph.supplement_tags.keys())
+
+        elif tag.id == self.pose_graph.origin_tag and self.tag_seen:
+            self.pose_graph.origin_tag_pose = transformed_pose  # Reset the origin tag
+            print "AR_CALIBRATION: Origin Tag Refound: " + str(tag.id)
+
+        elif tag.id != self.pose_graph.origin_tag and self.tag_seen:
+            print "AR_CALIBRATION: Found Old Tag: " + str(tag.id)
+
+        elif tag.id == self.pose_graph.test_tag_id and self.tag_seen:
+            self.record_test_data_tag(tag)
+
+        else:
+            print("AR_CALIBRATION: No tags found.")
 
     def gather_transformation(self, frame1, time1, frame2, time2, wait_time):
         """
         Check availability of transformation for given frames
         """
         self.listener.waitForTransformFull(frame1, time1, frame2, time2, "odom", wait_time)
-        if self.listener.canTransformFull(frame1, time1, frame2, time2, "odom"):
-            return True
-        else:
-            return False
+        return self.listener.canTransformFull(frame1, time1, frame2, time2, "odom")
 
     def record_curr_pose_and_damping(self, wait_time):
         """
@@ -130,9 +194,9 @@ class DataCollection(object):
         if self.gather_transformation("real_device", self.last_record_time, "real_device", self.nowtime, wait_time):
             (trans, rot) = self.listener.lookupTransformFull("real_device", self.last_record_time, "real_device",
                                                              self.nowtime, "odom")
-            if not self.pose_failure: # set edge importance to 1
+            if not self.pose_failure:  # set edge importance to 1
                 self.pose_graph.add_pose_to_pose(self.curr_pose, trans, rot, 1)
-            else: # set edge importance to 0
+            else:  # set edge importance to 0
                 self.pose_graph.add_pose_to_pose(self.curr_pose, trans, rot, 0)
             print "RECORDED EDGE: Pose to pose transformation"
             return True
@@ -145,7 +209,7 @@ class DataCollection(object):
         Record edge between current odometry and one of the tag detected to pose graph
         """
         tag_stamp = tag.pose.header.stamp
-        if tag.id == self.origin_tag:
+        if tag.id == self.pose_graph.origin_tag:
             AR_frame = "AR"
         else:
             AR_frame = "AR_" + str(tag.id)
@@ -159,7 +223,7 @@ class DataCollection(object):
             # update last record time for this tag
             self.tagtimes[tag.id] = tag.pose.header.stamp
         else:
-            print "FAILURE: Pose to tag transformation"
+            print "RECORD FAILURE: Pose to tag transformation"
 
     def record_all_pose_to_tag_edge(self):
         """
@@ -171,7 +235,25 @@ class DataCollection(object):
                 if (tag.pose.header.stamp - self.tagtimes[tag.id]) > self.tag_record_duration:
                     self.record_pose_to_tag_edge(tag, self.transform_wait_time)
 
-    def record_test_data(self):
+    def record_test_data_tag(self,tag):
+        try:
+            print("tried to record test tag")
+            if self.gather_transformation("AR", tag.pose.header.stamp, "tag_" + str(tag.id), tag.pose.header.stamp,
+                                          self.transform_wait_time):
+                (trans, rot) = self.listener.lookupTransform("AR", "tag_" + str(tag.id),tag.pose.header.stamp)
+                self.pose_graph.add_test_data_tag(tag.ID,trans,rot)
+                print "RECORDED: test tag transformation"
+            else:
+                print "RECORD FAILURE: test tag transformation"
+
+        except (tf.ExtrapolationException,
+                tf.LookupException,
+                tf.ConnectivityException,
+                tf.Exception,
+                ValueError) as e:
+            print "TestTag Exception: " + str(e)
+
+    def record_test_data_path(self):
         """
         Record test data for comparing g2o optimized path with unoptimized path from phone odometry
         """
@@ -179,6 +261,9 @@ class DataCollection(object):
             (trans, rot) = self.listener.lookupTransformFull("AR", self.nowtime, "real_device", self.nowtime, "odom")
             self.pose_graph.add_test_data_path(self.test_data_count, trans, rot)
             self.test_data_count += 1
+            print "RECORD: path transformation"
+        else:
+            print "RECORD FAILURE: path from AR to real device"
 
     def start_record_AR(self):
         """
@@ -195,7 +280,7 @@ class DataCollection(object):
                     self.tags_detected = None  # set tags detected to none so as to not see tags during the first record.
 
                 else:
-                    self.start_record_AR() # if fail to get transformation, try again
+                    self.start_record_AR()  # if fail to get transformation, try again
 
             except (tf.ExtrapolationException,
                     tf.LookupException,
@@ -222,8 +307,8 @@ class DataCollection(object):
                 self.pose_failure_count += 1
                 print "Pose failure count:", self.pose_failure_count
 
-            # Write Testing Data
-            self.record_test_data()
+            # Write Testing Data: path
+            self.record_test_data_path()
 
         except (tf.ExtrapolationException,
                 tf.LookupException,
@@ -320,18 +405,18 @@ class Edge(object):
         return tri_updated
 
     def compute_importance_matrix(self):
-        if self.damping_status: # if the edge is for damping correction
+        if self.damping_status:  # if the edge is for damping correction
             I = self.compute_basis_vector()
-            indeces = np.triu_indices(3) # get indices of upper triangular entry of a 3x3 matrix
+            indeces = np.triu_indices(3)  # get indices of upper triangular entry of a 3x3 matrix
             importance = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] + I[indeces]
-            for ind in np.cumsum([0] + range(6, 1, -1))[3:6]: # increase eigenvalue of rotation importance
+            for ind in np.cumsum([0] + range(6, 1, -1))[3:6]:  # increase eigenvalue of rotation importance
                 importance[ind] += self.eigenvalue_offset
             self.importance_matrix = Edge.convert_uppertri_to_matrix(importance, 6)
-        elif self.end.type == "tag": # if the edge is between current position and a tag detected
+        elif self.end.type == "tag":  # if the edge is between current position and a tag detected
             w_t = self.tag_importance
             importance = [w_t, 0, 0, 0, 0, 0, w_t, 0, 0, 0, 0, w_t, 0, 0, 0, w_t, 0, 0, w_t, 0, w_t]
             self.importance_matrix = Edge.convert_uppertri_to_matrix(importance, 6)
-        else: # if the edge is between past pose to current pose
+        else:  # if the edge is between past pose to current pose
             w_o = self.odometry_importance
             importance = [w_o, 0, 0, 0, 0, 0, w_o, 0, 0, 0, 0, w_o, 0, 0, 0, w_o, 0, 0, w_o, 0, w_o]
             self.importance_matrix = Edge.convert_uppertri_to_matrix(importance, 6)
@@ -353,9 +438,12 @@ class Edge(object):
 
 
 class PoseGraph(object):
-    def __init__(self, num_tags=587):
-        self.origin_tag = None
+    def __init__(self, test_tag_id, num_tags=587):
+        #### tag recording specific parameters ####
         self.num_tags = num_tags
+        self.origin_tag = None  # First tag seen
+        self.origin_tag_pose = None
+        self.supplement_tags = {}
 
         #### vertices, edges ####
         self.odometry_vertices = OrderedDict()
@@ -374,6 +462,7 @@ class PoseGraph(object):
         open(self.g2o_data_path, 'wb+').close()  # Overwrite current g2o data file
 
         #### test data ####
+        self.test_tag_id = test_tag_id
         self.testfile = path.expanduser(
             '~') + '/catkin_ws/src/assistive_apps/navigation/navigation_prototypes/prototypes/data_g2o/naive.txt'
         self.g2o_test_data = open(self.testfile, 'wb+')
@@ -438,6 +527,9 @@ class PoseGraph(object):
         pose_tag_edge.compute_importance_matrix()
         if pose_tag_edge.check_importance_matrix_PSD():
             pose_tag_edge.eigenvalue_PSD = True
+
+    def add_test_data_tag(self, ID, trans, rot):
+        self.test_data_tag[ID] = trans + rot
 
     def add_test_data_path(self, ID, trans, rot):
         self.test_data_path[ID] = trans + rot

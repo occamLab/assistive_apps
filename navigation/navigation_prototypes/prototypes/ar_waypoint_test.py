@@ -151,12 +151,12 @@ class ArWaypointTest(object):
 
                 if not self.calibration_mode and not self.AR_Find_Try:  # if not calibrating. (aka if running)
                     for waypoint in self.waypoints:  # iterate through the waypoints
+                        # get the distance to each one
                         disttopoint = math.sqrt(
-                            (self.waypoints[waypoint][0] - self.x) ** 2  # get the distance to each one
-                            + (self.waypoints[waypoint][1] - self.y) ** 2
+                            (self.waypoints[waypoint][0] - self.x) ** 2 + (self.waypoints[waypoint][1] - self.y) ** 2
                             + (self.waypoints[waypoint][2] - self.z) ** 2)
-                        if (
-                                disttopoint < self.proximity_to_destination):  # if the distance is less than the previously set waypoint radius
+                        # if the distance is less than the previously set waypoint radius
+                        if disttopoint < self.proximity_to_destination:
                             if not self.waypoints_detected[waypoint]:  # and the waypoint is not detected
                                 mesg = "Found %s" % waypoint
                                 print mesg  # print the waypoint was found
@@ -165,8 +165,8 @@ class ArWaypointTest(object):
                                 self.waypoints_detected[waypoint] = True  # make this waypoint detected.
                                 break
                             else:
-                                print "distance to point: " + str(
-                                    disttopoint)  # even if the tag has already been found, print out the distanc to the point
+                                # even if the tag has already been found, print out the distanc to the point
+                                print "distance to point: " + str(disttopoint)
                         else:  # if not inside waypoint
                             self.waypoints_detected[waypoint] = False  # set its detcted status to false
             except Exception as inst:  # Exception
