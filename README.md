@@ -143,6 +143,7 @@ cd g2o
 mkdir build
 cd build
 cmake ../
+sudo make install
 make
 ```
 
