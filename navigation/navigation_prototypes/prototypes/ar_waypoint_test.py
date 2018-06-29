@@ -102,7 +102,7 @@ class ArWaypointTest(object):
         self.recording = False  # Boolean for recording
         self.tags_detected = None  # list of detected tags.
         self.nowtime = None  # Timing for the rose pose and
-        self.offset = 1 * 10 ** -3  # offset for importance matrix eigenvalues to importance matrix positive semidefinte
+        self.offset = 10 ** -3  # offset for importance matrix eigenvalues to importance matrix positive semidefinte
         self.error_count = 0  # count of pose failure
         # self.offset = 0
         ## Testing Materials
@@ -559,8 +559,8 @@ class ArWaypointTest(object):
                     # print "AR_CALIBRATION: tags_detected are:", self.tags_detected
                     for tag in self.tags_detected:  # for each tag
                         tag_stamp = tag.pose.header.stamp
-                        if (tag_stamp - self.tagtimes[tag.id]) > rospy.Duration(
-                                .025):  # time between now and last time the tag being recorded
+                        # time between now and last time the tag being recorded
+                        if (tag_stamp - self.tagtimes[tag.id]) > rospy.Duration(.025):
                             if tag.id == self.origin_tag:  # if it is the origin tag
                                 self.listener.waitForTransformFull("real_device", self.nowtime,
                                                                    "tag_" + str(tag.id), tag_stamp, "odom",
@@ -643,7 +643,6 @@ class ArWaypointTest(object):
                 self.last_record_time = self.nowtime  # set previous record time to current record time.
                 self.pose_failure = False
             else:
-                self.pose_failure = True
                 print "TRANSFORM FAILURE: odom and real_device at nowtime in self.RecordTime()"
                 self.error_count += 1
                 print "pose_failure_count:", self.error_count
