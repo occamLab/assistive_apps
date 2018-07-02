@@ -9,6 +9,7 @@ from os import system, path
 from collections import OrderedDict
 from tf.transformations import quaternion_from_euler, quaternion_multiply
 import numpy as np
+import math as math
 
 
 class DataCollection(object):
@@ -37,8 +38,9 @@ class DataCollection(object):
         self.num_tags = num_tags
         self.pose_vertex_id = self.num_tags + 1  # starting vertex id for tango odometry data written to pose graph
         self.tags_detected = None  # List of tags seen at the moment
-        self.tag_seen = False  # Boolean to indicate whether a tag
         self.tagtimes = {}
+        self.tag_seen = False
+        self.test_tag = 2
 
         #### Data Collection Mode ####
         self.AR_calibration = False
@@ -46,7 +48,9 @@ class DataCollection(object):
         self.recording = False
 
         #### Pose Graph ####
-        self.pose_graph = PoseGraph(2, self.num_tags)
+        self.pose_graph = PoseGraph(self.test_tag, self.num_tags)
+        if self.pose_graph.origin_tag is not None:
+            self.tag_seen = True
 
         #### ROS SUBSCRIBERS ####
         rospy.Subscriber('/tango_pose', PoseStamped, self.process_pose)  # Subscriber for the tango pose.
@@ -55,11 +59,27 @@ class DataCollection(object):
                          self.tag_callback)
         rospy.Subscriber('/keyboard/keydown', Key, self.key_pressed)  # Subscriber for the keyboard information.
 
+    @staticmethod
+    def distance_formula(x1, y1, z1, x2, y2, z2):
+        return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2)
+
     def process_pose(self, msg):
         """
         Process received tango pose and process pose for waypoints recognition
         """
-        pass
+        self.update_curr_position(msg)
+        # Need to look up nearby waypoints
+        # Need to compute distance travelled
+
+    def update_curr_position(self, msg):
+        try:
+            msg.header.stamp = rospy.Time(0)  # set the header stamp to now.
+            position = self.listener.transformPose('AR', msg)  # transform the pose into the AR frame
+            self.x = position.pose.position.x
+            self.y = position.pose.position.y
+            self.z = position.pose.position.z  # record the information from that transformed phone pose.
+        except Exception as inst:
+            print "Exception is", inst
 
     def key_pressed(self, msg):
         """
@@ -105,7 +125,6 @@ class DataCollection(object):
                 # if in Ar calibrate mode and user presses the update button:
                 if self.AR_calibration and self.AR_Find_Try:
                     self.record_tag_in_frame(curr_tag, curr_tag_transformed_pose)
-
             else:
                 print "TRANSFORM FAILURE: from tag to odom in tag callback"
         self.AR_Find_Try = False  # Finish trying to find a tag.
@@ -113,34 +132,11 @@ class DataCollection(object):
     def record_tag_in_frame(self, tag, transformed_pose):
         print "AR_CALIBRATION: executing a find try", tag.id
         # Only prompt user to input tag name once
-        # if we haven't seen a tag
-        if not self.tag_seen:
-            if self.record_tag_vertex(tag, self.transform_wait_time, True):  # record tag vertex to pose graph
-                print "AR_CALIBRATION: Origin Tag Found: " + str(tag.id)
-                # make this tag the origin tag
-                self.pose_graph.origin_tag = tag.id
-                self.pose_graph.origin_tag_pose = transformed_pose  # make this tag the origin tag
-                self.tag_seen = True  # set that you have seen the first tag
+        if not self.record_tag_vertex(tag, transformed_pose, self.transform_wait_time):
+            print("AR_CALIBRATION: No tags recorded.")
 
-        # if the tag_id isn't that of the origin tag and if this tag has never been seen before
-        if not (tag.id == self.pose_graph.origin_tag or tag.id in self.pose_graph.supplement_tags.keys()):
-            if self.record_tag_vertex(tag, self.transform_wait_time):  # record tag vertex to pose graph
-                print "AR_CALIBRATION: Supplementary Tag Found: " + str(tag.id)
-                self.pose_graph.supplement_tags[tag.id] = transformed_pose  # set new supplemental AR Tag
-                print(self.pose_graph.supplement_tags.keys())
-
-        elif tag.id == self.pose_graph.origin_tag and self.tag_seen:
-            self.pose_graph.origin_tag_pose = transformed_pose  # Reset the origin tag
-            print "AR_CALIBRATION: Origin Tag Refound: " + str(tag.id)
-
-        elif tag.id != self.pose_graph.origin_tag and self.tag_seen:
-            print "AR_CALIBRATION: Found Old Tag: " + str(tag.id)
-
-        elif tag.id == self.pose_graph.test_tag_id and self.tag_seen:
+        if tag.id == self.test_tag and self.tag_seen:
             self.record_test_data_tag(tag)
-
-        else:
-            print("AR_CALIBRATION: No tags found.")
 
     def gather_transformation(self, frame1, time1, frame2, time2, wait_time):
         """
@@ -167,25 +163,27 @@ class DataCollection(object):
             self.pose_failure = True
             return False
 
-    def record_tag_vertex(self, tag, wait_time, origin_tag=False):
+    def record_tag_vertex(self, tag, transformed_pose, wait_time):
         """
         Record vertex for new tag seen to pose graph
         :param tag: Apriltag object
+        :param transformed_pose:
         :param wait_time: Time to wait for receiving transformation
-        :param origin_tag: Boolean to indicate whether the tag is the first one seen
         """
         if self.gather_transformation("odom", tag.pose.header.stamp, "tag_" + str(tag.id), tag.pose.header.stamp,
                                       wait_time):
             (trans, rot) = self.listener.lookupTransformFull("odom", tag.pose.header.stamp, "tag_" + str(tag.id),
                                                              tag.pose.header.stamp, "odom")
-            if not origin_tag:  # if not the first tag seen
-                self.pose_graph.add_tag_vertices(tag.id, trans, rot)
-            else:  # if first tag, fix this tag vertex in pose graph
-                self.pose_graph.add_tag_vertices(tag.id, trans, rot, True)
+            self.pose_graph.add_tag_vertices(tag.id, trans, rot, transformed_pose)
+            self.tag_seen = True
             print("RECORDED VERTEX: tag " + str(tag.id))
             return True
         else:
             return False
+
+    def record_waypoint_vertex(self, waypoint_id):
+        self.pose_graph.add_waypoint_vertices(waypoint_id, self.curr_pose)
+        print ("RECORD VERTEX: waypoint" + waypoint_id)
 
     def record_pose_to_pose_edge(self, wait_time):
         """
@@ -209,19 +207,16 @@ class DataCollection(object):
         Record edge between current odometry and one of the tag detected to pose graph
         """
         tag_stamp = tag.pose.header.stamp
-        if tag.id == self.pose_graph.origin_tag:
-            AR_frame = "AR"
-        else:
-            AR_frame = "AR_" + str(tag.id)
-
-        if self.listener.canTransform(AR_frame, "odom", self.last_record_time) and self.gather_transformation(
+        if self.listener.canTransform("AR", "odom", self.last_record_time) and self.gather_transformation(
                 "real_device", self.nowtime, "tag_" + str(tag.id), tag_stamp, wait_time):
             (trans, rot) = self.listener.lookupTransformFull("real_device", self.nowtime, "tag_" + str(tag.id),
                                                              tag_stamp, "odom")
-            self.pose_graph.add_pose_to_tag(self.curr_pose, self.pose_graph.tag_vertices[tag.id], trans, rot)
-            print "RECORDED EDGE: Pose to tag transformation"
-            # update last record time for this tag
-            self.tagtimes[tag.id] = tag.pose.header.stamp
+            if self.pose_graph.add_pose_to_tag(self.curr_pose, tag.id, trans, rot):
+                print "RECORDED EDGE: Pose to tag transformation"
+                # update last record time for this tag
+                self.tagtimes[tag.id] = tag.pose.header.stamp
+            else:
+                print "RECORD FAILURE: Tag vertex does not exist"
         else:
             print "RECORD FAILURE: Pose to tag transformation"
 
@@ -235,13 +230,19 @@ class DataCollection(object):
                 if (tag.pose.header.stamp - self.tagtimes[tag.id]) > self.tag_record_duration:
                     self.record_pose_to_tag_edge(tag, self.transform_wait_time)
 
-    def record_test_data_tag(self,tag):
+    def record_pose_to_waypoint_edge(self, waypoint_id):
+        if self.pose_graph.add_pose_to_waypoint(self.curr_pose, waypoint_id):
+            print "RECORDED EDGE: Pose to waypoint"
+        else:
+            print "RECORD FAILURE: WAYPOINT vertex does not exist"
+
+    def record_test_data_tag(self, tag):
         try:
             print("tried to record test tag")
             if self.gather_transformation("AR", tag.pose.header.stamp, "tag_" + str(tag.id), tag.pose.header.stamp,
                                           self.transform_wait_time):
-                (trans, rot) = self.listener.lookupTransform("AR", "tag_" + str(tag.id),tag.pose.header.stamp)
-                self.pose_graph.add_test_data_tag(tag.ID,trans,rot)
+                (trans, rot) = self.listener.lookupTransform("AR", "tag_" + str(tag.id), tag.pose.header.stamp)
+                self.pose_graph.add_test_data_tag(tag.ID, trans, rot)
                 print "RECORDED: test tag transformation"
             else:
                 print "RECORD FAILURE: test tag transformation"
@@ -367,6 +368,7 @@ class Edge(object):
         self.eigenvalue_offset = 10 ** -3
         self.odometry_importance = 1
         self.tag_importance = 100
+        self.waypoint_importance = 100
         self.yaw_importance = 0.001
         self.pitch_importance = 1000
         self.roll_importance = 1000
@@ -416,6 +418,11 @@ class Edge(object):
             w_t = self.tag_importance
             importance = [w_t, 0, 0, 0, 0, 0, w_t, 0, 0, 0, 0, w_t, 0, 0, 0, w_t, 0, 0, w_t, 0, w_t]
             self.importance_matrix = Edge.convert_uppertri_to_matrix(importance, 6)
+
+        elif self.end.type == "waypoint":  # if the edge is between current position and a waypoint
+            w_w = self.waypoint_importance
+            importance = [w_w, 0, 0, 0, 0, 0, w_w, 0, 0, 0, 0, w_w, 0, 0, 0, w_w, 0, 0, w_w, 0, w_w]
+            self.importance_matrix = Edge.convert_uppertri_to_matrix(importance, 6)
         else:  # if the edge is between past pose to current pose
             w_o = self.odometry_importance
             importance = [w_o, 0, 0, 0, 0, 0, w_o, 0, 0, 0, 0, w_o, 0, 0, 0, w_o, 0, 0, w_o, 0, w_o]
@@ -437,19 +444,32 @@ class Edge(object):
             [self.start.ID, self.end.ID] + self.translation + self.rotation)
 
 
+class WayPoint(object):
+    def __init__(self, id, pose, x, y, z, time_stamp):
+        self.id = id
+        self.pose = pose
+        self.x = x
+        self.y = y
+        self.z = z
+        self.time_stamp = time_stamp
+
+
 class PoseGraph(object):
     def __init__(self, test_tag_id, num_tags=587):
-        #### tag recording specific parameters ####
+        #### tag and waypoints recording specific parameters ####
         self.num_tags = num_tags
         self.origin_tag = None  # First tag seen
         self.origin_tag_pose = None
         self.supplement_tags = {}
+        self.waypoints = {}
 
         #### vertices, edges ####
         self.odometry_vertices = OrderedDict()
         self.odometry_edges = OrderedDict()
         self.tag_vertices = OrderedDict()
         self.odometry_tag_edges = OrderedDict()
+        self.waypoints_vertices = OrderedDict()
+        self.odometry_waypoints_edges = OrderedDict()
 
         #### g2o Recording ####
         self.g2o_data = None  # Have variable to be prepared for file reading and writing
@@ -473,13 +493,26 @@ class PoseGraph(object):
         self.odometry_vertices[ID] = Vertex(ID, trans, rot, "odometry", fix_status)
         return self.odometry_vertices[ID]
 
-    def add_odometry_edge(self, v_start, v_end, trans, rot, damping_status):
+    def add_odometry_edges(self, v_start, v_end, trans, rot, damping_status):
         self.odometry_edges[v_start.ID] = Edge(v_start, v_end, trans, rot, damping_status)
         return self.odometry_edges[v_start.ID]
 
-    def add_tag_vertices(self, ID, trans, rot, fix_status=False):
-        self.tag_vertices[ID] = Vertex(ID, trans, rot, "tag", fix_status)
-        return self.tag_vertices[ID]
+    def add_tag_vertices(self, ID, trans, rot, transformed_pose):
+        if self.origin_tag is None:
+            self.origin_tag = ID
+            self.origin_tag_pose = transformed_pose  # make this tag the origin tag
+            self.tag_vertices[ID] = Vertex(ID, trans, rot, "tag", True)
+            print "AR_CALIBRATION: Origin Tag Found: " + str(ID)
+        elif not (ID == self.origin_tag or ID in self.supplement_tags.keys()):
+            self.supplement_tags[ID] = transformed_pose  # set new supplemental AR Tag
+            self.tag_vertices[ID] = Vertex(ID, trans, rot, "tag", False)
+            print "AR_CALIBRATION: Supplementary Tag Found: " + str(ID)
+            print(self.supplement_tags.keys())
+        elif ID == self.origin_tag:
+            self.origin_tag_pose = transformed_pose  # Reset the origin tag
+            print "AR_CALIBRATION: Origin Tag Refound: " + str(ID)
+        else:
+            print "AR_CALIBRATION: Found Old Tag: " + str(ID)
 
     def add_odometry_tag_edges(self, v_odom, v_tag, trans, rot):
         if v_tag.ID not in self.odometry_tag_edges.keys():
@@ -487,13 +520,34 @@ class PoseGraph(object):
         self.odometry_tag_edges[v_tag.ID][v_odom] = Edge(v_odom, v_tag, trans, rot)
         return self.odometry_tag_edges[v_tag.ID][v_odom]
 
+    def add_waypoint(self, ID, curr_pose, x, y, z, time_stamp):
+        if ID not in self.waypoints.keys():
+            self.waypoints[ID] = WayPoint(ID, curr_pose, x, y, z, time_stamp)
+            print "AR_CALIBRATION: Waypoint Found:" + ID
+        else:
+            print "AR_CALIBRATION: Found Old waypoint" + ID  # Need to fix
+
+    def add_waypoint_vertices(self, ID, curr_pose):
+        if ID not in self.waypoints_vertices.keys():
+            self.waypoints_vertices[ID] = Vertex(ID, curr_pose.trans, curr_pose.rot, "waypoint")
+            print "AR_CALIBRATION: Waypoint Found: " + str(ID)
+            return self.waypoints_vertices[ID]
+        else:
+            print "AR_CALIBRATION: Found Old Waypoint: " + str(ID)
+
+    def add_odometry_waypoint_edges(self, v_odom, v_waypoints):
+        if v_waypoints not in self.odometry_waypoints_edges.keys():
+            self.odometry_waypoints_edges[v_waypoints.ID] = {}
+        self.odometry_waypoints_edges[v_waypoints.ID][v_odom] = Edge(v_odom, v_waypoints, [0, 0, 0], [0, 0, 0, 1])
+        return self.odometry_waypoints_edges[v_waypoints.ID]
+
     def add_damping(self, curr_pose):
         """
         Add a vertex and edge for correcting damping
         :param curr_pose: Vertex object for current pose
         """
         damping_vertex = self.add_odometry_vertices(curr_pose.ID + 1, [0, 0, 0], curr_pose.rotation, True)
-        damping_edge = self.add_odometry_edge(curr_pose, damping_vertex, [0, 0, 0], [0, 0, 0, 1], True)
+        damping_edge = self.add_odometry_edges(curr_pose, damping_vertex, [0, 0, 0], [0, 0, 0, 1], True)
         # compute importance matrix
         damping_edge.compute_importance_matrix()
         if damping_edge.check_importance_matrix_PSD():
@@ -507,26 +561,42 @@ class PoseGraph(object):
         :param rot: rotation
         :param importance: Importance of this new edge
         """
-        pose_edge = self.add_odometry_edge(self.odometry_vertices[curr_pose.ID - 1], curr_pose, trans, rot, False)
+        pose_edge = self.add_odometry_edges(self.odometry_vertices[curr_pose.ID - 1], curr_pose, trans, rot, False)
         pose_edge.odometry_importance = importance
         # compute importance matrix
         pose_edge.compute_importance_matrix()
         if pose_edge.check_importance_matrix_PSD():
             pose_edge.eigenvalue_PSD = True
 
-    def add_pose_to_tag(self, curr_pose, tag, trans, rot):
+    def add_pose_to_tag(self, curr_pose, tag_id, trans, rot):
         """
         Add an edge between vertices of current pose and current tag detected
         :param curr_pose: Vertex object of current pose
-        :param tag: Vertex object of current tag detected
+        :param tag_id: ID current tag detected
         :param trans: translation
         :param rot: rotation
         """
-        pose_tag_edge = self.add_odometry_tag_edges(curr_pose, tag, trans, rot)
-        # compute importance matrix
-        pose_tag_edge.compute_importance_matrix()
-        if pose_tag_edge.check_importance_matrix_PSD():
-            pose_tag_edge.eigenvalue_PSD = True
+        if tag_id in self.tag_vertices.keys():
+            tag = self.tag_vertices[tag_id]
+            pose_tag_edge = self.add_odometry_tag_edges(curr_pose, tag, trans, rot)
+            # compute importance matrix
+            pose_tag_edge.compute_importance_matrix()
+            if pose_tag_edge.check_importance_matrix_PSD():
+                pose_tag_edge.eigenvalue_PSD = True
+            return True
+        else:
+            return False
+
+    def add_pose_to_waypoint(self, curr_pose, waypoint_id):
+        if waypoint_id in self.waypoints_vertices.keys():
+            waypoint = self.waypoints_vertices[waypoint_id]
+            pose_waypoint_edge = self.add_odometry_waypoint_edges(curr_pose, waypoint)
+            pose_waypoint_edge.compute_importance_matrix()
+            if pose_waypoint_edge.check_importance_matrix_PSD():
+                pose_waypoint_edge.eigenvalue_PSD = True
+            return True
+        else:
+            return False
 
     def add_test_data_tag(self, ID, trans, rot):
         self.test_data_tag[ID] = trans + rot
