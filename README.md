@@ -16,7 +16,7 @@ applications to assist visually impaired users
 * [Invisible Map project](#invisible-map)
   * [Project Architecture](#project-architecture)
   * [Current Status](#current-progress)
-  * [Installing, Running, and Troubleshooting](setting-up-and-running-the-programs)
+  * [Installing, Running, and Troubleshooting](#setting-up-and-running-the-invisible-map)
 * [Clew App for iOS](#clew-app)
   * [Project Architecture](#architecture)
   * [Current Status](#current-status)
