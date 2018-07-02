@@ -275,9 +275,9 @@ class ArWaypointTest(object):
             while (i < 10):
                 try:
                     self.nowtime = rospy.Time.now()  # Set Nowtime to Now
+                    self.listener.waitForTransform("odom", "real_device", self.nowtime,
+                                                   rospy.Duration(.5))  # Wait for...
                     if self.listener.canTransform("odom", "real_device", self.nowtime):
-                        self.listener.waitForTransform("odom", "real_device", self.nowtime,
-                                                       rospy.Duration(.5))  # Wait for...
                         (trans, rot) = self.listener.lookupTransform("odom", "real_device",
                                                                      self.nowtime)  # and lookup the transform for phone's current position.
                         self.g2o_data.write("VERTEX_SE3:QUAT %i %f %f %f %f %f %f %f\n" % tuple(
