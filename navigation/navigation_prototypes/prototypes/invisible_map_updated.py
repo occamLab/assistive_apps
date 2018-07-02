@@ -3,6 +3,7 @@
 import tf
 import rospy
 from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import Header
 from apriltags_ros.msg import AprilTagDetectionArray
 from keyboard.msg import Key
 from os import system, path
@@ -10,6 +11,9 @@ from collections import OrderedDict
 from tf.transformations import quaternion_from_euler, quaternion_multiply
 import numpy as np
 import math as math
+
+from helper_functions import (convert_pose_inverse_transform,
+                              convert_translation_rotation_to_pose)
 
 
 class DataCollection(object):
@@ -19,6 +23,7 @@ class DataCollection(object):
 
         #### Transformation Parameters ####
         self.listener = tf.TransformListener()  # The transform listener
+        self.broadcaster = tf.TransformBroadcaster()
         self.broadcaster = tf.TransformBroadcaster()  # The transform broadcaster
 
         #### Data Collection Parameters ####
@@ -265,6 +270,23 @@ class DataCollection(object):
             print "RECORD: path transformation"
         else:
             print "RECORD FAILURE: path from AR to real device"
+
+    def compute_transform_odom_old_to_new(self, odom_old):
+        odom_old_trans = odom_old[0:3]
+        odom_old_rot = odom_old[3:7]
+        odom_old_pose = PoseStamped(pose=convert_translation_rotation_to_pose(odom_old_trans, odom_old_rot),
+                                    header=Header(stamp=self.nowtime, frame_id="AR"))
+        self.listener.waitForTransform("AR", "odom", self.nowtime, rospy.Duration(1.0))
+        self.odom_old_to_new = self.listener.transformPose("odom", odom_old_pose)
+        translation = [self.odom_old_to_new.pose.position.x, self.odom_old_to_new.pose.position.y,
+                       self.odom_old_to_new.pose.position.z]
+        rotation = [self.odom_old_to_new.pose.orientation.x, self.odom_old_to_new.pose.orientation.y,
+                    self.odom_old_to_new.pose.orientation.z, self.odom_old_to_new.pose.orientation.w]
+        return translation, rotation
+
+    def broadcast_other_AR_frames(self):
+        
+
 
     def start_record_AR(self):
         """
