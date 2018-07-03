@@ -24,8 +24,6 @@ from random import random
 from os import system, path
 from copy import deepcopy
 import numpy as np
-from scipy import linalg, matrix
-import scipy
 
 
 def null(a, rtol=1e-5):
