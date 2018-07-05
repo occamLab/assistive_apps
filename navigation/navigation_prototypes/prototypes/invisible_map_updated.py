@@ -17,17 +17,16 @@ except:
 
 from helper_functions import (convert_pose_inverse_transform,
                               convert_translation_rotation_to_pose)
-
-from pose_graph_optimzation import PoseGraph
-
+from pose_graph_optimization import PoseGraph
 
 class DataCollection(object):
 
     def __init__(self, num_tags=587):
-        rospy.init_node('invisible_map_data_collection')  # Initialization of another node.
+        rospy.init_node('data_collection')  # Initialization of another node.
         self.engine = pyttsx.init()  # Speech engine
-        self.package = RosPack().get_path('assistive_apps')  # Directory for this ros package
-        self.data_folder = path.join(self.package, 'navigation/navigation_prototypes/pototypes/raw_data')
+        self.has_spoken = False  # Boolean for if the speech engine has spoken
+        self.package = RosPack().get_path('navigation_prototypes')  # Directory for this ros package
+        self.data_folder = path.join(self.package, 'pototypes/raw_data')
 
         #### Transformation Parameters ####
         self.listener = tf.TransformListener()  # The transform listener
@@ -414,6 +413,6 @@ class DataCollection(object):
                     self.record()  # Record to pose graph
             r.sleep()
 
-if "__name__" == "__main__":
+if __name__ == '__main__':
     map_collection = DataCollection()
     map_collection.run()
