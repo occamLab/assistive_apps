@@ -124,6 +124,7 @@ class DataCollection(object):
                 self.start_record()
             else:
                 print("AR Calibration Mode turned off")
+                self.recording = False
                 self.engine.say('turned off AR Calibration Mode')
 
         if msg.code == ord('-'):
@@ -137,9 +138,12 @@ class DataCollection(object):
             """
             Save Everything.
             """
-            with open(path.join(self.package, "data_collected.pkl"), 'wb') as f:  # write to waypoint file
-                pickle.dump(self.pose_graph, f)  # DUMP WAYPOINTS INTO THE PICKLE LOCATIONhey
-                print("DATA SAVED")
+            if not self.recording:
+                with open(path.join(self.package, "data_collected.pkl"), 'wb') as f:  # write to waypoint file
+                    pickle.dump(self.pose_graph, f)  # DUMP WAYPOINTS INTO THE PICKLE LOCATIONhey
+                    print("DATA SAVED")
+            else:
+                print("Please finish AR_calibration before saving pose graph!")
 
         if msg.code == ord('l'):
             """
@@ -264,8 +268,7 @@ class DataCollection(object):
         Record edge between current odometry and one of the tag detected to pose graph
         """
         tag_stamp = tag.pose.header.stamp
-        if self.listener.canTransform("AR", "odom", self.last_record_time) and self.gather_transformation(
-                "real_device", self.nowtime, "tag_" + str(tag.id), tag_stamp, wait_time):
+        if self.gather_transformation("real_device", self.nowtime, "tag_" + str(tag.id), tag_stamp, wait_time):
             (trans, rot) = self.listener.lookupTransformFull("real_device", self.nowtime, "tag_" + str(tag.id),
                                                              tag_stamp, "odom")
             if self.pose_graph.add_pose_to_tag(self.curr_pose, tag.id, trans, rot):
@@ -322,7 +325,7 @@ class DataCollection(object):
         """
         Record test data for comparing g2o optimized path with unoptimized path from phone odometry
         """
-        if self.gather_transformation("AR", self.nowtime, "real_device", self.nowtime, self.transform_wait_time):
+        if self.tag_seen and self.gather_transformation("AR", self.nowtime, "real_device", self.nowtime, self.transform_wait_time):
             (trans, rot) = self.listener.lookupTransformFull("AR", self.nowtime, "real_device", self.nowtime, "odom")
             self.pose_graph.add_test_data_path(self.test_data_count, trans, rot)
             self.test_data_count += 1
