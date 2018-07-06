@@ -2,6 +2,7 @@ from collections import OrderedDict
 from tf.transformations import quaternion_from_euler, quaternion_multiply
 from os import path
 import numpy as np
+from rospkg import RosPack
 
 
 class Vertex(object):
@@ -52,7 +53,7 @@ class Edge(object):
         # Generate a rotation matrix to rotate a small amount around the z axis
         q2 = quaternion_from_euler(0, 0, .05)
         # Rotate current pose by 0.05 degrees in yaw
-        qsecondrotation = quaternion_multiply(q2, self.start.rotaton)
+        qsecondrotation = quaternion_multiply(q2, self.start.rotation)
         # Get difference in rotated pose with current pose.
         change = (qsecondrotation[0:3] - self.start.rotation[0:3])
         # Determine which direction is the yaw direction and then make sure that direction is diminished in the information matrix
@@ -78,7 +79,7 @@ class Edge(object):
         if self.damping_status:  # if the edge is for damping correction
             I = self.compute_basis_vector()
             indeces = np.triu_indices(3)  # get indices of upper triangular entry of a 3x3 matrix
-            importance = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] + I[indeces]
+            importance = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] + list(I[indeces])
             for ind in np.cumsum([0] + range(6, 1, -1))[3:6]:  # increase eigenvalue of rotation importance
                 importance[ind] += self.eigenvalue_offset
             self.importance_matrix = Edge.convert_uppertri_to_matrix(importance, 6)
@@ -130,23 +131,20 @@ class PoseGraph(object):
         self.waypoints_vertices = OrderedDict()
         self.odometry_waypoints_edges = OrderedDict()
 
-        #### g2o Recording ####
-        self.g2o_data = None  # Have variable to be prepared for file reading and writing
-        self.g2o_data_path = path.expanduser(
-            '~') + '/catkin_ws/src/assistive_apps/navigation/navigation_prototypes/prototypes/data_g2o/data.g2o'  # path to the data compiled into the g2o file
-        self.g2o_data_copy_path = path.expanduser(
-            '~') + '/catkin_ws/src/assistive_apps/navigation/navigation_prototypes/prototypes/data_g2o/data_cp.g2o'  # copy of the unedit data
-        self.g2o_result_path = path.expanduser(
-            '~') + '/catkin_ws/src/assistive_apps/navigation/navigation_prototypes/prototypes/data_g2o/result.g2o'  #
-        open(self.g2o_data_path, 'wb+').close()  # Overwrite current g2o data file
+        #### g2o parameters ####
+        self.package = RosPack().get_path('navigation_prototypes')
+        self.g2o_data = None
+        self.g2o_data_path = path.join(self.package,
+                                       'prototypes/data_g2o/data.g2o')  # path to the data compiled into the g2o file
+        self.g2o_data_copy_path = path.join(self.package, 'prototypes/data_g2o/data_cp.g2o')  # copy of the unedit data
+        self.g2o_result_path = path.join(self.package, 'prototypes/data_g2o//result.g2o')
 
         #### test data ####
         self.test_tag_id = test_tag_id
-        self.testfile = path.expanduser(
-            '~') + '/catkin_ws/src/assistive_apps/navigation/navigation_prototypes/prototypes/data_g2o/naive.txt'
-        self.g2o_test_data = open(self.testfile, 'wb+')
         self.test_data_tag = {}
         self.test_data_path = {}
+        self.g2o_test_data = None
+        self.testfile = path.join(self.package, 'prototypes/data_g2o/naive.txt')
 
     def add_odometry_vertices(self, ID, trans, rot, fix_status):
         self.odometry_vertices[ID] = Vertex(ID, trans, rot, "odometry", fix_status)
@@ -182,7 +180,7 @@ class PoseGraph(object):
     def add_waypoint_vertices(self, ID, curr_pose):
         if ID not in self.waypoints_vertices.keys():
             self.waypoints[ID] = curr_pose  # store the pose of waypoint
-            self.waypoints_vertices[ID] = Vertex(ID, curr_pose.trans, curr_pose.rot, "waypoint")
+            self.waypoints_vertices[ID] = Vertex(ID, curr_pose.translation, curr_pose.rotation, "waypoint")
             print "AR_CALIBRATION: Waypoint Found: " + str(ID)
             print(self.waypoints.keys())
             return self.waypoints_vertices[ID]
@@ -262,17 +260,22 @@ class PoseGraph(object):
         """
         Write to g2o data file
         """
-        pass
+        open(self.g2o_data_path, 'wb+').close()  # Overwrite current g2o data file
+        self.g2o_data = open(self.g2o_data_path, 'ab')
+
+    def write_g2o_test_data(self):
+        """
+        Write to g2o test data
+        """
+
+        self.g2o_test_data = open(self.testfile, 'wb+')
+        for tags in self.test_data_tag.values():
+            self.g2o_test_data.write("TAG %f %f %f %f %f %f %f\n" % tuple(tags))
+        for paths in self.test_data_path.values():
+            self.g2o_test_data.write("PATH %f %f %f %f %f %f %f\n" % tuple(paths))
 
     def optimize_pose(self):
         """
         Run g2o
         """
         pass
-
-    def write_path_to_test_data(self):
-        """
-        Write path to test data file
-        """
-        for path in self.test_data_path.values():
-            self.g2o_test_data.write("PATH %f %f %f %f %f %f %f\n" % tuple(path))

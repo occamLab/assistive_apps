@@ -37,7 +37,7 @@ class DataCollection(object):
         self.record_interval_tag_seen = rospy.Duration(.1)  # Interval of time between recording when tag is seen
         self.record_interval = self.record_interval_normal
         self.tag_record_duration = rospy.Duration(0.025)
-        self.transform_wait_time = rospy.Duration(1)
+        self.transform_wait_time = rospy.Duration(0.5)
         self.nowtime = None
         self.last_record_time = None
         self.pose_failure = False
@@ -101,24 +101,24 @@ class DataCollection(object):
         This is the callback function for the ROS keyboard.  The msg.code here returns the ord's of what's pressed.
         """
         # Switch to run mode
-        if msg.code == ord('t'):  # when user presses R
+        if msg.code == ord('t'):  # when user presses t
             """
             Detect AR tag
             """
             self.AR_Find_Try = True  # Try to find and record an AR tag next time possible.
 
-        if msg.code == ord('w'):  # when user presses R
+        if msg.code == ord('w'):  # when user presses w
             """
             Detect waypoint
             """
             self.Waypoint_Find_Try = True  # Try to find and record an AR tag next time possible.
 
-        if msg.code == ord('r'):  # When user presses Y
+        if msg.code == ord('a'):  # When user presses a
             """
             Turn on AR_Calibration (start and stop data collection.)
             """
-            self.calibration_AR = not self.calibration_AR  # Toggle calibration_AR
-            if self.calibration_AR:  # If AR Calibration just turned on,
+            self.AR_calibration = not self.AR_calibration  # Toggle calibration_AR
+            if self.AR_calibration:  # If AR Calibration just turned on,
                 print('switched to AR Calibration Mode')  # print message
                 self.engine.say('switched to AR Calibration Mode')
                 self.start_record()
@@ -126,7 +126,7 @@ class DataCollection(object):
                 print("AR Calibration Mode turned off")
                 self.engine.say('turned off AR Calibration Mode')
 
-        if msg.code == ord('u'):
+        if msg.code == ord('-'):
             """
             Start Recording
             """
@@ -137,7 +137,7 @@ class DataCollection(object):
             """
             Save Everything.
             """
-            with open(path.join(self.package, "data_collected_%d.pkl"), 'wb') as f:  # write to waypoint file
+            with open(path.join(self.package, "data_collected.pkl"), 'wb') as f:  # write to waypoint file
                 pickle.dump(self.pose_graph, f)  # DUMP WAYPOINTS INTO THE PICKLE LOCATIONhey
                 print("DATA SAVED")
 
@@ -145,7 +145,7 @@ class DataCollection(object):
             """
             Load Everything.
             """
-            with open(path.join(self.package, "data_collected_%d.pkl"), 'rb') as f:  # read pose graph file
+            with open(path.join(self.package, "data_collected.pkl"), 'rb') as f:  # read pose graph file
                 self.pose_graph = pickle.load(f)  # load pickle
                 if self.pose_graph.origin_tag is not None:
                     self.tag_seen = True
@@ -335,7 +335,7 @@ class DataCollection(object):
         odom_old_rot = odom_old[3:7]
         odom_old_pose = PoseStamped(pose=convert_translation_rotation_to_pose(odom_old_trans, odom_old_rot),
                                     header=Header(stamp=self.nowtime, frame_id="AR"))
-        self.listener.waitForTransform("AR", "odom", self.nowtime, rospy.Duration(1.0))
+        self.listener.waitForTransform("AR", "odom", self.nowtime, rospy.Duration(2))
         self.odom_old_to_new = self.listener.transformPose("odom", odom_old_pose)
         translation = [self.odom_old_to_new.pose.position.x, self.odom_old_to_new.pose.position.y,
                        self.odom_old_to_new.pose.position.z]
@@ -372,7 +372,7 @@ class DataCollection(object):
         Once first odometry vertex is recorded to pose graph, continue recording to pose graph.
         """
         try:
-            self.nowtime = rospy.Time.now()
+            self.nowtime = rospy.Time(0)
             # Record vertex of current pose, edge of damping correction, and edge of past and present pose
             if self.record_curr_pose_and_damping(self.transform_wait_time) and self.record_pose_to_pose_edge(
                     self.transform_wait_time):
@@ -383,6 +383,7 @@ class DataCollection(object):
                 self.last_record_time = self.nowtime  # set previous record time to current record time.
                 self.pose_failure = False
             else:
+                self.last_record_time = self.nowtime
                 self.pose_failure_count += 1
                 print "Pose failure count:", self.pose_failure_count
 
