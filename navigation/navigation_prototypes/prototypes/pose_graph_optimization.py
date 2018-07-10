@@ -3,6 +3,7 @@ from tf.transformations import quaternion_from_euler, quaternion_multiply
 from os import path
 import numpy as np
 from rospkg import RosPack
+from collections import deque
 
 
 class Vertex(object):
@@ -131,6 +132,10 @@ class PoseGraph(object):
         self.waypoints_vertices = OrderedDict()
         self.odometry_waypoints_edges = OrderedDict()
 
+        #### graph ####
+        self.graph = {}
+        self.visited_nodes = deque([])
+
         #### g2o parameters ####
         self.package = RosPack().get_path('navigation_prototypes')
         self.g2o_data = None
@@ -174,8 +179,8 @@ class PoseGraph(object):
     def add_odometry_tag_edges(self, v_odom, v_tag, trans, rot):
         if v_tag.ID not in self.odometry_tag_edges.keys():
             self.odometry_tag_edges[v_tag.ID] = {}
-        self.odometry_tag_edges[v_tag.ID][v_odom] = Edge(v_odom, v_tag, trans, rot)
-        return self.odometry_tag_edges[v_tag.ID][v_odom]
+        self.odometry_tag_edges[v_tag.ID][v_odom.ID] = Edge(v_odom, v_tag, trans, rot)
+        return self.odometry_tag_edges[v_tag.ID][v_odom.ID]
 
     def add_waypoint_vertices(self, ID, curr_pose):
         if ID not in self.waypoints_vertices.keys():
@@ -190,7 +195,7 @@ class PoseGraph(object):
     def add_odometry_waypoint_edges(self, v_odom, v_waypoints):
         if v_waypoints not in self.odometry_waypoints_edges.keys():
             self.odometry_waypoints_edges[v_waypoints.ID] = {}
-        self.odometry_waypoints_edges[v_waypoints.ID][v_odom] = Edge(v_odom, v_waypoints, [0, 0, 0], [0, 0, 0, 1])
+        self.odometry_waypoints_edges[v_waypoints.ID][v_odom.ID] = Edge(v_odom, v_waypoints, [0, 0, 0], [0, 0, 0, 1])
         return self.odometry_waypoints_edges[v_waypoints.ID]
 
     def add_damping(self, curr_pose):
@@ -256,10 +261,75 @@ class PoseGraph(object):
     def add_test_data_path(self, ID, trans, rot):
         self.test_data_path[ID] = trans + rot
 
+    def initialize_nodes(self, vertices):
+        for vertex in vertices.keys():
+            self.graph[vertex] = []
+
+    def add_nodes_to_graph(self, source_node, neighbours):
+        for neighbour in neighbours:
+            self.graph[source_node].append(neighbour)
+            self.graph[neighbour].append(source_node)
+
+    def construct_graph(self):
+        self.graph = {}
+        for vertices in [self.odometry_vertices, self.tag_vertices, self.waypoints_vertices]:
+            self.initialize_nodes(vertices)
+        # print self.graph
+
+        for edge in self.odometry_edges.values():
+            start_node, end_node = edge.start.ID, edge.end.ID
+            if np.sum(edge.importance_matrix.diagonal()) != 0:  # check if the importance value is zero
+                self.add_nodes_to_graph(start_node, [end_node])
+            else:
+                print "Discard Unconnected Edge"
+        print "Odometry Nodes Added"
+
+        for tag in self.odometry_tag_edges.keys():
+            #start_node, neighbour_node = tag, self.odometry_tag_edges[tag].keys()
+            start_node, neighbour_node = tag, []
+            for odom in self.odometry_tag_edges[tag].keys():
+                neighbour_node.append(odom.ID)
+            self.add_nodes_to_graph(start_node, neighbour_node)
+        print "Tag Nodes Added"
+
+        for waypoint in self.odometry_waypoints_edges.keys():
+            #start_node, neighbour_node = waypoint, self.odometry_waypoints_edges[waypoint].keys()
+            start_node, neighbour_node = waypoint, []
+            for odom in self.odometry_waypoints_edges[waypoint].keys():
+                neighbour_node.append(odom.ID)
+            self.add_nodes_to_graph(start_node, neighbour_node)
+
+    def bfs(self, source):
+        self.visited_nodes = deque([])
+        self.visited_nodes.append(source)
+        node_queue = deque([])
+        node_queue.append(source)
+        while node_queue:
+            node = node_queue.popleft()
+            for neighbour in self.graph[node]:
+                if neighbour not in self.visited_nodes:
+                    node_queue.append(neighbour)
+                    self.visited_nodes.append(neighbour)
+
+    def remove_unconnected_portion(self, vertices, edges):
+        for vertex_id in vertices.keys():
+            if vertex_id not in self.visited_nodes:
+                del vertices[vertex_id]
+                print "DELETE VERTEX:", vertices[vertex_id]
+                if vertex_id in edges.keys():
+                    del edges[vertex_id]
+
+    def update_posegraph(self):
+        self.remove_unconnected_portion(self.odometry_vertices, self.odometry_edges)
+        self.remove_unconnected_portion(self.tag_vertices, self.odometry_tag_edges)
+        self.remove_unconnected_portion(self.waypoints_vertices, self.odometry_waypoints_edges)
+
     def write_g2o_data(self):
         """
         Write to g2o data file
         """
+        pass
+
         open(self.g2o_data_path, 'wb+').close()  # Overwrite current g2o data file
         self.g2o_data = open(self.g2o_data_path, 'ab')
 
@@ -267,6 +337,7 @@ class PoseGraph(object):
         """
         Write to g2o test data
         """
+        pass
 
         self.g2o_test_data = open(self.testfile, 'wb+')
         for tags in self.test_data_tag.values():

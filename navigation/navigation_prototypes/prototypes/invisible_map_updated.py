@@ -139,8 +139,8 @@ class DataCollection(object):
             Save Everything.
             """
             if not self.recording:
-                with open(path.join(self.package, "data_collected.pkl"), 'wb') as f:  # write to waypoint file
-                    pickle.dump(self.pose_graph, f)  # DUMP WAYPOINTS INTO THE PICKLE LOCATIONhey
+                with open(path.join(self.data_folder, "data_collected.pkl"), 'wb') as f:
+                    pickle.dump(self.pose_graph, f)  
                     print("DATA SAVED")
             else:
                 print("Please finish AR_calibration before saving pose graph!")

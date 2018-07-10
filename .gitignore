@@ -13,6 +13,9 @@ msg/*Result.msg
 msg/_*.py
 .idea/
 
+# Ignore saved pickle files
+navigation/navigation_prototypes/prototypes/raw_data
+
 # Ignore saved json files.
 *.json
 
