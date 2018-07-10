@@ -1,0 +1,21 @@
+actions: []
+authors: ''
+brief: ''
+bugtracker: ''
+depends:
+- dynamic_reconfigure
+- catkin
+- roscpp
+- std_msgs
+- sensor_msgs
+- rospy
+- tango_streamer
+- geometry_msgs
+description: The navigation_prototypes package
+license: TODO
+maintainers: cyoon <cyoon@todo.todo>
+msgs: []
+package_type: package
+repo_url: ''
+srvs: []
+url: ''
