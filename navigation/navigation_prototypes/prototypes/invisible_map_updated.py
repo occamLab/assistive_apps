@@ -26,7 +26,7 @@ class DataCollection(object):
         self.engine = pyttsx.init()  # Speech engine
         self.has_spoken = False  # Boolean for if the speech engine has spoken
         self.package = RosPack().get_path('navigation_prototypes')  # Directory for this ros package
-        self.data_folder = path.join(self.package, 'pototypes/raw_data')
+        self.data_folder = path.join(self.package, 'prototypes/raw_data')
 
         #### Transformation Parameters ####
         self.listener = tf.TransformListener()  # The transform listener
@@ -51,6 +51,8 @@ class DataCollection(object):
         self.pose_vertex_id = self.num_tags + 1  # starting vertex id for tango odometry data written to pose graph
         self.tags_detected = None  # List of tags seen at the moment
         self.tagtimes = {}
+        for i in range(self.num_tags):
+            self.tagtimes[i] = rospy.Time(1)
         self.tag_seen = False  # whether the first tag has been detected
         self.test_tag = 2
 
@@ -140,7 +142,7 @@ class DataCollection(object):
             """
             if not self.recording:
                 with open(path.join(self.data_folder, "data_collected.pkl"), 'wb') as f:
-                    pickle.dump(self.pose_graph, f)  
+                    pickle.dump(self.pose_graph, f)
                     print("DATA SAVED")
             else:
                 print("Please finish AR_calibration before saving pose graph!")
@@ -300,7 +302,7 @@ class DataCollection(object):
         if self.Waypoint_Find_Try:
             waypoint_id = raw_input("What do you want to name this waypoint with?")
             self.record_waypoint_vertex(waypoint_id)
-            self.record_waypoint_vertex(waypoint_id)
+            self.record_pose_to_waypoint_edge(waypoint_id)
         self.Waypoint_Find_Try = False
 
     def record_test_data_tag(self, tag):
@@ -309,7 +311,7 @@ class DataCollection(object):
             if self.gather_transformation("AR", tag.pose.header.stamp, "tag_" + str(tag.id), tag.pose.header.stamp,
                                           self.transform_wait_time):
                 (trans, rot) = self.listener.lookupTransform("AR", "tag_" + str(tag.id), tag.pose.header.stamp)
-                self.pose_graph.add_test_data_tag(tag.ID, trans, rot)
+                self.pose_graph.add_test_data_tag(tag.id, trans, rot)
                 print "RECORDED: test tag transformation"
             else:
                 print "RECORD FAILURE: test tag transformation"
