@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from pose_graph_optimization import PoseGraph
+from pose_graph import PoseGraph
 import pickle
 from rospkg import RosPack
 from os import path

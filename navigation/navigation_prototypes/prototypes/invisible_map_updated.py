@@ -3,7 +3,6 @@
 import rospy
 from rospkg import RosPack
 from geometry_msgs.msg import PoseStamped
-from std_msgs.msg import Header
 from apriltags_ros.msg import AprilTagDetectionArray
 from keyboard.msg import Key
 import tf
@@ -14,10 +13,7 @@ try:
     import cPickle as pickle
 except:
     import pickle
-
-from helper_functions import (convert_pose_inverse_transform,
-                              convert_translation_rotation_to_pose)
-from pose_graph_optimization import PoseGraph
+from pose_graph import PoseGraph
 
 class DataCollection(object):
 
@@ -28,7 +24,7 @@ class DataCollection(object):
         self.package = RosPack().get_path('navigation_prototypes')  # Directory for this ros package
         self.data_folder = path.join(self.package, 'prototypes/raw_data')
 
-        #### Transformation Parameters ####
+        #### Transform Parameters ####
         self.listener = tf.TransformListener()  # The transform listener
         self.broadcaster = tf.TransformBroadcaster()  # The transform broadcaster
 
@@ -151,7 +147,7 @@ class DataCollection(object):
             """
             Load Everything.
             """
-            with open(path.join(self.package, "data_collected.pkl"), 'rb') as f:  # read pose graph file
+            with open(path.join(self.data_folder, "data_collected.pkl"), 'rb') as f:  # read pose graph file
                 self.pose_graph = pickle.load(f)  # load pickle
                 if self.pose_graph.origin_tag is not None:
                     self.tag_seen = True
@@ -334,19 +330,6 @@ class DataCollection(object):
             print "RECORD: path transformation"
         else:
             print "RECORD FAILURE: path from AR to real device"
-
-    def compute_transform_odom_old_to_new(self, odom_old):
-        odom_old_trans = odom_old[0:3]
-        odom_old_rot = odom_old[3:7]
-        odom_old_pose = PoseStamped(pose=convert_translation_rotation_to_pose(odom_old_trans, odom_old_rot),
-                                    header=Header(stamp=self.nowtime, frame_id="AR"))
-        self.listener.waitForTransform("AR", "odom", self.nowtime, rospy.Duration(2))
-        self.odom_old_to_new = self.listener.transformPose("odom", odom_old_pose)
-        translation = [self.odom_old_to_new.pose.position.x, self.odom_old_to_new.pose.position.y,
-                       self.odom_old_to_new.pose.position.z]
-        rotation = [self.odom_old_to_new.pose.orientation.x, self.odom_old_to_new.pose.orientation.y,
-                    self.odom_old_to_new.pose.orientation.z, self.odom_old_to_new.pose.orientation.w]
-        return translation, rotation
 
     def start_record(self):
         """
