@@ -35,7 +35,7 @@ Most of the packages and requirements are included in the setup steps below, but
   ```bash
   $ pip install decorators
   ```
-* **AR Waypoint Test Dependencies**: the following are needed to import into `ar_waypoint_test.py`:
+* **Invisible Map Dependencies**: the following are needed to import into `invisible_map_updated.py`:
   ```bash
   $ pip install pyttsx scipy
   ```
@@ -122,27 +122,23 @@ sudo python setup.py install
 - Launch the ROS nodes
     - In a terminal window, run `$ roslaunch tango_streamer stream.launch`. This should set up the connection to the Tango.
       - If everything is working properly, you should get a whole bunch of ROS nodes and processes starting, and no errors.
-    - In a new terminal window, run `$ roslaunch navigation_prototypes ar_waypoint_test.launch`.  This should launch the actual detection and navigation program.
-      - If everything is working properly, you should get another group of ROS nodes, including `/fisheye_undistorted/apriltag_detector`, `/ar_waypoint_test`, `/keyboard`, and `/tag_frames`, and a couple of ROS processes starting.
+    - In a new terminal window, run `$ roslaunch navigation_prototypes invisible_map_updated.launch`.  This should launch the actual detection and navigation program.
+      - If everything is working properly, you should get another group of ROS nodes, including `/fisheye_undistorted/apriltag_detector`, `/invisible_map_test`, `/keyboard`, and `/tag_frames`, and a couple of ROS processes starting.
       - It should also load the April Tag IDs specified within the launch file.
       - When the keyboard node launches, you should get a fairly tiny window popup titled "ROS Keyboard" that seems to be blank. All of the key presses that you'll use to activate different parts of the functionality will be using this small area to register their presses -- when you press a key while focused on that window, it should flash a different color.
 - Navigating the program!
-    - Within `assistive_apps/navigation/navigation_prototypes/prototypes/ar_waypoint_test.py`, there's a huge function called `key_pressed()` that takes in keyboard inputs from the keyboard module you installed as a part of the mobility games setup. Within this, there's essentially a long switch statement defining all the possible inputs and what they do.
+    - Within `assistive_apps/navigation/navigation_prototypes/prototypes/invisible_map_updated.py`, there's a huge function called `key_pressed()` that takes in keyboard inputs from the keyboard module you installed as a part of the mobility games setup. Within this, there's essentially a long switch statement defining all the possible inputs and what they do.
 
       Here's the shortlist of keyboard commands for your convenience:
-      - Press “y” to toggle ar calibration mode
-      - Press “r” for new tag detection
-      - Press “]” to execute g2o
-      - Press “a” to toggle between waypoint calibration mode or run mode (start with waypoint)
-      - Press “b” to place new waypoints
-      - Press “l” to load previous waypoints
-      - Press “s” to dump waypoints to pickle
-      - Press “.” to delete waypoints
-      - Press “ ” to Read nearby waypoints
-      - Press “-” to set nowtime to current time (may not be necessary)
+      - Press “a” to toggle ar calibration mode
+      - Press “t” to detect new tags
+      - Press "w" to detect waypoints
+      - Press "-" to start recording
+      - Press "s" to save everything
+      - Press "l" to load everything
 
 ## Generating Documentation
-[coming soon! If you're a lab member, refer to the google doc "How to Document a ROS/Python Project" in our team shared file for now.]
+[See this gist](https://gist.github.com/laurengulland/ad433bb77ab7a50da6e6173d177a5b2e) for how to set up documentation for OCCaM Lab ROS/Python-based projects!
 
 
 ## Troubleshooting and Resources

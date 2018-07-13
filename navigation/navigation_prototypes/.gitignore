@@ -2,4 +2,7 @@
 *.pyc
 *.idea
 .idea/
-prototypes/raw_data
+data/data_g2o
+data/data_g2o_archived_data
+data/processed_data/*.pkl
+data/raw_data/*.pkl
