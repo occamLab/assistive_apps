@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-  <include file="$(find mobility_sensing)/launch/tag_frames.launch" />
+  <include file="$(find navigation_prototypes)/launch/frames.launch" />
 
   <!-- mobility games requires a keyboard press in order to switch between calibration and run modes -->
   <node pkg="keyboard" type="keyboard" name="keyboard" />

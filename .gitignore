@@ -14,7 +14,10 @@ msg/_*.py
 .idea/
 
 # Ignore saved pickle files
-navigation/navigation_prototypes/prototypes/raw_data
+navigation/navigation_prototypes/data/raw_data/*.pkl
+navigation/navigation_prototypes/data/processed_data/*.pkl
+navigation/navigation_prototypes/data/data_g2o
+navigation/navigation_prototypes/data/data_g2o_archived_data
 
 # Ignore saved json files.
 *.json
