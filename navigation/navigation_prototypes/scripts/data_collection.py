@@ -364,8 +364,8 @@ class DataCollection(object):
             self.start_record()
         elif mode == "2":
             # load old pose graph
-            with open(path.join(self.data_folder, "data_collected.pkl"), 'rb') as f:  # read pose graph file
-                self.pose_graph = pickle.load(f)  # load pickle
+            with open(path.join(self.data_folder, "data_collected.pkl"), 'rb') as file:  # read pose graph file
+                self.pose_graph = pickle.load(file)  # load pickle
                 # print "pose graph:", self.pose_graph.origin_tag
                 if self.pose_graph.origin_tag is not None:
                     self.origin_frame = self.map_frame
