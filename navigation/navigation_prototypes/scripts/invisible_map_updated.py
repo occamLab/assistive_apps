@@ -11,11 +11,8 @@ import tf
 from os import path
 import pyttsx
 
-try:
-    import cPickle as pickle
-except:
-    import pickle
-from pose_graph import PoseGraph
+import pickle
+from pose_graph import PoseGraph, Vertex, Edge
 
 
 class DataCollection(object):
@@ -26,7 +23,6 @@ class DataCollection(object):
         self.has_spoken = False  # Boolean for if the speech engine has spoken
         self.package = RosPack().get_path('navigation_prototypes')  # Directory for this ros package
         self.data_folder = path.join(self.package, 'data/raw_data')
-
         #### Transform Parameters ####
         self.listener = tf.TransformListener()  # The transform listener
         self.broadcaster = tf.TransformBroadcaster()  # The transform broadcaster
@@ -53,11 +49,12 @@ class DataCollection(object):
         self.tagtimes = {}
         for i in range(self.num_tags):
             self.tagtimes[i] = rospy.Time(1)
-        self.tag_seen = False  # whether the first tag has been detected
+        self.first_tag_seen = None  # whether the first tag has been detected
         self.test_tag = 2
 
         #### Data Collection Mode ####
         self.AR_calibration = False
+        self.origin_frame_presence = False
         self.AR_Find_Try = False
         self.Waypoint_Find_Try = False
         self.recording = False  # Boolean for recording
@@ -77,17 +74,28 @@ class DataCollection(object):
         rospy.Service('first_tag_seen', FirstTagSeen, self.first_tag_seen_service)
         rospy.Service('check_map_frame', CheckMapFrame, self.check_map_frame_service)
 
-    def first_tag_seen_service(self):
-        if self.pose_graph.origin_tag is None:
+    def first_tag_seen_service(self, req):
+        if self.first_tag_seen is None:
             service_resp = -1
         else:
-            service_resp = self.pose_graph.origin_tag
-        print "RETURNING FIRST TAG SERVICE:", service_resp
+            service_resp = self.first_tag_seen
+            print "RETURNING FIRST TAG SERVICE:", service_resp
         return service_resp
 
-    def check_map_frame_service(self):
-        print "RETURNING CHECK MAP FRAME SERVICE:", self.origin_frame == self.map_frame
+    def check_map_frame_service(self, req):
         return self.origin_frame == self.map_frame
+
+    def map_frame_published_client(self):
+        # print "REQUESTING FIRST TAG"
+        rospy.wait_for_service('map_frame_published')
+        try:
+            map_frame_published = rospy.ServiceProxy('map_frame_published', CheckMapFrame)
+            response = map_frame_published()
+            if response.exist:
+                self.origin_frame_presence = True
+                print "MAP FRAME BROADCASTED, START DATA COLLECTION"
+        except rospy.ServiceException, e:
+            print "Service call failed: %s" % e
 
     def start_speech_engine(self):
         """
@@ -107,12 +115,15 @@ class DataCollection(object):
         self.compute_distance_traveled(msg)
 
     def compute_distance_traveled(self, msg):
-        if self.last_pose:
-            new_pose = msg.pose.position
-            delta = [new_pose.x - self.last_pose.x, new_pose.y - self.last_pose.y, new_pose.z - self.last_pose.z]
-            for i in range(3):
-                self.pose_graph.distance_traveled[i] += delta[i]
-            self.last_pose = new_pose
+        if self.AR_calibration:
+            if self.last_pose:
+                new_pose = msg.pose.position
+                delta = [new_pose.x - self.last_pose.x, new_pose.y - self.last_pose.y, new_pose.z - self.last_pose.z]
+                for i in range(3):
+                    self.pose_graph.distance_traveled[i] += delta[i]
+                self.last_pose = new_pose
+            else:
+                self.last_pose = msg.pose.position
 
     def key_pressed(self, msg):
         """
@@ -173,33 +184,31 @@ class DataCollection(object):
         """
         # Processes the april tags currently in Tango's view.
         self.tags_detected = None  # Initialize tags_detected
-        self.record_interval = self.record_interval_normal  # Initialize the record_interval to normal intervals
         if msg.detections:  # if a tag is detected
-            self.record_interval = self.record_interval_tag_seen  # record at the tag_seen record_interval
             self.tags_detected = msg.detections  # save the detected tags
             # get first tag (assume only 1 tag for the most part, if not then this code will just choose one.)
             curr_tag = msg.detections[0]
-
-            # difference between last time tag seen and current time
-            time_diff = curr_tag.pose.header.stamp - rospy.Time.now()
-            if time_diff > rospy.Duration(1):
-                print("THIS IS BAD.")
-            if self.gather_transformation(curr_tag.pose.header.frame_id, curr_tag.pose.header.stamp, self.origin_frame,
-                                          curr_tag.pose.header.stamp,
-                                          self.transform_wait_time):
-                # Transform the pose from the camera frame to the odom frame.
-                curr_tag_transformed_pose = self.listener.transformPose(self.origin_frame, curr_tag.pose)
-
-                # check if the tag is in the dictionary of tag recording time or not
-                if curr_tag.id not in self.tagtimes.keys():
-                    self.tagtimes[curr_tag.id] = curr_tag.pose.header.stamp
-
-                # if in Ar calibrate mode and user presses the update button:
-                if self.AR_calibration and self.AR_Find_Try:
-                    self.record_tag_in_frame(curr_tag, curr_tag_transformed_pose)
-            else:
-                print "TRANSFORM FAILURE: from tag to odom in tag callback"
+            self.first_tag_seen = curr_tag.id
+            if self.origin_frame_presence:
+                self.process_current_tag(curr_tag)
         self.AR_Find_Try = False  # Finish trying to find a tag.
+
+    def process_current_tag(self, curr_tag):
+        if self.gather_transformation(curr_tag.pose.header.frame_id, curr_tag.pose.header.stamp, self.origin_frame,
+                                      rospy.Time(0),
+                                      self.transform_wait_time):
+            # Transform the pose from the camera frame to the odom frame.
+            curr_tag_transformed_pose = self.listener.transformPose(self.origin_frame, curr_tag.pose)
+
+            # check if the tag is in the dictionary of tag recording time or not
+            if curr_tag.id not in self.tagtimes.keys():
+                self.tagtimes[curr_tag.id] = curr_tag.pose.header.stamp
+
+            # if in Ar calibrate mode and user presses the update button:
+            if self.AR_calibration and self.AR_Find_Try:
+                self.record_tag_in_frame(curr_tag, curr_tag_transformed_pose)
+        else:
+            print "TRANSFORM FAILURE: from tag to odom in tag callback"
 
     def record_tag_in_frame(self, tag, transformed_pose):
         print "AR_CALIBRATION: executing a find try", tag.id
@@ -207,7 +216,7 @@ class DataCollection(object):
         if not self.record_tag_vertex(tag, transformed_pose, self.transform_wait_time):
             print("AR_CALIBRATION: No tags recorded.")
 
-        if tag.id == self.test_tag and self.tag_seen:
+        if tag.id == self.test_tag and self.first_tag_seen:
             self.record_test_data_tag(tag)
 
     def gather_transformation(self, frame1, time1, frame2, time2, wait_time):
@@ -227,10 +236,10 @@ class DataCollection(object):
                                                              self.nowtime, self.origin_frame)
             # add vertex to pose graph for current position
             self.curr_pose = self.pose_graph.add_odometry_vertices(self.pose_vertex_id, trans, rot, False)
-            print("RECORDED VERTEX: current pose")
+            # print("RECORDED VERTEX: current pose")
             # add vertex, edge, importance for reducing damping
             self.pose_graph.add_damping(self.curr_pose)
-            print("RECORDED VERTEX & EDGE: damping")
+            # print("RECORDED VERTEX & EDGE: damping")
             return True
         else:
             self.pose_failure = True
@@ -250,7 +259,6 @@ class DataCollection(object):
                                                              "tag_" + str(tag.id),
                                                              tag.pose.header.stamp, self.origin_frame)
             self.pose_graph.add_tag_vertices(tag.id, trans, rot, transformed_pose)
-            self.tag_seen = True
             print("RECORDED VERTEX: tag " + str(tag.id))
             return True
         else:
@@ -274,7 +282,7 @@ class DataCollection(object):
                 self.pose_graph.add_pose_to_pose(self.curr_pose, trans, rot, 1)
             else:  # set edge importance to 0
                 self.pose_graph.add_pose_to_pose(self.curr_pose, trans, rot, 0)
-            print "RECORDED EDGE: Pose to pose transformation"
+            # print "RECORDED EDGE: Pose to pose transformation"
             return True
         else:
             self.pose_failure = True
@@ -289,7 +297,7 @@ class DataCollection(object):
             (trans, rot) = self.listener.lookupTransformFull("real_device", self.nowtime, "tag_" + str(tag.id),
                                                              tag_stamp, self.origin_frame)
             if self.pose_graph.add_pose_to_tag(self.curr_pose, tag.id, trans, rot):
-                print "RECORDED EDGE: Pose to tag transformation"
+                # print "RECORDED EDGE: Pose to tag transformation"
                 # update last record time for this tag
                 self.tagtimes[tag.id] = tag.pose.header.stamp
             else:
@@ -301,7 +309,7 @@ class DataCollection(object):
         """
         Record all edges between current odometry to all tags detected to pose graph
         """
-        if self.tags_detected and self.tag_seen:
+        if self.tags_detected:
             for tag in self.tags_detected:
                 # check time duration since last time an edge is drawn from odom to tag is above certain threshold
                 if (tag.pose.header.stamp - self.tagtimes[tag.id]) > self.tag_record_duration:
@@ -327,7 +335,7 @@ class DataCollection(object):
                                           self.transform_wait_time):
                 (trans, rot) = self.listener.lookupTransform("AR", "tag_" + str(tag.id), tag.pose.header.stamp)
                 self.pose_graph.add_test_data_tag(tag.id, trans, rot)
-                print "RECORDED: test tag transformation"
+                # print "RECORDED: test tag transformation"
             else:
                 print "RECORD FAILURE: test tag transformation"
 
@@ -342,33 +350,40 @@ class DataCollection(object):
         """
         Record test data for comparing g2o optimized path with unoptimized path from phone odometry
         """
-        if self.tag_seen and self.gather_transformation("AR", self.nowtime, "real_device", self.nowtime,
-                                                        self.transform_wait_time):
+        if self.first_tag_seen and self.gather_transformation("AR", self.nowtime, "real_device", self.nowtime,
+                                                              self.transform_wait_time):
             (trans, rot) = self.listener.lookupTransformFull("AR", self.nowtime, "real_device", self.nowtime,
                                                              self.origin_frame)
             self.pose_graph.add_test_data_path(self.test_data_count, trans, rot)
             self.test_data_count += 1
-            print "RECORD: path transformation"
+            # print "RECORD: path transformation"
         else:
             print "RECORD FAILURE: path from AR to real device"
 
     def determine_data_collection_mode(self):
-        mode = raw_input("New data collection or continue with old data? n/o")
-        if mode == "n" or "N":
+        mode = raw_input("New data collection or continue with old data? 1/2")
+        if mode == "1":
+            self.origin_frame_presence = True
             self.start_record()
-        elif mode == "o" or "O":
+        elif mode == "2":
             # load old pose graph
             with open(path.join(self.data_folder, "data_collected.pkl"), 'rb') as f:  # read pose graph file
                 self.pose_graph = pickle.load(f)  # load pickle
+                # print "pose graph:", self.pose_graph.origin_tag
                 if self.pose_graph.origin_tag is not None:
-                    self.tag_seen = True
                     self.origin_frame = self.map_frame
                 self.pose_vertex_id = max(self.pose_graph.odometry_vertices.keys()) + 1
-                print("Posegraph LOADED")
-                self.start_record()
+                print("Posegraph LOADED FOR DATA COLLECTION")
+                self.start_record_with_map_frame()
         else:
             print "Invalid Input"
             self.determine_data_collection_mode()
+
+    def start_record_with_map_frame(self):
+        while not self.origin_frame_presence:
+            self.nowtime = rospy.Time.now()
+            self.map_frame_published_client()
+        self.start_record()
 
     def start_record(self):
         """
@@ -379,7 +394,6 @@ class DataCollection(object):
                 self.nowtime = rospy.Time.now()  # Set Nowtime to Now
                 if self.record_curr_pose_and_damping(rospy.Duration(2)):
                     print('RECORDING START: first odometry recorded')
-                    self.last_pose = self.curr_pose
                     self.last_record_time = self.nowtime  # set last record time to nowtime as well.
                     self.pose_vertex_id += 2  # add to the vertex id
                     self.recording = True  # set recording true
