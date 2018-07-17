@@ -28,6 +28,7 @@ class Frames:
         self.broadcaster = tf.TransformBroadcaster()
         self.map_frame = "map"
         self.map_frame_published = False
+        self.AR_broadcasted = False
 
         ### pose graph ###
         self.first_tag = None  # first tag seen during data collection
@@ -78,7 +79,8 @@ class Frames:
                 tf.LookupException,
                 tf.ConnectivityException,
                 tf2_ros.TransformException) as e:
-            print "ODOM_AR TRANSFORM EXCEPTION:", e
+            if e is tf.ConnectivityException:
+                print "ODOM_AR TRANSFORM EXCEPTION:", e
 
     def broadcast_odom_AR_transform(self):
         """ Will broadcast the transform between parent node
@@ -88,8 +90,9 @@ class Frames:
             self.broadcaster.sendTransform(self.translations[self.first_tag], self.rotations[self.first_tag],
                                            rospy.Time.now(), "AR",  # child
                                            "odom")  # parent
+            self.AR_broadcasted = True
         except (KeyError) as e:
-            print "BROADCAST ERROR:", e
+            print "BROADCAST ERROR: FIRST TAG TRANSFORMED NOT CACHED. PLEASE RESCAN."
 
     def compute_map_to_odom_transform(self, map_trans, map_rot):
         map_pose = PoseStamped(pose=convert_translation_rotation_to_pose(map_trans, map_rot),
@@ -114,7 +117,6 @@ class Frames:
                                            rospy.Time.now(), "odom",  # child
                                            self.map_frame)  # parent
             self.map_frame_published = True
-            print "MAP FRAME BROADCASTED"
         except(KeyError) as e:
             print "BROADCAST ERROR", e
 
@@ -126,7 +128,7 @@ class Frames:
             self.update_first_tag_client()
 
     def map_odom_transform(self):
-        if self.pose_graph and self.first_tag:
+        if self.pose_graph and self.first_tag and self.AR_broadcasted:
             self.update_map_odom_transform_pose_graph()
             self.broadcast_map_odom_transform()
         elif not self.pose_graph:
@@ -134,7 +136,7 @@ class Frames:
 
     def run(self):
         """ The main run loop """
-        r = rospy.Rate(20)
+        r = rospy.Rate(10)
         while not rospy.is_shutdown():
             self.odom_AR_transform()
             self.map_odom_transform()

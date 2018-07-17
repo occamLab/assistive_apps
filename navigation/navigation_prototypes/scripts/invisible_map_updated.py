@@ -34,7 +34,7 @@ class DataCollection(object):
         self.record_interval = rospy.Duration(.1)  # Interval of time between recording normally
         self.tag_record_duration = rospy.Duration(0.025)
         self.transform_wait_time = rospy.Duration(0.5)
-        self.nowtime = None
+        self.curr_record_time = None
         self.last_record_time = None
         self.pose_failure = False
         self.curr_pose = None  # current pose of the tango
@@ -129,13 +129,6 @@ class DataCollection(object):
         """
         This is the callback function for the ROS keyboard.  The msg.code here returns the ord's of what's pressed.
         """
-        # Switch to run mode
-        if msg.code == ord('-'):
-            """
-            Start Recording
-            """
-            if self.recording:
-                self.nowtime = rospy.Time.now()
 
         if msg.code == ord('t'):  # when user presses t
             """
@@ -195,9 +188,9 @@ class DataCollection(object):
 
     def process_current_tag(self, curr_tag):
         if self.gather_transformation(curr_tag.pose.header.frame_id, curr_tag.pose.header.stamp, self.origin_frame,
-                                      rospy.Time(0),
+                                      curr_tag.pose.header.stamp,
                                       self.transform_wait_time):
-            # Transform the pose from the camera frame to the odom frame.
+            # Transform the pose from the camera frame to the origin frame.
             curr_tag_transformed_pose = self.listener.transformPose(self.origin_frame, curr_tag.pose)
 
             # check if the tag is in the dictionary of tag recording time or not
@@ -231,9 +224,11 @@ class DataCollection(object):
         Record vertex for current position to pose graph
         Record vertex, edge and importance matrix to pose graph for reducing damping
         """
-        if self.gather_transformation(self.origin_frame, self.nowtime, "real_device", self.nowtime, wait_time):
-            (trans, rot) = self.listener.lookupTransformFull(self.origin_frame, self.nowtime, "real_device",
-                                                             self.nowtime, self.origin_frame)
+        self.curr_record_time = self.listener.getLatestCommonTime("real_device", self.origin_frame)
+        if self.gather_transformation(self.origin_frame, self.curr_record_time, "real_device", self.curr_record_time,
+                                      wait_time):
+            (trans, rot) = self.listener.lookupTransformFull(self.origin_frame, self.curr_record_time, "real_device",
+                                                             self.curr_record_time, self.origin_frame)
             # add vertex to pose graph for current position
             self.curr_pose = self.pose_graph.add_odometry_vertices(self.pose_vertex_id, trans, rot, False)
             # print("RECORDED VERTEX: current pose")
@@ -272,17 +267,18 @@ class DataCollection(object):
         """
         Record edge between past odometry and current odometry to pose graph
         """
-        if self.gather_transformation("real_device", self.last_record_time, "real_device", self.nowtime, wait_time):
+        if self.gather_transformation("real_device", self.last_record_time, "real_device", self.curr_record_time,
+                                      wait_time):
             (trans, rot) = self.listener.lookupTransformFull("real_device", self.last_record_time, "real_device",
-                                                             self.nowtime, self.origin_frame)
-            if rospy.Time.now() - self.nowtime > rospy.Duration(1):
+                                                             self.curr_record_time, self.origin_frame)
+            if self.curr_record_time - self.last_record_time > rospy.Duration(1):
                 self.pose_failure = True
                 print "POSE FAILURE: Most recent transform time is too far from current time"
             if not self.pose_failure:  # set edge importance to 1
                 self.pose_graph.add_pose_to_pose(self.curr_pose, trans, rot, 1)
             else:  # set edge importance to 0
                 self.pose_graph.add_pose_to_pose(self.curr_pose, trans, rot, 0)
-            # print "RECORDED EDGE: Pose to pose transformation"
+            print "RECORDED EDGE: Pose to pose transformation"
             return True
         else:
             self.pose_failure = True
@@ -293,8 +289,8 @@ class DataCollection(object):
         Record edge between current odometry and one of the tag detected to pose graph
         """
         tag_stamp = tag.pose.header.stamp
-        if self.gather_transformation("real_device", self.nowtime, "tag_" + str(tag.id), tag_stamp, wait_time):
-            (trans, rot) = self.listener.lookupTransformFull("real_device", self.nowtime, "tag_" + str(tag.id),
+        if self.gather_transformation("real_device", tag_stamp, "tag_" + str(tag.id), tag_stamp, wait_time):
+            (trans, rot) = self.listener.lookupTransformFull("real_device", tag_stamp, "tag_" + str(tag.id),
                                                              tag_stamp, self.origin_frame)
             if self.pose_graph.add_pose_to_tag(self.curr_pose, tag.id, trans, rot):
                 # print "RECORDED EDGE: Pose to tag transformation"
@@ -350,9 +346,10 @@ class DataCollection(object):
         """
         Record test data for comparing g2o optimized path with unoptimized path from phone odometry
         """
-        if self.first_tag_seen and self.gather_transformation("AR", self.nowtime, "real_device", self.nowtime,
+        time = self.listener.getLatestCommonTime("real_device", "AR")
+        if self.first_tag_seen and self.gather_transformation("AR", time, "real_device", time,
                                                               self.transform_wait_time):
-            (trans, rot) = self.listener.lookupTransformFull("AR", self.nowtime, "real_device", self.nowtime,
+            (trans, rot) = self.listener.lookupTransformFull("AR", time, "real_device", time,
                                                              self.origin_frame)
             self.pose_graph.add_test_data_path(self.test_data_count, trans, rot)
             self.test_data_count += 1
@@ -381,7 +378,6 @@ class DataCollection(object):
 
     def start_record_with_map_frame(self):
         while not self.origin_frame_presence:
-            self.nowtime = rospy.Time.now()
             self.map_frame_published_client()
         self.start_record()
 
@@ -391,39 +387,35 @@ class DataCollection(object):
         """
         if self.AR_calibration and self.recording == False:  # If we aren't recording and AR Calibration is on.
             try:
-                self.nowtime = rospy.Time.now()  # Set Nowtime to Now
-                if self.record_curr_pose_and_damping(rospy.Duration(2)):
+                if self.record_curr_pose_and_damping(rospy.Duration(1)):
                     print('RECORDING START: first odometry recorded')
-                    self.last_record_time = self.nowtime  # set last record time to nowtime as well.
+                    self.last_record_time = self.curr_record_time  # set last record time to nowtime as well.
                     self.pose_vertex_id += 2  # add to the vertex id
                     self.recording = True  # set recording true
                 else:
                     self.start_record()  # if fail to get transformation, try again
-
             except (tf.ExtrapolationException,
                     tf.LookupException,
                     tf.ConnectivityException,
                     tf.Exception,
                     ValueError) as e:
                 print "START RECORD Exception: " + str(e)
+                self.start_record()
 
     def record(self):
         """
         Once first odometry vertex is recorded to pose graph, continue recording to pose graph.
         """
         try:
-            self.nowtime = rospy.Time(0)
             # Record vertex of current pose, edge of damping correction, and edge of past and present pose
             if self.record_curr_pose_and_damping(self.transform_wait_time) and self.record_pose_to_pose_edge(
                     self.transform_wait_time):
                 self.record_all_pose_to_tag_edge()  # Record edge of current pose to all tags detected
                 self.record_waypoint_vertices_edges()  # Record waypoints
-
+                self.last_record_time = self.curr_record_time
                 self.pose_vertex_id += 2  # increment vertex id
-                self.last_record_time = self.nowtime  # set previous record time to current record time.
                 self.pose_failure = False
             else:
-                self.last_record_time = self.nowtime
                 self.pose_failure_count += 1
                 print "Pose failure count:", self.pose_failure_count
 
@@ -442,7 +434,6 @@ class DataCollection(object):
 
     def run(self):
         r = rospy.Rate(10)  # Attempts to run loop at 10 times per second
-        self.last_record_time = rospy.Time.now()  # set last record time to prevent crashing from it being none
         print "Starting Up."
         self.start_speech_engine()
         print "Ready to go."
