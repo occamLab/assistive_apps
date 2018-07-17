@@ -3,6 +3,7 @@
 import rospy
 from rospkg import RosPack
 import tf
+import tf2_ros
 from std_msgs.msg import Header
 from geometry_msgs.msg import PoseStamped
 from navigation_prototypes.srv import CheckMapFrame
@@ -75,7 +76,8 @@ class Frames:
 
         except (tf.ExtrapolationException,
                 tf.LookupException,
-                tf.ConnectivityException) as e:
+                tf.ConnectivityException,
+                tf2_ros.TransformException) as e:
             print "ODOM_AR TRANSFORM EXCEPTION:", e
 
     def broadcast_odom_AR_transform(self):
