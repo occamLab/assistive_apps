@@ -327,9 +327,9 @@ class DataCollection(object):
     def record_test_data_tag(self, tag):
         try:
             print("tried to record test tag")
-            if self.gather_transformation("AR", tag.pose.header.stamp, "tag_" + str(tag.id), tag.pose.header.stamp,
+            if self.gather_transformation(self.origin_frame, tag.pose.header.stamp, "tag_" + str(tag.id), tag.pose.header.stamp,
                                           self.transform_wait_time):
-                (trans, rot) = self.listener.lookupTransform("AR", "tag_" + str(tag.id), tag.pose.header.stamp)
+                (trans, rot) = self.listener.lookupTransform(self.origin_frame, "tag_" + str(tag.id), tag.pose.header.stamp)
                 self.pose_graph.add_test_data_tag(tag.id, trans, rot)
                 # print "RECORDED: test tag transformation"
             else:
@@ -346,10 +346,10 @@ class DataCollection(object):
         """
         Record test data for comparing g2o optimized path with unoptimized path from phone odometry
         """
-        time = self.listener.getLatestCommonTime("real_device", "AR")
-        if self.first_tag_seen and self.gather_transformation("AR", time, "real_device", time,
+        time = self.listener.getLatestCommonTime("real_device", self.origin_frame)
+        if self.first_tag_seen and self.gather_transformation(self.origin_frame, time, "real_device", time,
                                                               self.transform_wait_time):
-            (trans, rot) = self.listener.lookupTransformFull("AR", time, "real_device", time,
+            (trans, rot) = self.listener.lookupTransformFull(self.origin_frame, time, "real_device", time,
                                                              self.origin_frame)
             self.pose_graph.add_test_data_path(self.test_data_count, trans, rot)
             self.test_data_count += 1

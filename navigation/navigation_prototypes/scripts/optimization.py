@@ -15,18 +15,15 @@ class Optimization:
         with open(path.join(self.raw_data_folder, filename), 'rb') as data:
             self.posegraph = pickle.load(data)
 
-    def process_graph(self):
-        self.posegraph.construct_graph()
-        self.posegraph.bfs(self.posegraph.origin_tag)
-        self.posegraph.update_posegraph()
+    def g2o(self):
+        self.posegraph.process_graph()
         with open(path.join(self.processed_data_folder, "data_processed.pkl"), 'wb') as file:
             pickle.dump(self.posegraph, file)
-            print("DATA PROCESSED")
+        self.posegraph.optimize_pose()
 
-    def g2o(self):
+    def parse_g2o_result(self):
         pass
 
 
 if __name__ == "__main__":
     process = Optimization("data_collected_copy.pkl")
-    process.process_graph()

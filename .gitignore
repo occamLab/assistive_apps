@@ -13,11 +13,12 @@ msg/*Result.msg
 msg/_*.py
 .idea/
 
-# Ignore saved pickle files
-navigation/navigation_prototypes/data/raw_data/*.pkl
+# Ignore saved pickle and g2o files
+navigation/navigation_prototypes/data/data_g2o/*.g2o
+navigation/navigation_prototypes/data/data_g2o/*.txt
+navigation/navigation_prototypes/data/old_data_g2o_archived_data
 navigation/navigation_prototypes/data/processed_data/*.pkl
-navigation/navigation_prototypes/data/data_g2o
-navigation/navigation_prototypes/data/data_g2o_archived_data
+navigation/navigation_prototypes/data/raw_data/*.pkl
 
 # Ignore saved json files.
 *.json

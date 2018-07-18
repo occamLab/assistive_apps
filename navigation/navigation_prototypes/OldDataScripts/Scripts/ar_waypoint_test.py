@@ -276,15 +276,15 @@ class ArWaypointTest(object):
                     self.listener.waitForTransform("odom", "real_device", self.nowtime,
                                                    rospy.Duration(.5))  # Wait for...
                     if self.listener.canTransform("odom", "real_device", self.nowtime):
-                        (trans, rot) = self.listener.lookupTransform("odom", "real_device",
-                                                                     self.nowtime)  # and lookup the transform for phone's current position.
+                        # lookup the transform for phone's current position.
+                        (trans, rot) = self.listener.lookupTransform("odom", "real_device", self.nowtime)
                         self.g2o_data.write("VERTEX_SE3:QUAT %i %f %f %f %f %f %f %f\n" % tuple(
                             [self.vertex_id + 1] + trans + rot))  # Write the vertex into g2o file.
 
                         ## Writing Orientation Dummy ## to dampen certain parameters of the movement
                         I = compute_basis_vector(rot)
-                        indeces = np.triu_indices(
-                            3)  # return the indices of an upper triangle of a 3x3 array
+                        # return the indices of an upper triangle of a 3x3 array
+                        indeces = np.triu_indices(3)
                         self.g2o_data.write(
                             "VERTEX_SE3:QUAT %i %f %f %f %f %f %f %f\n" % tuple([self.vertex_id + 2] + [0, 0, 0] + rot))
                         # write edge for moving from the last pose to the current pose
@@ -547,9 +547,9 @@ class ArWaypointTest(object):
                 (trans, rot) = self.listener.lookupTransform("odom", "real_device", self.nowtime)  # lookup current pose
                 self.listener.waitForTransformFull("real_device", self.last_record_time, "real_device", self.nowtime,
                                                    "odom", rospy.Duration(.5))
+                # lookup relative pose from last recorded tango pose to this tango pose
                 (trans2, rot2) = self.listener.lookupTransformFull("real_device", self.last_record_time, "real_device",
-                                                                   self.nowtime,
-                                                                   "odom")  # lookup relative pose from last recorded tango pose to this tango pose
+                                                                   self.nowtime, "odom")
                 tagtrans = {}  # dictionary of tag translations
                 tagrot = {}  # dictionary of tag rotations
                 if self.tags_detected and self.tag_seen:  # if there were tags detected
@@ -636,18 +636,17 @@ class ArWaypointTest(object):
                         self.g2o_data.write("%f 0 0 0 0 0 %f 0 0 0 0 %f 0 0 0 %f 0 0 %f 0 %f\n" % (
                             100, 100, 100, 100, 100, 100))  # write edge importance matrix
 
-                # print('record pose')
                 self.vertex_id += 2  # increment vertex id
                 self.last_record_time = self.nowtime  # set previous record time to current record time.
                 self.pose_failure = False
             else:
-                print "TRANSFORM FAILURE: odom and real_device at nowtime in self.RecordTime()"
+                print "TRANSFORM FAILURE: odom and real_device at nowtime"
                 self.error_count += 1
                 print "pose_failure_count:", self.error_count
 
             ## Writing Testing Data ##
             self.listener.waitForTransform("AR", "real_device", self.nowtime, rospy.Duration(.5))
-            if self.listener.canTransform("AR", "odom", self.last_record_time):
+            if self.listener.canTransform("AR", "odom", self.nowtime):
                 (trans4, rot4) = self.listener.lookupTransform("AR", "real_device",
                                                                self.nowtime)  # lookup The AR to Real Device Transform
                 self.test_data.write("PATH %f %f %f %f %f %f %f\n" % tuple(trans4 + rot4))  # write to test file.

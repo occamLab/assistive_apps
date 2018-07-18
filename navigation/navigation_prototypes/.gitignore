@@ -2,7 +2,8 @@
 *.pyc
 *.idea
 .idea/
-data/data_g2o
-data/data_g2o_archived_data
+data/data_g2o/*.g2o
+data/data_g2o/*.txt
+data/old_data_g2o_archived_data
 data/processed_data/*.pkl
 data/raw_data/*.pkl

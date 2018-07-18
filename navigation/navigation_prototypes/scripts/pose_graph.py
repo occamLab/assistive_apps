@@ -1,6 +1,6 @@
 from collections import OrderedDict
 from tf.transformations import quaternion_from_euler, quaternion_multiply
-from os import path
+from os import path, system
 import numpy as np
 from rospkg import RosPack
 from collections import deque
@@ -76,6 +76,10 @@ class Edge(object):
         tri_updated = tri + np.tril(tri.T, -1)
         return tri_updated
 
+    @staticmethod
+    def convert_matrix_uppertri_list(matrix, size):
+        return list(matrix[np.triu_indices(size)])
+
     def compute_importance_matrix(self):
         if self.damping_status:  # if the edge is for damping correction
             I = self.compute_basis_vector()
@@ -113,6 +117,10 @@ class Edge(object):
         return datatype + "%i %i %f %f %f %f %f %f %f" % tuple(
             [self.start.ID, self.end.ID] + self.translation + self.rotation)
 
+    def write_to_g2o_importance(self):
+        importance_uppertri = Edge.convert_matrix_uppertri_list(self.importance_matrix, 6)
+        return "%f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n" % tuple(importance_uppertri)
+
 
 class PoseGraph(object):
     def __init__(self, test_tag_id, num_tags=587):
@@ -139,8 +147,7 @@ class PoseGraph(object):
         #### g2o parameters ####
         self.package = RosPack().get_path('navigation_prototypes')
         self.g2o_data = None
-        self.g2o_data_path = path.join(self.package,
-                                       'data/data_g2o/data.g2o')  # path to the data compiled into the g2o file
+        self.g2o_data_path = path.join(self.package, 'data/data_g2o/data.g2o')  # path to compiled g2o file
         self.g2o_data_copy_path = path.join(self.package, 'data/data_g2o/data_cp.g2o')  # copy of the unedit data
         self.g2o_result_path = path.join(self.package, 'data/data_g2o//result.g2o')
 
@@ -299,7 +306,6 @@ class PoseGraph(object):
             # for odom in self.odometry_waypoints_edges[waypoint].keys():
             #     neighbour_node.append(odom.ID)
             self.add_nodes_to_graph(start_node, neighbour_node)
-        #print self.graph
 
     def bfs(self, source):
         self.visited_nodes = deque([])
@@ -326,21 +332,50 @@ class PoseGraph(object):
         self.remove_unconnected_portion(self.tag_vertices, self.odometry_tag_edges)
         self.remove_unconnected_portion(self.waypoints_vertices, self.odometry_waypoints_edges)
 
+    def process_graph(self):
+        self.construct_graph()
+        self.bfs(self.origin_tag)
+        self.update_posegraph()
+        print("DATA PROCESSED")
+
+    def write_g2o_vertices(self, *vertices_list):
+        for vertices in vertices_list:
+            for ID in vertices.keys():
+                data = vertices[ID].write_to_g2o()
+                self.g2o_data.write(data)
+
+    def write_g2o_edges_pose(self):
+        for edge_ID in self.odometry_edges.keys():
+            data = self.odometry_edges[edge_ID].write_g2o_edges()
+            importance = self.odometry_edges[edge_ID].write_to_g2o_importance()
+            self.g2o_data.write(data + " " + importance)
+
+    def write_g2o_edges_landmark(self, *landmark_edges_list):
+        """
+        Write edges data to g2o for landmark such as tags and waypoints.
+        :param landmark_edges_list: dictionary of edges with the keys being the name of the landmark
+        :return: NA
+        """
+        for edges in landmark_edges_list:
+            for landmark_ID in edges.keys():
+                for landmark_odom in edges[landmark_ID].keys():
+                    data = edges[landmark_ID][landmark_odom].write_g2o_edges()
+                    importance = edges[landmark_ID][landmark_odom].write_g2o_importance()
+                    self.g2o_data.write(data + " " + importance)
+
     def write_g2o_data(self):
         """
         Write to g2o data file
         """
-        pass
-
-        open(self.g2o_data_path, 'wb+').close()  # Overwrite current g2o data file
-        self.g2o_data = open(self.g2o_data_path, 'ab')
+        self.g2o_data = open(self.g2o_data_path, 'wb+')
+        self.write_g2o_vertices(self.odometry_vertices, self.tag_vertices, self.waypoints_vertices)
+        self.write_g2o_edges_pose()
+        self.write_g2o_edges_landmark(self.odometry_tag_edges, self.odometry_waypoints_edges)
 
     def write_g2o_test_data(self):
         """
         Write to g2o test data
         """
-        pass
-
         self.g2o_test_data = open(self.testfile, 'wb+')
         for tags in self.test_data_tag.values():
             self.g2o_test_data.write("TAG %f %f %f %f %f %f %f\n" % tuple(tags))
@@ -351,4 +386,9 @@ class PoseGraph(object):
         """
         Run g2o
         """
-        pass
+        self.write_g2o_data()
+        self.write_g2o_test_data()
+        self.g2o_data.close()
+        self.g2o_test_data.close()
+        system("g2o -o %s %s" % (self.g2o_result_path, self.g2o_data_path))  # Run G2o
+        system("cp %s %s" % (self.g2o_data_path, self.g2o_data_copy_path))  # Copy Original Data
