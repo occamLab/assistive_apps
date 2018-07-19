@@ -35,10 +35,6 @@ class G2O_Error_Viz:
         self.manual_rotation = manual_rotation
 
     def GatherData(self):
-        self.vertices = {}
-        self.old_edges = {}
-        self.old_vertices = {}
-        self.testlist = []
         origin_tag = None
         with open(self.g2o_result_path, 'rb') as g2o_result:
             for line in g2o_result:

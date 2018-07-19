@@ -61,7 +61,7 @@ class G2O_Viz:
             # print(rot)
 
             T0_1 = quaternion_matrix(rot)
-            T0_1[:-1, -1] = np.asarray(trans).T
+            T0_1[:-1, -1] = np.asarray(trans).T # extract all rows of last column except last row (0,0,0)
 
             T2_0 = quaternion_matrix(rot2)
             T2_0[:-1, -1] = np.asarray(trans2)
