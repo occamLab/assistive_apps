@@ -8,7 +8,8 @@ from rospkg import RosPack
 import rospy
 import geometry_msgs.msg
 import tf
-from tf.transformations import quaternion_matrix, translation_from_matrix, quaternion_from_matrix
+from tf.transformations import quaternion_matrix, translation_from_matrix, quaternion_from_matrix, \
+    euler_from_quaternion, quaternion_from_euler
 from helper_functions import (convert_pose_inverse_transform,
                               convert_translation_rotation_to_pose)
 
@@ -17,8 +18,9 @@ class Optimization:
 
     def __init__(self, filename):
         self.package = RosPack().get_path('navigation_prototypes')
-        self.processed_data_folder = path.join(self.package, 'data/processed_data')
         self.raw_data_folder = path.join(self.package, 'data/raw_data')
+        self.processed_data_folder = path.join(self.package, 'data/processed_data')
+        self.optimized_data_folder = path.join(self.package, 'data/optimized_data')
         with open(path.join(self.raw_data_folder, filename), 'rb') as data:
             self.posegraph = pickle.load(data)
         self.g2o_result_path = self.posegraph.g2o_result_path
@@ -163,13 +165,43 @@ class Optimization:
         self.update_all_edges_vertices()
         self.compute_all_new_edges_transformer()
 
+    @staticmethod
+    def compute_edges_transformation_difference(edges):
+        for id in edges.keys():
+            trans_old = edges[id].translation
+            trans_new = edges[id].translation_computed
+            edges[id].translation_diff = [trans_new[i] - trans_old[i] for i in range(3)]
+            rot_old = edges[id].rotation
+            rot_old_euler = euler_from_quaternion(rot_old)
+            rot_new = edges[id].rotation_computed
+            rot_new_euler = euler_from_quaternion(rot_new)
+            rot_diff_euler = [rot_new_euler[i] - rot_old_euler[i] for i in range(3)]
+            edges[id].rotation_diff = list(
+                quaternion_from_euler(rot_diff_euler[0], rot_diff_euler[1], rot_diff_euler[2]))
+
+    def compute_all_edges_transformation_difference(self):
+        Optimization.compute_edges_transformation_difference(self.posegraph.odometry_edges)
+        for tag_id in self.posegraph.odometry_tag_edges.keys():
+            Optimization.compute_edges_transformation_difference(self.posegraph.odometry_tag_edges[tag_id])
+        for waypoint_id in self.posegraph.odometry_waypoints_edges.keys():
+            Optimization.compute_edges_transformation_difference(self.posegraph.odometry_waypoints_edges[waypoint_id])
+
     def parse_g2o_result_math(self):
         self.update_vertices()
         self.update_edges_math()
+        self.compute_all_edges_transformation_difference()
+        with open(path.join(self.optimized_data_folder, "data_optimized.pkl"), 'wb') as file:
+            pickle.dump(self.posegraph, file)
 
     def parse_g2o_result_transformer(self):
         self.update_vertices()
         self.update_edges_transformer()
+        self.compute_all_edges_transformation_difference()
+        with open(path.join(self.optimized_data_folder, "data_optimized.pkl"), 'wb') as file:
+            pickle.dump(self.posegraph, file)
+
+    def plot_g2o_result(self):
+        pass
 
     def run(self):
         self.g2o()
@@ -178,4 +210,5 @@ class Optimization:
 
 
 if __name__ == "__main__":
-    process = Optimization("data_collected_copy.pkl")
+    process = Optimization("data_collected.pkl")
+    process.run()

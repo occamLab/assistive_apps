@@ -34,6 +34,8 @@ class Edge(object):
         self.damping_status = damping_status
         self.translation_computed = None
         self.rotation_computed = None
+        self.translation_diff = None
+        self.rotation_diff = None
 
         #### importance ####
         self.importance_matrix = None
