@@ -6,7 +6,7 @@ from geometry_msgs.msg import PoseStamped
 from apriltags_ros.msg import AprilTagDetectionArray
 from keyboard.msg import Key
 from navigation_prototypes.srv import CheckMapFrame
-from navigation_prototypes.srv import FirstTagSeen
+from navigation_prototypes.srv import TagSeen
 import tf
 from os import path
 import pyttsx
@@ -49,7 +49,7 @@ class DataCollection(object):
         self.tagtimes = {}
         for i in range(self.num_tags):
             self.tagtimes[i] = rospy.Time(1)
-        self.first_tag_seen = None  # whether the first tag has been detected
+        self.tag_in_frame = None  # whether the first tag has been detected
         self.test_tag = 2
 
         #### Data Collection Mode ####
@@ -71,15 +71,15 @@ class DataCollection(object):
         rospy.Subscriber('/keyboard/keydown', Key, self.key_pressed)  # Subscriber for the keyboard information.
 
         #### ROS Service ####
-        rospy.Service('first_tag_seen', FirstTagSeen, self.first_tag_seen_service)
+        rospy.Service('tag_seen', TagSeen, self.tag_seen_service)
         rospy.Service('check_map_frame', CheckMapFrame, self.check_map_frame_service)
 
-    def first_tag_seen_service(self, req):
-        if self.first_tag_seen is None:
+    def tag_seen_service(self, req):
+        if self.tag_in_frame is None:
             service_resp = -1
         else:
-            service_resp = self.first_tag_seen
-            print "RETURNING FIRST TAG SERVICE:", service_resp
+            service_resp = self.tag_in_frame
+            # print "RETURNING TAG SERVICE:", service_resp
         return service_resp
 
     def check_map_frame_service(self, req):
@@ -161,6 +161,7 @@ class DataCollection(object):
             Save Everything.
             """
             if not self.recording:
+                self.tag_in_frame = None
                 with open(path.join(self.data_folder, "data_collected.pkl"), 'wb') as data:
                     pickle.dump(self.pose_graph, data)
                 filename = raw_input("How would you like to name this data?")
@@ -181,7 +182,7 @@ class DataCollection(object):
             self.tags_detected = msg.detections  # save the detected tags
             # get first tag (assume only 1 tag for the most part, if not then this code will just choose one.)
             curr_tag = msg.detections[0]
-            self.first_tag_seen = curr_tag.id
+            self.tag_in_frame = curr_tag.id
             if self.origin_frame_presence:
                 self.process_current_tag(curr_tag)
         self.AR_Find_Try = False  # Finish trying to find a tag.
@@ -209,7 +210,7 @@ class DataCollection(object):
         if not self.record_tag_vertex(tag, transformed_pose, self.transform_wait_time):
             print("AR_CALIBRATION: No tags recorded.")
 
-        if tag.id == self.test_tag and self.first_tag_seen:
+        if tag.id == self.test_tag and self.tag_in_frame:
             self.record_test_data_tag(tag)
 
     def gather_transformation(self, frame1, time1, frame2, time2, wait_time):
@@ -327,9 +328,11 @@ class DataCollection(object):
     def record_test_data_tag(self, tag):
         try:
             print("tried to record test tag")
-            if self.gather_transformation(self.origin_frame, tag.pose.header.stamp, "tag_" + str(tag.id), tag.pose.header.stamp,
+            if self.gather_transformation(self.origin_frame, tag.pose.header.stamp, "tag_" + str(tag.id),
+                                          tag.pose.header.stamp,
                                           self.transform_wait_time):
-                (trans, rot) = self.listener.lookupTransform(self.origin_frame, "tag_" + str(tag.id), tag.pose.header.stamp)
+                (trans, rot) = self.listener.lookupTransform(self.origin_frame, "tag_" + str(tag.id),
+                                                             tag.pose.header.stamp)
                 self.pose_graph.add_test_data_tag(tag.id, trans, rot)
                 # print "RECORDED: test tag transformation"
             else:
@@ -347,8 +350,8 @@ class DataCollection(object):
         Record test data for comparing g2o optimized path with unoptimized path from phone odometry
         """
         time = self.listener.getLatestCommonTime("real_device", self.origin_frame)
-        if self.first_tag_seen and self.gather_transformation(self.origin_frame, time, "real_device", time,
-                                                              self.transform_wait_time):
+        if self.tag_in_frame and self.gather_transformation(self.origin_frame, time, "real_device", time,
+                                                            self.transform_wait_time):
             (trans, rot) = self.listener.lookupTransformFull(self.origin_frame, time, "real_device", time,
                                                              self.origin_frame)
             self.pose_graph.add_test_data_path(self.test_data_count, trans, rot)

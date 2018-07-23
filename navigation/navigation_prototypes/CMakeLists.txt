@@ -62,7 +62,7 @@ find_package(catkin REQUIRED COMPONENTS
  add_service_files(
    FILES
    CheckMapFrame.srv
-   FirstTagSeen.srv
+   TagSeen.srv
  )
 
 ## Generate actions in the 'action' folder
