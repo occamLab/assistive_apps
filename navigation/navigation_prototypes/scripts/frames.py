@@ -31,7 +31,9 @@ class Frames:
         self.AR_broadcasted = False
 
         ### pose graph ###
-        self.tag_in_frame = None  # first tag seen during data collection
+        self.tag_in_frame = None  # tag seen during data collection
+        self.tag_for_transform = None
+
         self.pose_graph = None
         self.translations = {}
         self.rotations = {}
@@ -45,9 +47,12 @@ class Frames:
         try:
             get_tag = rospy.ServiceProxy('tag_seen', TagSeen)
             response = get_tag()
-            if response.tag != -1:
-                self.tag_in_frame = int(response.tag)
-                # print "tag_in_frame frame:", self.tag_in_frame
+            self.tag_in_frame = int(response.tag)
+            if self.pose_graph and self.tag_in_frame in self.pose_graph.tag_vertices.keys():
+                self.tag_for_transform = self.tag_in_frame
+            elif self.pose_graph and not self.map_frame_published:
+                print "CURRENT TAG NOT RECORDED BEFORE. MAP FRAME NOT COMPUTED"
+            # print "tag_in_frame frame:", self.tag_in_frame
         except rospy.ServiceException, e:
             print "Service call failed: %s" % e
 
@@ -83,34 +88,34 @@ class Frames:
             if e is tf.ConnectivityException:
                 print "ODOM_AR TRANSFORM EXCEPTION:", e
 
-    def broadcast_odom_AR_transform(self):
+    def broadcast_odom_AR_transform(self,tag):
         """ Will broadcast the transform between parent node
         odom with AR as the direct child """
 
         try:
-            self.broadcaster.sendTransform(self.translations[self.tag_in_frame], self.rotations[self.tag_in_frame],
-                                           rospy.Time.now(), "AR_%d" % self.tag_in_frame,  # child
+            self.broadcaster.sendTransform(self.translations[tag], self.rotations[tag],
+                                           rospy.Time.now(), "AR_%d" % tag,  # child
                                            "odom")  # parent
             self.AR_broadcasted = True
             # print "AR odom broadcasted"
         except (KeyError) as e:
             print "BROADCAST ERROR: TAG TRANSFORMED NOT CACHED. PLEASE RESCAN."
 
-    def compute_map_to_odom_transform(self, map_trans, map_rot):
+    def compute_map_to_odom_transform(self, map_trans, map_rot, tag):
         map_pose = PoseStamped(pose=convert_translation_rotation_to_pose(map_trans, map_rot),
                                header=Header(stamp=rospy.Time(0),
-                                             frame_id="AR_%d" % self.tag_in_frame))  # frame_id: frame the pose is in
-        self.listener.waitForTransform("AR_%d" % self.tag_in_frame, "odom", map_pose.header.stamp, rospy.Duration(1))
+                                             frame_id="AR_%d" % tag))  # frame_id: frame the pose is in
+        self.listener.waitForTransform("AR_%d" % tag, "odom", map_pose.header.stamp, rospy.Duration(1))
         odom_to_map = self.listener.transformPose("odom", map_pose)
         translation, rotation = convert_pose_inverse_transform(odom_to_map.pose)  # put odom in new odom
         return translation, rotation
 
     def update_map_odom_transform_pose_graph(self):
-        AR_in_map_translation = self.pose_graph.tag_vertices[self.tag_in_frame].translation
-        AR_in_map_rotation = self.pose_graph.tag_vertices[self.tag_in_frame].rotation
+        AR_in_map_translation = self.pose_graph.tag_vertices[self.tag_for_transform].translation
+        AR_in_map_rotation = self.pose_graph.tag_vertices[self.tag_for_transform].rotation
         AR_in_map_pose = convert_translation_rotation_to_pose(AR_in_map_translation, AR_in_map_rotation)
         map_translation, map_rotation = convert_pose_inverse_transform(AR_in_map_pose)
-        translation, rotation = self.compute_map_to_odom_transform(map_translation, map_rotation)
+        translation, rotation = self.compute_map_to_odom_transform(map_translation, map_rotation,self.tag_for_transform)
         self.translations[self.map_frame] = translation
         self.rotations[self.map_frame] = rotation
 
@@ -125,12 +130,13 @@ class Frames:
 
     def odom_AR_transform(self):
         self.update_tag_client()
-        if self.tag_in_frame or self.tag_in_frame == 0:
+        if self.tag_in_frame != -1:
             self.update_odom_AR_transform()
-            self.broadcast_odom_AR_transform()
+        if self.tag_for_transform is not None:
+            self.broadcast_odom_AR_transform(self.tag_for_transform)
 
     def map_odom_transform(self):
-        if self.pose_graph and (self.tag_in_frame or self.tag_in_frame == 0) and self.AR_broadcasted:
+        if self.pose_graph and self.tag_for_transform is not None and self.AR_broadcasted:
             self.update_map_odom_transform_pose_graph()
             self.broadcast_map_odom_transform()
         elif not self.pose_graph:

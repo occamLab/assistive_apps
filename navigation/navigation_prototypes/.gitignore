@@ -8,3 +8,4 @@ data/data_g2o/*.txt
 data/old_data_g2o_archived_data
 data/processed_data/*.pkl
 data/raw_data/*.pkl
+data/optimized_data/*.pkl

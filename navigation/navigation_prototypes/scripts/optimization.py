@@ -27,8 +27,9 @@ class Optimization:
 
     def g2o(self):
         self.posegraph.process_graph()
-        with open(path.join(self.processed_data_folder, "data_processed.pkl"), 'wb') as file:
-            pickle.dump(self.posegraph, file)
+        with open(path.join(self.processed_data_folder, "data_processed.pkl"), 'wb') as f:
+            pickle.dump(self.posegraph, f)
+            print "PROCESSED POSE GRAPH SAVED"
         self.posegraph.optimize_pose()
 
     @staticmethod
@@ -50,7 +51,7 @@ class Optimization:
                 if line.startswith("VERTEX_SE3:QUAT "):
                     line = line.strip().split()
                     translation = [float(data) for data in line[2:5]]
-                    rotation = [float(data) for data in line[5:8]]
+                    rotation = [float(data) for data in line[5:9]]
                     if Optimization.is_integer(line[1]) and int(line[1]) <= self.posegraph.num_tags:
                         id = int(line[1])
                         Optimization.update_transformation(self.posegraph.tag_vertices, id, translation, rotation)
@@ -62,6 +63,9 @@ class Optimization:
                         Optimization.update_transformation(self.posegraph.waypoints_vertices, id, translation, rotation)
 
     def query_trans_rot_from_calibrated_vertices(self, id):
+        """
+        Retrun translation, rotation from the corresponding vertices dictionary given a vertex id
+        """
         if Optimization.is_integer(id) and int(id) <= self.posegraph.num_tags:
             translation = self.posegraph.tag_vertices[id].translation
             rotation = self.posegraph.tag_vertices[id].rotation
@@ -121,7 +125,7 @@ class Optimization:
             Optimization.compute_new_edges_math(self.posegraph.odometry_waypoints_edges[waypoint_id])
 
     @staticmethod
-    def write_transform_stamped_msg(id, trans, rot, parent):
+    def write_transform_stamped_msg(transformer, id, trans, rot, parent):
         frame = geometry_msgs.msg.TransformStamped()
         frame.header.frame_id = parent
         frame.child_frame_id = id
@@ -132,7 +136,7 @@ class Optimization:
         frame.transform.rotation.y = rot[1]
         frame.transform.rotation.z = rot[2]
         frame.transform.rotation.w = rot[3]
-        return frame
+        transformer.setTransform(frame)
 
     @staticmethod
     def compute_new_edges_transformer(edges):
@@ -142,11 +146,9 @@ class Optimization:
             start_rot = edges[id].start.rotation
             end_trans = edges[id].end.translation
             end_rot = edges[id].end.rotation
-            start = Optimization.write_transform_stamped_msg("start", start_trans, start_rot, "map")
-            end = Optimization.write_transform_stamped_msg("end", end_trans, end_rot, "map")
-            transform.setTransform(start)
-            transform.setTransform(end)
-            translation, rotation = transform.lookupTransform(start, end, rospy.Time(0))
+            Optimization.write_transform_stamped_msg(transform, "start", start_trans, start_rot, "map")
+            Optimization.write_transform_stamped_msg(transform, "end", end_trans, end_rot, "map")
+            translation, rotation = transform.lookupTransform("start", "end", rospy.Time(0))
             edges[id].translation_computed = list(translation)
             edges[id].rotation_computed = list(rotation)
 
@@ -190,15 +192,17 @@ class Optimization:
         self.update_vertices()
         self.update_edges_math()
         self.compute_all_edges_transformation_difference()
-        with open(path.join(self.optimized_data_folder, "data_optimized.pkl"), 'wb') as file:
-            pickle.dump(self.posegraph, file)
+        with open(path.join(self.optimized_data_folder, "data_optimized.pkl"), 'wb') as f:
+            pickle.dump(self.posegraph, f)
+            print "OPTIMIZED POSE GRAPH SAVED"
 
     def parse_g2o_result_transformer(self):
         self.update_vertices()
         self.update_edges_transformer()
         self.compute_all_edges_transformation_difference()
-        with open(path.join(self.optimized_data_folder, "data_optimized.pkl"), 'wb') as file:
-            pickle.dump(self.posegraph, file)
+        with open(path.join(self.optimized_data_folder, "data_optimized.pkl"), 'wb') as f:
+            pickle.dump(self.posegraph, f)
+            print "OPTIMIZED POSE GRAPH SAVED"
 
     def plot_g2o_result(self):
         pass
@@ -206,7 +210,7 @@ class Optimization:
     def run(self):
         self.g2o()
         self.parse_g2o_result_transformer()
-        # self.parse_g2o_result_math()
+        #self.parse_g2o_result_math()
 
 
 if __name__ == "__main__":
