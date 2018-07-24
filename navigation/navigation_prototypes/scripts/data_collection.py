@@ -49,8 +49,7 @@ class DataCollection(object):
         self.tagtimes = {}
         for i in range(self.num_tags):
             self.tagtimes[i] = rospy.Time(1)
-        self.tag_in_frame = None  # whether the first tag has been detected
-        self.test_tag = 2
+        self.tag_in_frame = None
 
         #### Data Collection Mode ####
         self.AR_calibration = False
@@ -61,7 +60,7 @@ class DataCollection(object):
         self.data_saved = False  # Boolean for indicating data saved
 
         #### Pose Graph ####
-        self.pose_graph = PoseGraph(self.test_tag, self.num_tags)
+        self.pose_graph = PoseGraph(self.num_tags)
 
         #### ROS SUBSCRIBERS ####
         rospy.Subscriber('/tango_pose', PoseStamped, self.process_pose)  # Subscriber for the tango pose.
@@ -209,9 +208,7 @@ class DataCollection(object):
         # Only prompt user to input tag name once
         if not self.record_tag_vertex(tag, transformed_pose, self.transform_wait_time):
             print("AR_CALIBRATION: No tags recorded.")
-
-        if tag.id == self.test_tag and self.tag_in_frame:
-            self.record_test_data_tag(tag)
+        self.record_test_data_tag(tag)
 
     def gather_transformation(self, frame1, time1, frame2, time2, wait_time):
         """
@@ -350,7 +347,7 @@ class DataCollection(object):
         Record test data for comparing g2o optimized path with unoptimized path from phone odometry
         """
         time = self.listener.getLatestCommonTime("real_device", self.origin_frame)
-        if self.tag_in_frame and self.gather_transformation(self.origin_frame, time, "real_device", time,
+        if self.gather_transformation(self.origin_frame, time, "real_device", time,
                                                             self.transform_wait_time):
             (trans, rot) = self.listener.lookupTransformFull(self.origin_frame, time, "real_device", time,
                                                              self.origin_frame)
@@ -373,6 +370,7 @@ class DataCollection(object):
                 if self.pose_graph.origin_tag is not None:
                     self.origin_frame = self.map_frame
                 self.pose_vertex_id = max(self.pose_graph.odometry_vertices.keys()) + 1
+                self.test_data_count = max(self.pose_graph.test_data_path.keys()) + 1
                 print("Posegraph LOADED FOR DATA COLLECTION")
                 self.start_record_with_map_frame()
         else:

@@ -259,7 +259,7 @@ class G2O_Error_Viz:
             ax.text(point[0], point[1], point[2], tag[0])
         #test_tags, = plt.plot(test_AR[:, 0], test_AR[:, 1], test_AR[:, 2], 'mo', label='naive Test Tags')
         print(np.shape(traj_data))
-        new_path, = plt.plot(traj_data[:, 0], traj_data[:, 1], traj_data[:, 2], 'b-', label='corrected trajectory')
+        new_path, = plt.plot(traj_data[:, 0], traj_data[:, 1], traj_data[:, 2], 'b', label='corrected trajectory')
         # old_path, = plt.plot(old_traj_data[:,0], old_traj_data[:,1], old_traj_data[:,2], 'r--', label = 'original trajectory')
         print (np.shape(test_traj_data))
         test_path, = plt.plot(test_traj_data[:, 0], test_traj_data[:, 1], test_traj_data[:, 2], 'm--',label='naive approach trajectory')

@@ -89,7 +89,8 @@ class Optimization:
             edges[id].end.rotation = rot_end
 
     def update_all_edges_vertices(self):
-        self.update_edges_vertices_from_calibration(self.posegraph.odometry_edges)
+        for odom_start_id in self.posegraph.odometry_edges.keys():
+            self.update_edges_vertices_from_calibration(self.posegraph.odometry_edges[odom_start_id])
         for tag_id in self.posegraph.odometry_tag_edges.keys():
             self.update_edges_vertices_from_calibration(self.posegraph.odometry_tag_edges[tag_id])
         for waypoint_id in self.posegraph.odometry_waypoints_edges.keys():
@@ -118,7 +119,8 @@ class Optimization:
             edges[id].rotation_computed = list(rotation)
 
     def compute_all_new_edges_math(self):
-        Optimization.compute_new_edges_math(self.posegraph.odometry_edges)
+        for odom_start_id in self.posegraph.odometry_edges.keys():
+            Optimization.compute_new_edges_math(self.posegraph.odometry_edges[odom_start_id])
         for tag_id in self.posegraph.odometry_tag_edges.keys():
             Optimization.compute_new_edges_math(self.posegraph.odometry_tag_edges[tag_id])
         for waypoint_id in self.posegraph.odometry_waypoints_edges.keys():
@@ -153,7 +155,8 @@ class Optimization:
             edges[id].rotation_computed = list(rotation)
 
     def compute_all_new_edges_transformer(self):
-        Optimization.compute_new_edges_transformer(self.posegraph.odometry_edges)
+        for odom_start_id in self.posegraph.odometry_edges.keys():
+            Optimization.compute_new_edges_transformer(self.posegraph.odometry_edges[odom_start_id])
         for tag_id in self.posegraph.odometry_tag_edges.keys():
             Optimization.compute_new_edges_transformer(self.posegraph.odometry_tag_edges[tag_id])
         for waypoint_id in self.posegraph.odometry_waypoints_edges.keys():
@@ -182,7 +185,8 @@ class Optimization:
                 quaternion_from_euler(rot_diff_euler[0], rot_diff_euler[1], rot_diff_euler[2]))
 
     def compute_all_edges_transformation_difference(self):
-        Optimization.compute_edges_transformation_difference(self.posegraph.odometry_edges)
+        for odom_start_id in self.posegraph.odometry_edges.keys():
+            Optimization.compute_edges_transformation_difference(self.posegraph.odometry_edges[odom_start_id])
         for tag_id in self.posegraph.odometry_tag_edges.keys():
             Optimization.compute_edges_transformation_difference(self.posegraph.odometry_tag_edges[tag_id])
         for waypoint_id in self.posegraph.odometry_waypoints_edges.keys():
@@ -205,6 +209,7 @@ class Optimization:
             print "OPTIMIZED POSE GRAPH SAVED"
 
     def plot_g2o_result(self):
+
         pass
 
     def run(self):

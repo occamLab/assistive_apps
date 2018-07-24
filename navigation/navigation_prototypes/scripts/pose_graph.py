@@ -127,7 +127,7 @@ class Edge(object):
 
 
 class PoseGraph(object):
-    def __init__(self, test_tag_id, num_tags=587):
+    def __init__(self, num_tags=587):
         #### tag and waypoints recording specific parameters ####
         self.num_tags = num_tags
         self.origin_tag = None  # First tag seen
@@ -150,16 +150,14 @@ class PoseGraph(object):
 
         #### g2o parameters ####
         self.package = RosPack().get_path('navigation_prototypes')
-        self.g2o_data = None
         self.g2o_data_path = path.join(self.package, 'data/data_g2o/data.g2o')  # path to compiled g2o file
         self.g2o_data_copy_path = path.join(self.package, 'data/data_g2o/data_cp.g2o')  # copy of the unedit data
         self.g2o_result_path = path.join(self.package, 'data/data_g2o/result.g2o')
 
         #### test data ####
-        self.test_tag_id = test_tag_id
+        self.test_tag_id = None
         self.test_data_tag = {}
         self.test_data_path = {}
-        self.g2o_test_data = None
         self.testfile = path.join(self.package, 'data/data_g2o/naive.txt')
 
     def add_odometry_vertices(self, id, trans, rot, fix_status):
@@ -167,8 +165,10 @@ class PoseGraph(object):
         return self.odometry_vertices[id]
 
     def add_odometry_edges(self, v_start, v_end, trans, rot, damping_status):
-        self.odometry_edges[v_start.id] = Edge(v_start, v_end, trans, rot, damping_status)
-        return self.odometry_edges[v_start.id]
+        if v_start.id not in self.odometry_edges.keys():
+            self.odometry_edges[v_start.id] = {}
+        self.odometry_edges[v_start.id][v_end.id] = Edge(v_start, v_end, trans, rot, damping_status)
+        return self.odometry_edges[v_start.id][v_end.id]
 
     def add_tag_vertices(self, id, trans, rot, transformed_pose):
         if self.origin_tag is None:
@@ -229,7 +229,7 @@ class PoseGraph(object):
         :param rot: rotation
         :param importance: Importance of this new edge
         """
-        pose_edge = self.add_odometry_edges(self.odometry_vertices[curr_pose.id - 1], curr_pose, trans, rot, False)
+        pose_edge = self.add_odometry_edges(self.odometry_vertices[curr_pose.id - 2], curr_pose, trans, rot, False)
         pose_edge.odometry_importance = importance
         # compute importance matrix
         pose_edge.compute_importance_matrix()
@@ -286,13 +286,15 @@ class PoseGraph(object):
         for vertices in [self.odometry_vertices, self.tag_vertices, self.waypoints_vertices]:
             self.initialize_nodes(vertices)
         # print self.graph
-
-        for edge in self.odometry_edges.values():
-            start_node, end_node = edge.start.id, edge.end.id
-            if np.sum(edge.importance_matrix.diagonal()) != 0:  # check if the importance value is zero
-                self.add_nodes_to_graph(start_node, [end_node])
-            else:
-                print "Discard Unconnected Edge"
+        for odom_id in self.odometry_edges.keys():
+            start_node, neighbour_nodes = odom_id, self.odometry_edges[odom_id].keys()
+            for neighbour in neighbour_nodes:
+                edge = self.odometry_edges[start_node][neighbour]
+                if np.sum(edge.importance_matrix.diagonal()) != 0:  # check if the importance value is zero
+                    self.add_nodes_to_graph(start_node, [neighbour])
+                else:
+                    del self.odometry_edges[start_node][neighbour]
+                    print "Discard Unconnected Edge: %d to %d" % (start_node, neighbour)
         print "Odometry Nodes Added"
 
         for tag in self.odometry_tag_edges.keys():
@@ -338,7 +340,6 @@ class PoseGraph(object):
         self.remove_unconnected_portion(self.tag_vertices, self.odometry_tag_edges)
         self.remove_unconnected_portion(self.waypoints_vertices, self.odometry_waypoints_edges)
 
-
     def process_graph(self):
         self.construct_graph()
         self.bfs(self.origin_tag)
@@ -352,25 +353,19 @@ class PoseGraph(object):
                 data = vertices[id].write_to_g2o()
                 data_file.write(data)
 
-    def write_g2o_edges_pose(self, data_file):
-        for edge_id in self.odometry_edges.keys():
-            data = self.odometry_edges[edge_id].write_to_g2o()
-            importance = self.odometry_edges[edge_id].write_to_g2o_importance()
-            data_file.write(data + " " + importance)
-
     @staticmethod
-    def write_g2o_edges_landmark(data_file, *landmark_edges_list):
+    def write_g2o_edges(data_file, *edges_list):
         """
-        Write edges data to g2o for landmark such as tags and waypoints.
+        Write edges data to g2o for all edges: pose, tag, waypoint.
         :param data_file: file object to write to
-        :param landmark_edges_list: dictionary of edges with the keys being the name of the landmark
+        :param edges_list: dictionary of edges with the keys being the name of the landmark
         :return: NA
         """
-        for edges in landmark_edges_list:
-            for landmark_id in edges.keys():
-                for landmark_odom in edges[landmark_id].keys():
-                    data = edges[landmark_id][landmark_odom].write_to_g2o()
-                    importance = edges[landmark_id][landmark_odom].write_to_g2o_importance()
+        for edges in edges_list:
+            for start_id in edges.keys():
+                for end_id in edges[start_id].keys():
+                    data = edges[start_id][end_id].write_to_g2o()
+                    importance = edges[start_id][end_id].write_to_g2o_importance()
                     data_file.write(data + " " + importance)
 
     def write_g2o_data(self):
@@ -379,8 +374,8 @@ class PoseGraph(object):
         """
         with open(self.g2o_data_path, 'wb') as g2o_data:
             PoseGraph.write_g2o_vertices(g2o_data, self.odometry_vertices, self.tag_vertices, self.waypoints_vertices)
-            self.write_g2o_edges_pose(g2o_data)
-            PoseGraph.write_g2o_edges_landmark(g2o_data, self.odometry_tag_edges, self.odometry_waypoints_edges)
+            PoseGraph.write_g2o_edges(g2o_data, self.odometry_edges, self.odometry_tag_edges,
+                                      self.odometry_waypoints_edges)
         print "g2o data has wrote to file"
 
     def write_g2o_test_data(self):
