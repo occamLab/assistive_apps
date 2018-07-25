@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-# import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import mpl_toolkits.mplot3d.axes3d as p3
@@ -15,15 +14,15 @@ from rospkg import RosPack
 class G2O_Error_Viz:
     def __init__(self, g2o_result_path, g2o_data_path, test_path, manual_rotation):
         top = RosPack().get_path("navigation_prototypes")
-        self.vertices = {}
-        self.old_vertices = {}
-        self.old_edges = {}
-        self.new_edges = {}
-        self.old_AR = {}
-        self.new_AR = {}
+        self.vertices = {} # new pose from optimized g2o data
+        self.old_vertices = {} # old pose from unoptimized g2o data
+        self.old_edges = {} # edge between pose to pose
+        self.new_edges = {} # not used in this script
+        self.old_AR = {} # unoptimzed pose of tags computed from each old pose that detects the tags
+        self.new_AR = {} # optimized pose of tags
         self.transdifference = []
         self.rotdifference = []
-        self.AR_Edges = {}
+        self.AR_Edges = {} # edge between pose to tag
         self.dummyidlist = []
         self.g2o_result_path = path.join(top, g2o_result_path)
         self.g2o_data_path = path.join(top, g2o_data_path)
@@ -48,6 +47,7 @@ class G2O_Error_Viz:
                         origin_tag = dummyid
         with open(self.g2o_result_path, 'rb') as g2o_result:
             for line in g2o_result:
+                # extract optimized position of pose and tag
                 if line.startswith("VERTEX_SE3:QUAT "):
                     line = line.strip()
                     line = line.split()
@@ -58,11 +58,11 @@ class G2O_Error_Viz:
                         if newline[0] == origin_tag:
                             self.origin_info = (tuple(newline[1:4]), tuple(newline[4:8]))
                         if newline[0] >= self.vertex_id_start:
-                            self.vertices[int(newline[0])] = (tuple(newline[1:4]), tuple(newline[4:8]))
-                            # print("found vertex: " + str(newline[0]))
+                            self.vertices[int(newline[0])] = (tuple(newline[1:4]), tuple(newline[4:8])) # pose vertex
                         else:
-                            self.new_AR[int(newline[0])] = (tuple(newline[1:4]), tuple(newline[4:8]))
+                            self.new_AR[int(newline[0])] = (tuple(newline[1:4]), tuple(newline[4:8])) # tag vertex
                             print("found tag: " + str(newline[0]))
+                # extract the soft constraint for pose to pose vertices and pose to tag vertices
                 elif line.startswith("EDGE_SE3:QUAT "):
                     line = line.strip()
                     line = line.split()
@@ -71,10 +71,13 @@ class G2O_Error_Viz:
                         newline.append(float(data))
                     if not newline[1] in self.dummyidlist:
                         if int(newline[0]) + 2 == int(newline[1]):
-                            self.old_edges[int(newline[0])] = (tuple(newline[2:5]), tuple(newline[5:9]))
+                            self.old_edges[int(newline[0])] = (tuple(newline[2:5]), tuple(newline[5:9])) # pose edge
                             print("found edge: " + str(newline[0]))
                         else:
+                            # AR edge: edge between pose and tag where key is pose id and value is (tagid, trans, rot)
                             self.AR_Edges[int(newline[0])] = (newline[1], tuple(newline[2:5]), tuple(newline[5:9]))
+
+        # extract data for unoptimized pose from g2o data
         with open(self.g2o_data_path, 'rb') as g2o_data:
             for line in g2o_data:
                 if line.startswith("VERTEX_SE3:QUAT "):
@@ -84,11 +87,8 @@ class G2O_Error_Viz:
                     for data in line[1:]:
                         newline.append(float(data))
                     if newline[0] >= self.vertex_id_start:
-                        self.old_vertices[int(newline[0])] = (tuple(newline[1:4]), tuple(newline[4:8]))
-                        # print("found vertex: " + str(line[0]))
-                    # else:
-                    #    self.old_AR[int(line[0])] = (tuple(line[1:4]), tuple(line[4:8]))
-                    #    print("found tag: " + str(line[0]))
+                        self.old_vertices[int(newline[0])] = (tuple(newline[1:4]), tuple(newline[4:8])) # pose vertex
+
         with open(self.test_path, 'rb') as test_data:
             for line in test_data:
                 if line.startswith("TAG "):
@@ -217,19 +217,21 @@ class G2O_Error_Viz:
         # self.CalculateNewEdges()
         ordered_vertices = []
         old_ordered_vertices = []
-
+        # get pose trajectory data
         for key in sorted(self.vertices):
-            ordered_vertices.append(self.vertices[key][0])
+            ordered_vertices.append(self.vertices[key][0]) # translation
             old_ordered_vertices.append(self.old_vertices[key][0])
         traj_data = np.asarray(ordered_vertices)
         old_traj_data = np.asarray(old_ordered_vertices)
         test_traj_data = np.asarray(self.test_traj)  # np.asarray(self.testlist)
-        for i in self.AR_Edges.items():
+        # compute poses of all the tags from each of the pose that seen the tag in the unoptimized data
+        for i in self.AR_Edges.items(): # (pose_id, (tag_id, translation, rotation))
             tag_id = int(i[1][0])
             pose_id = int(i[0])
             detections = self.old_AR.get(tag_id, -1)
             if detections == -1:
                 detections = [self.MultiplyTransform(self.old_vertices[pose_id], i[1][1:])]
+
             else:
                 res = self.MultiplyTransform(self.old_vertices[pose_id], i[1][1:])
                 detections.append(res)
@@ -259,7 +261,7 @@ class G2O_Error_Viz:
             ax.text(point[0], point[1], point[2], tag[0])
         #test_tags, = plt.plot(test_AR[:, 0], test_AR[:, 1], test_AR[:, 2], 'mo', label='naive Test Tags')
         print(np.shape(traj_data))
-        new_path, = plt.plot(traj_data[:, 0], traj_data[:, 1], traj_data[:, 2], 'b', label='corrected trajectory')
+        new_path, = plt.plot(traj_data[:, 0], traj_data[:, 1], traj_data[:, 2], 'go', label='corrected trajectory')
         # old_path, = plt.plot(old_traj_data[:,0], old_traj_data[:,1], old_traj_data[:,2], 'r--', label = 'original trajectory')
         print (np.shape(test_traj_data))
         test_path, = plt.plot(test_traj_data[:, 0], test_traj_data[:, 1], test_traj_data[:, 2], 'm--',label='naive approach trajectory')
