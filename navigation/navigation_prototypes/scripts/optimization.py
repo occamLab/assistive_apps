@@ -41,6 +41,7 @@ class Optimization:
         self.ymin = []
         self.zmax = []
         self.zmin = []
+        self.index_to_tag_conversion = {}
 
     def g2o(self):
         #self.posegraph.tag_vertices = {}
@@ -297,6 +298,13 @@ class Optimization:
         optimized_vertices = np.array(optimized_vertices)
         return optimized_vertices
 
+    @staticmethod
+    def map_index_to_landmark_id(landmarks,stored_loc):
+        sorted_landmarks_id = sorted(landmarks.keys())
+        for landmark_id in sorted(landmarks):
+            id_index = sorted_landmarks_id.index(landmark_id)
+            stored_loc[id_index] = landmark_id
+
     def plot_extreme_vertices_for_pose(self, ax):
         all_translations = []
         for id in self.posegraph.odometry_vertices.keys():
@@ -317,11 +325,11 @@ class Optimization:
             ax.text(extreme_pt[1], extreme_pt[2], extreme_pt[3], str(extreme_pt[0]))
 
     @staticmethod
-    def plot_landmarks(ax, landmarks):
+    def plot_landmarks(ax, landmarks,landmarks_index_to_id):
         for row in range(np.shape(landmarks)[0]):
             landmark = landmarks[row, :]
             plt.plot((landmark[0],), (landmark[1],), (landmark[2],), 'go')
-            ax.text(landmark[0], landmark[1], landmark[2], str(row))
+            ax.text(landmark[0], landmark[1], landmark[2], str(landmarks_index_to_id[row]))
 
     def plot_g2o_trajectory(self):
         self.optimized_pose = Optimization.process_vertices_for_plot(self.posegraph.odometry_vertices)
@@ -342,7 +350,8 @@ class Optimization:
         self.plot_extreme_vertices_for_pose(ax)
 
         # plot tag vertices
-        Optimization.plot_landmarks(ax, self.optimized_tag)
+        Optimization.map_index_to_landmark_id(self.posegraph.tag_vertices, self.index_to_tag_conversion)
+        Optimization.plot_landmarks(ax, self.optimized_tag, self.index_to_tag_conversion)
 
         plt.legend(handles=[optimized_pose, unoptimized_pose])
         plt.xlabel('X')
@@ -359,5 +368,6 @@ class Optimization:
 
 
 if __name__ == "__main__":
+    #process = Optimization("tangodata07.27.2018.11.00.pkl")
     process = Optimization("data_collected.pkl")
     process.run()
