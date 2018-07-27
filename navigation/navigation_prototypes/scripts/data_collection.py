@@ -78,7 +78,7 @@ class DataCollection(object):
             service_resp = -1
         else:
             service_resp = self.tag_in_frame
-            # print "RETURNING TAG SERVICE:", service_resp
+            #print "RETURNING TAG SERVICE:", service_resp
         return service_resp
 
     def check_map_frame_service(self, req):

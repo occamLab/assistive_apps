@@ -43,7 +43,12 @@ class Optimization:
         self.zmin = []
 
     def g2o(self):
-        self.posegraph.process_graph()
+        #self.posegraph.tag_vertices = {}
+        #self.posegraph.odometry_tag_edges = {}
+        #self.posegraph.remove_dummy_nodes_edges()
+        #source_node = self.posegraph.odometry_vertices[self.posegraph.num_tags+1].id  # traverse from first pose
+        source_node = self.posegraph.origin_tag # traverse from first tag seen
+        self.posegraph.process_graph(source_node)
         with open(path.join(self.processed_data_folder, "data_processed.pkl"), 'wb') as f:
             pickle.dump(self.posegraph, f)
             print "PROCESSED POSE GRAPH SAVED"
@@ -116,24 +121,28 @@ class Optimization:
     @staticmethod
     def compute_new_edges_math(edges):
         for id in edges.keys():
-            # write start vertex as a transformation
-            start_trans = edges[id].start.translation
-            start_rot = edges[id].start.rotation
-            start_pose = convert_translation_rotation_to_pose(start_trans, start_rot)
-            start_trans_inv, start_rot_inv = convert_pose_inverse_transform(start_pose)
-            start_transformation = quaternion_matrix(start_rot_inv)
-            start_transformation[:-1, -1] = np.array(start_trans_inv).T
-            # write end vertex as a transformation
-            end_trans = edges[id].end.translation
-            end_rot = edges[id].end.rotation
-            end_transformation = quaternion_matrix(end_rot)
-            end_transformation[:-1, -1] = np.array(end_trans).T
-            # compute transformation between two vertices
-            start_end_transformation = np.matmul(end_transformation, start_transformation)
-            translation = translation_from_matrix(start_end_transformation)
-            rotation = quaternion_from_matrix(start_end_transformation)
-            edges[id].translation_computed = list(translation)
-            edges[id].rotation_computed = list(rotation)
+            if not edges[id].damping_status:
+                # write start vertex as a transformation
+                start_trans = edges[id].start.translation
+                start_rot = edges[id].start.rotation
+                start_pose = convert_translation_rotation_to_pose(start_trans, start_rot)
+                start_trans_inv, start_rot_inv = convert_pose_inverse_transform(start_pose)
+                start_transformation = quaternion_matrix(start_rot_inv)
+                start_transformation[:-1, -1] = np.array(start_trans_inv).T
+                # write end vertex as a transformation
+                end_trans = edges[id].end.translation
+                end_rot = edges[id].end.rotation
+                end_transformation = quaternion_matrix(end_rot)
+                end_transformation[:-1, -1] = np.array(end_trans).T
+                # compute transformation between two vertices
+                start_end_transformation = np.matmul(end_transformation, start_transformation)
+                translation = translation_from_matrix(start_end_transformation)
+                rotation = quaternion_from_matrix(start_end_transformation)
+                edges[id].translation_computed = list(translation)
+                edges[id].rotation_computed = list(rotation)
+            else:
+                edges[id].translation_computed = [0, 0, 0]
+                edges[id].rotation_computed = [0, 0, 0, 1]
 
     def compute_all_new_edges_math(self):
         for odom_start_id in self.posegraph.odometry_edges.keys():
@@ -160,16 +169,20 @@ class Optimization:
     @staticmethod
     def compute_new_edges_transformer(edges):
         for id in edges.keys():
-            transform = tf.Transformer(True, rospy.Duration(10))
-            start_trans = edges[id].start.translation
-            start_rot = edges[id].start.rotation
-            end_trans = edges[id].end.translation
-            end_rot = edges[id].end.rotation
-            Optimization.write_transform_stamped_msg(transform, "start", start_trans, start_rot, "map")
-            Optimization.write_transform_stamped_msg(transform, "end", end_trans, end_rot, "map")
-            translation, rotation = transform.lookupTransform("start", "end", rospy.Time(0))
-            edges[id].translation_computed = list(translation)
-            edges[id].rotation_computed = list(rotation)
+            if not edges[id].damping_status:
+                transform = tf.Transformer(True, rospy.Duration(10))
+                start_trans = edges[id].start.translation
+                start_rot = edges[id].start.rotation
+                end_trans = edges[id].end.translation
+                end_rot = edges[id].end.rotation
+                Optimization.write_transform_stamped_msg(transform, "start", start_trans, start_rot, "map")
+                Optimization.write_transform_stamped_msg(transform, "end", end_trans, end_rot, "map")
+                translation, rotation = transform.lookupTransform("start", "end", rospy.Time(0))
+                edges[id].translation_computed = list(translation)
+                edges[id].rotation_computed = list(rotation)
+            else:
+                edges[id].translation_computed = [0,0,0]
+                edges[id].rotation_computed = [0,0,0,1]
 
     def compute_all_new_edges_transformer(self):
         for odom_start_id in self.posegraph.odometry_edges.keys():
@@ -197,22 +210,58 @@ class Optimization:
             rot_old_euler = euler_from_quaternion(rot_old)
             rot_new = edges[id].rotation_computed
             rot_new_euler = euler_from_quaternion(rot_new)
-            rot_diff_euler = [rot_new_euler[i] - rot_old_euler[i] for i in range(3)]
-            edges[id].rotation_diff = list(
-                quaternion_from_euler(rot_diff_euler[0], rot_diff_euler[1], rot_diff_euler[2]))
+            edges[id].rotation_diff = [rot_new_euler[i] - rot_old_euler[i] for i in range(3)]
 
-    def compute_all_edges_transformation_difference(self):
+    @staticmethod
+    def compute_optimization_cost_for_edges(*edges):
+        total_cost = 0
+        for edge in edges:
+            for start_id in edge.keys():
+                for end_id in edge[start_id].keys():
+                    edge[start_id][end_id].compute_optimization_cost()
+                    total_cost += edge[start_id][end_id].optimization_cost
+                    # print "optimization_cost:", start_id, end_id, total_cost
+        return total_cost
+
+    @staticmethod
+    def compute_optimization_cost_for_edges_hack(*edges):
+        total_cost = 0
+        for edge in edges:
+            for start_id in edge.keys():
+                for end_id in edge[start_id].keys():
+                    transformation = np.array(
+                        edge[start_id][end_id].translation_diff + edge[start_id][end_id].rotation_diff)
+                    optimization_cost = np.matmul(np.matmul(transformation, edge[start_id][end_id].importance_matrix),
+                                                  transformation.T)
+                    total_cost += optimization_cost
+        return total_cost
+
+    def compute_all_edges_transformation_diff_and_cost(self):
         for odom_start_id in self.posegraph.odometry_edges.keys():
             Optimization.compute_edges_transformation_difference(self.posegraph.odometry_edges[odom_start_id])
         for tag_id in self.posegraph.odometry_tag_edges.keys():
             Optimization.compute_edges_transformation_difference(self.posegraph.odometry_tag_edges[tag_id])
         for waypoint_id in self.posegraph.odometry_waypoints_edges.keys():
             Optimization.compute_edges_transformation_difference(self.posegraph.odometry_waypoints_edges[waypoint_id])
+        self.posegraph.optimization_cost = Optimization.compute_optimization_cost_for_edges(
+            self.posegraph.odometry_edges, self.posegraph.odometry_tag_edges, self.posegraph.odometry_waypoints_edges)
+        print "OPTIMIZATION COST:", self.posegraph.optimization_cost
+        # print "id:4384", self.posegraph.odometry_vertices[4384].translation + self.posegraph.odometry_vertices[4384].rotation
+        # print "id:4386", self.posegraph.odometry_vertices[4386].translation + self.posegraph.odometry_vertices[4386].rotation
+        # print "id:4384 4386 computed trans", self.posegraph.odometry_edges[4384][4386].translation_computed
+        # print "id:4384 4386 computed rot", self.posegraph.odometry_edges[4384][4386].rotation_computed
+        # print "trans_diff", self.posegraph.odometry_edges[4384][4386].translation_diff
+        # print "rot_diff", self.posegraph.odometry_edges[4384][4386].rotation_diff
+        # print "id: 4384 4386 cost", self.posegraph.odometry_edges[4384][4386].optimization_cost
+        #cost = Optimization.compute_optimization_cost_for_edges_hack(self.posegraph.odometry_edges,
+                                                                     #self.posegraph.odometry_tag_edges,
+                                                                     #self.posegraph.odometry_waypoints_edges)
+        # print "OPTIMIZATION COST:", cost
 
     def parse_g2o_result_math(self):
         self.update_vertices()
         self.update_edges_math()
-        self.compute_all_edges_transformation_difference()
+        self.compute_all_edges_transformation_diff_and_cost()
         with open(path.join(self.optimized_data_folder, "data_optimized.pkl"), 'wb') as f:
             pickle.dump(self.posegraph, f)
             print "OPTIMIZED POSE GRAPH SAVED"
@@ -220,22 +269,22 @@ class Optimization:
     def parse_g2o_result_transformer(self):
         self.update_vertices()
         self.update_edges_transformer()
-        self.compute_all_edges_transformation_difference()
+        self.compute_all_edges_transformation_diff_and_cost()
         with open(path.join(self.optimized_data_folder, "data_optimized.pkl"), 'wb') as f:
             pickle.dump(self.posegraph, f)
             print "OPTIMIZED POSE GRAPH SAVED"
 
     @staticmethod
-    def MultiplyTransform(tr1, tr2):
+    def multiply_transform(tr1, tr2):
         T = quaternion_matrix(tr1[1])
         T[:-1, -1] = np.squeeze(np.asarray(tr1[0]))
 
         T2 = quaternion_matrix(tr2[1])
         T2[:-1, -1] = np.squeeze(np.asarray(tr2[0]))
 
-        Tres = np.matmul(T, T2)
-        trans = translation_from_matrix(Tres)
-        rot = quaternion_from_matrix(Tres)
+        tres = np.matmul(T, T2)
+        trans = translation_from_matrix(tres)
+        rot = quaternion_from_matrix(tres)
 
         return trans, rot
 
@@ -305,7 +354,7 @@ class Optimization:
     def run(self):
         self.g2o()
         self.parse_g2o_result_transformer()
-        # self.parse_g2o_result_math()
+        #self.parse_g2o_result_math()
         self.plot_g2o_trajectory()
 
 

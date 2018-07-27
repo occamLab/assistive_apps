@@ -68,6 +68,6 @@
         </rosparam>
     </node>
 
-    <node pkg="navigation_prototypes" type="frames.py" name="frames" output="screen"/>
+    <!-- node pkg="navigation_prototypes" type="frames.py" name="frames" output="screen"/ -->
 
 </launch>

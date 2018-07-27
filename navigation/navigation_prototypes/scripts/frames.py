@@ -13,6 +13,7 @@ import pickle
 from os import path
 from helper_functions import (convert_pose_inverse_transform,
                               convert_translation_rotation_to_pose)
+from optimization import Optimization
 from pose_graph import PoseGraph
 
 
@@ -97,25 +98,60 @@ class Frames:
                                            rospy.Time.now(), "AR_%d" % tag,  # child
                                            "odom")  # parent
             self.AR_broadcasted = True
-            # print "AR odom broadcasted"
+            #print "AR odom broadcasted"
         except (KeyError) as e:
             print "BROADCAST ERROR: TAG TRANSFORMED NOT CACHED. PLEASE RESCAN."
 
-    def compute_map_to_odom_transform(self, map_trans, map_rot, tag):
+    def compute_map_to_odom_transform_transformer(self, AR_in_map_trans, AR_in_map_rot, tag):
+        transform = tf.Transformer(True, rospy.Duration(10))
+        self.listener.waitForTransform("AR_%d" % tag, "odom", rospy.Time(0), rospy.Duration(0.5))
+        odom_in_AR_trans, odom_in_AR_rot = self.listener.lookupTransform("AR_%d" % tag, "odom", rospy.Time(0))
+        Optimization.write_transform_stamped_msg(transform, "odom", odom_in_AR_trans, odom_in_AR_rot, "AR")
+        Optimization.write_transform_stamped_msg(transform, "AR", AR_in_map_trans, AR_in_map_rot, "map")
+        odom_in_map_trans, odom_in_map_rot = transform.lookupTransform("map", "odom", rospy.Time(0))
+        print "ODOM IN MAP TRANSFORM:", list(odom_in_map_trans) + list(odom_in_map_rot)
+        # AR_in_odom_trans, AR_in_odom_rot = transform.lookupTransform("odom", "AR", rospy.Time(0))
+        # print "DEBUG: AR IN odom TRANSFORM:", list(AR_in_odom_trans) + list(AR_in_odom_rot)
+        # map_in_AR_trans, map_in_AR_rot = transform.lookupTransform("AR", "map", rospy.Time(0))
+        # print "DEBUG: MAP IN AR TRANSFORM:", list(map_in_AR_trans) + list(map_in_AR_rot)
+        return odom_in_map_trans, odom_in_map_rot
+
+    def compute_map_to_odom_transform_math(self, map_trans, map_rot, tag):
         map_pose = PoseStamped(pose=convert_translation_rotation_to_pose(map_trans, map_rot),
                                header=Header(stamp=rospy.Time(0),
                                              frame_id="AR_%d" % tag))  # frame_id: frame the pose is in
-        self.listener.waitForTransform("AR_%d" % tag, "odom", map_pose.header.stamp, rospy.Duration(1))
+        self.listener.waitForTransform("AR_%d" % tag, "odom", map_pose.header.stamp, rospy.Duration(0.5))
         odom_to_map = self.listener.transformPose("odom", map_pose)
         translation, rotation = convert_pose_inverse_transform(odom_to_map.pose)  # put odom in new odom
+        # odom_trans, odom_rot = self.listener.lookupTransform("AR_%d" % tag, "odom", rospy.Time(0))
+        # print "odom in AR transform:", odom_trans + odom_rot
+        # ar_trans, ar_rot = self.listener.lookupTransform("odom", "AR_%d" % tag, rospy.Time(0)) # debug
+        # print "AR in odom transform:", ar_trans + ar_rot # debug
+        # odom_in_AR_pose = convert_translation_rotation_to_pose(odom_trans, odom_rot)
+        # AR_in_odom_comp_trans, AR_in_odom_comp_rot = convert_pose_inverse_transform(odom_in_AR_pose)
+        # print "AR in odom computed transform:", AR_in_odom_comp_trans, AR_in_odom_comp_rot
+        # print "odom in map translation:", translation
+        # print "odom in map rotation:", rotation
         return translation, rotation
 
-    def update_map_odom_transform_pose_graph(self):
+    def update_map_odom_transform_pose_graph_math(self):
         AR_in_map_translation = self.pose_graph.tag_vertices[self.tag_for_transform].translation
         AR_in_map_rotation = self.pose_graph.tag_vertices[self.tag_for_transform].rotation
         AR_in_map_pose = convert_translation_rotation_to_pose(AR_in_map_translation, AR_in_map_rotation)
         map_translation, map_rotation = convert_pose_inverse_transform(AR_in_map_pose)
-        translation, rotation = self.compute_map_to_odom_transform(map_translation, map_rotation,self.tag_for_transform)
+        translation, rotation = self.compute_map_to_odom_transform_math(map_translation, map_rotation,self.tag_for_transform)
+        self.translations[self.map_frame] = translation
+        self.rotations[self.map_frame] = rotation
+        # print "AR_IN_MAP_POSE:", AR_in_map_pose
+        # print "map translation in AR:", map_translation
+        # print "map rotation in AR:", map_rotation
+
+    def update_map_odom_transform_pose_graph_transformer(self):
+        AR_in_map_translation = self.pose_graph.tag_vertices[self.tag_for_transform].translation
+        AR_in_map_rotation = self.pose_graph.tag_vertices[self.tag_for_transform].rotation
+        AR_in_map_pose = convert_translation_rotation_to_pose(AR_in_map_translation, AR_in_map_rotation)
+        map_translation, map_rotation = convert_pose_inverse_transform(AR_in_map_pose)
+        translation, rotation = self.compute_map_to_odom_transform_transformer(map_translation, map_rotation,self.tag_for_transform)
         self.translations[self.map_frame] = translation
         self.rotations[self.map_frame] = rotation
 
@@ -132,12 +168,14 @@ class Frames:
         self.update_tag_client()
         if self.tag_in_frame != -1:
             self.update_odom_AR_transform()
+            self.broadcast_odom_AR_transform(self.tag_in_frame)
         if self.tag_for_transform is not None:
             self.broadcast_odom_AR_transform(self.tag_for_transform)
 
     def map_odom_transform(self):
         if self.pose_graph and self.tag_for_transform is not None and self.AR_broadcasted:
-            self.update_map_odom_transform_pose_graph()
+            self.update_map_odom_transform_pose_graph_transformer()
+            # self.update_map_odom_transform_pose_graph_math()
             self.broadcast_map_odom_transform()
         elif not self.pose_graph:
             self.update_map_frame_client()

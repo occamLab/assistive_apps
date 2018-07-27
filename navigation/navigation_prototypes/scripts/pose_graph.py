@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from tf.transformations import quaternion_from_euler, quaternion_multiply
+from tf.transformations import quaternion_from_euler, quaternion_multiply, quaternion_matrix
 from os import path, system
 import numpy as np
 from rospkg import RosPack
@@ -35,7 +35,8 @@ class Edge(object):
         self.translation_computed = None
         self.rotation_computed = None
         self.translation_diff = None
-        self.rotation_diff = None
+        self.rotation_diff = None # in euler angles
+        self.optimization_cost = None
 
         #### importance ####
         self.importance_matrix = None
@@ -125,6 +126,10 @@ class Edge(object):
         importance_uppertri = Edge.convert_matrix_uppertri_list(self.importance_matrix, 6)
         return "%f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n" % tuple(importance_uppertri)
 
+    def compute_optimization_cost(self):
+        transformation = np.array(self.translation_diff + self.rotation_diff)
+        self.optimization_cost = np.matmul(np.matmul(transformation, self.importance_matrix), transformation.T)
+
 
 class PoseGraph(object):
     def __init__(self, num_tags=587):
@@ -144,7 +149,7 @@ class PoseGraph(object):
         self.waypoints_vertices = OrderedDict()
         self.odometry_waypoints_edges = OrderedDict()
 
-        #### graph ####
+        #### graph search algorithm parameters ####
         self.graph = {}
         self.visited_nodes = deque([])
 
@@ -153,6 +158,7 @@ class PoseGraph(object):
         self.g2o_data_path = path.join(self.package, 'data/data_g2o/data.g2o')  # path to compiled g2o file
         self.g2o_data_copy_path = path.join(self.package, 'data/data_g2o/data_cp.g2o')  # copy of the unedit data
         self.g2o_result_path = path.join(self.package, 'data/data_g2o/result.g2o')
+        self.optimization_cost = None
 
         #### test data ####
         self.test_tag_id = None
@@ -281,6 +287,15 @@ class PoseGraph(object):
             self.graph[source_node].append(neighbour)
             self.graph[neighbour].append(source_node)
 
+    def remove_dummy_nodes_edges(self):
+        for odom_id in self.odometry_vertices.keys():
+            if self.odometry_vertices[odom_id].fix_status is True:
+                del self.odometry_vertices[odom_id]
+        for start_id in self.odometry_edges.keys():
+            for end_id in self.odometry_edges[start_id].keys():
+                if self.odometry_edges[start_id][end_id].damping_status is True:
+                    del self.odometry_edges[start_id][end_id]
+
     def construct_graph(self):
         self.graph = {}
         for vertices in [self.odometry_vertices, self.tag_vertices, self.waypoints_vertices]:
@@ -340,9 +355,9 @@ class PoseGraph(object):
         self.remove_unconnected_portion(self.tag_vertices, self.odometry_tag_edges)
         self.remove_unconnected_portion(self.waypoints_vertices, self.odometry_waypoints_edges)
 
-    def process_graph(self):
+    def process_graph(self, source_node):
         self.construct_graph()
-        self.bfs(self.origin_tag)
+        self.bfs(source_node)
         self.update_posegraph()
         print("DATA PROCESSED")
 
