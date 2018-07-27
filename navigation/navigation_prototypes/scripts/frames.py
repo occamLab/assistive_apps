@@ -146,9 +146,7 @@ class Frames:
     def update_map_odom_transform_pose_graph_math(self):
         AR_in_map_translation = self.pose_graph.tag_vertices[self.tag_for_transform].translation
         AR_in_map_rotation = self.pose_graph.tag_vertices[self.tag_for_transform].rotation
-        AR_in_map_pose = convert_translation_rotation_to_pose(AR_in_map_translation, AR_in_map_rotation)
-        map_translation, map_rotation = convert_pose_inverse_transform(AR_in_map_pose)
-        translation, rotation = self.compute_map_to_odom_transform_math(map_translation, map_rotation,
+        translation, rotation = self.compute_map_to_odom_transform_math(AR_in_map_translation, AR_in_map_rotation,
                                                                         self.tag_for_transform)
         self.translations[self.map_frame] = translation
         self.rotations[self.map_frame] = rotation
