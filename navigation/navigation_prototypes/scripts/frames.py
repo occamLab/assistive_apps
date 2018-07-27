@@ -118,6 +118,13 @@ class Frames:
         print "DEBUG: MAP IN AR TRANSFORM:", list(map_in_AR_trans) + list(map_in_AR_rot)
         return odom_in_map_trans, odom_in_map_rot
 
+    def update_map_odom_transform_pose_graph_transformer(self):
+        AR_in_map_translation = self.pose_graph.tag_vertices[self.tag_for_transform].translation
+        AR_in_map_rotation = self.pose_graph.tag_vertices[self.tag_for_transform].rotation
+        translation, rotation = self.compute_map_to_odom_transform_transformer(AR_in_map_translation,AR_in_map_rotation,self.tag_for_transform)
+        self.translations[self.map_frame] = translation
+        self.rotations[self.map_frame] = rotation
+
     def compute_map_to_odom_transform_math(self, map_trans, map_rot, tag):
         map_pose = PoseStamped(pose=convert_translation_rotation_to_pose(map_trans, map_rot),
                                header=Header(stamp=rospy.Time(0),
@@ -141,21 +148,13 @@ class Frames:
         AR_in_map_rotation = self.pose_graph.tag_vertices[self.tag_for_transform].rotation
         AR_in_map_pose = convert_translation_rotation_to_pose(AR_in_map_translation, AR_in_map_rotation)
         map_translation, map_rotation = convert_pose_inverse_transform(AR_in_map_pose)
-        translation, rotation = self.compute_map_to_odom_transform_math(map_translation, map_rotation,self.tag_for_transform)
+        translation, rotation = self.compute_map_to_odom_transform_math(map_translation, map_rotation,
+                                                                        self.tag_for_transform)
         self.translations[self.map_frame] = translation
         self.rotations[self.map_frame] = rotation
         # print "AR_IN_MAP_POSE:", AR_in_map_pose
         # print "map translation in AR:", map_translation
         # print "map rotation in AR:", map_rotation
-
-    def update_map_odom_transform_pose_graph_transformer(self):
-        AR_in_map_translation = self.pose_graph.tag_vertices[self.tag_for_transform].translation
-        AR_in_map_rotation = self.pose_graph.tag_vertices[self.tag_for_transform].rotation
-        AR_in_map_pose = convert_translation_rotation_to_pose(AR_in_map_translation, AR_in_map_rotation)
-        map_translation, map_rotation = convert_pose_inverse_transform(AR_in_map_pose)
-        translation, rotation = self.compute_map_to_odom_transform_transformer(map_translation, map_rotation,self.tag_for_transform)
-        self.translations[self.map_frame] = translation
-        self.rotations[self.map_frame] = rotation
 
     def broadcast_map_odom_transform(self):
         try:
