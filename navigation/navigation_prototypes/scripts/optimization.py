@@ -339,7 +339,7 @@ class Optimization:
         ax = p3.Axes3D(fig)
 
         # plot optimized pose vertices
-        optimized_pose, = plt.plot(self.optimized_pose[:, 0], self.optimized_pose[:, 1], self.optimized_pose[:, 2], 'b',
+        optimized_pose, = plt.plot(self.optimized_pose[:, 0], self.optimized_pose[:, 1], self.optimized_pose[:, 2], 'bo',
                                    label='corrected trajectory')
 
         # plot unoptimized pose vertices

@@ -111,11 +111,11 @@ class Frames:
         Optimization.write_transform_stamped_msg(transform, "AR", AR_in_map_trans, AR_in_map_rot, "map")
         odom_in_map_trans, odom_in_map_rot = transform.lookupTransform("map", "odom", rospy.Time(0))
         print "ODOM IN MAP TRANSFORM for tag_%d:" %tag, list(odom_in_map_trans) + list(odom_in_map_rot)
-        print "DEBUG: ODOM IN AR TRANSFORM for tag_%d:" %tag, list(odom_in_AR_trans) + list(odom_in_AR_rot)
+        #print "DEBUG: ODOM IN AR TRANSFORM for tag_%d:" %tag, list(odom_in_AR_trans) + list(odom_in_AR_rot)
         # AR_in_odom_trans, AR_in_odom_rot = transform.lookupTransform("odom", "AR", rospy.Time(0))
         # print "DEBUG: AR IN odom TRANSFORM:", list(AR_in_odom_trans) + list(AR_in_odom_rot)
-        map_in_AR_trans, map_in_AR_rot = transform.lookupTransform("AR", "map", rospy.Time(0))
-        print "DEBUG: MAP IN AR TRANSFORM:", list(map_in_AR_trans) + list(map_in_AR_rot)
+        # map_in_AR_trans, map_in_AR_rot = transform.lookupTransform("AR", "map", rospy.Time(0))
+        # print "DEBUG: MAP IN AR TRANSFORM:", list(map_in_AR_trans) + list(map_in_AR_rot)
         return odom_in_map_trans, odom_in_map_rot
 
     def update_map_odom_transform_pose_graph_transformer(self):
