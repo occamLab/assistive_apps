@@ -63,10 +63,18 @@ class DataCollection(object):
         self.pose_graph = PoseGraph(self.num_tags)
 
         #### ROS SUBSCRIBERS ####
-        rospy.Subscriber('/tango_pose', PoseStamped, self.process_pose)  # Subscriber for the tango pose.
-        rospy.Subscriber('/fisheye_undistorted/tag_detections',  # SUBSCRIBER FOR THE TAG_DETECTION TRANSFORMS.
+        ''' For use with the tango, uncomment the following lines. '''
+        # rospy.Subscriber('/tango_pose', PoseStamped, self.process_pose)  # Subscriber for the tango pose.
+        # rospy.Subscriber('/fisheye_undistorted/tag_detections',  # SUBSCRIBER FOR THE TAG_DETECTION TRANSFORMS.
+        #                  AprilTagDetectionArray,
+        #                  self.tag_callback)
+
+        ''' For use with the iPhone, uncomment the following lines. '''
+        rospy.Subscriber('/ios_pose', PoseStamped, self.process_pose)
+        rospy.Subscriber('/april_tags_ios',  # SUBSCRIBER FOR THE TAG_DETECTION TRANSFORMS.
                          AprilTagDetectionArray,
                          self.tag_callback)
+                         
         rospy.Subscriber('/keyboard/keydown', Key, self.key_pressed)  # Subscriber for the keyboard information.
 
         #### ROS Service ####
