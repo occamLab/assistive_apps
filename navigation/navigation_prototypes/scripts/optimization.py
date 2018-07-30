@@ -1,5 +1,31 @@
 #!/usr/bin/env python
 
+"""
+Optimzation Module for Processing and Optimizing Raw Vertices and Edges data
+
+by Sherrie Shen, 2018
+
+Last Modified August, 2018
+
+This script will:
+- Read in a pickle file from data/raw_data folder. The file contains a pose graph constructed from running
+  data_collection.py
+- Use breadth first search algorithm defined in pose_graph.py to process the pose graph by starting at the first tag
+  vertex seen and delete any vertices or edges that is disconnected from the starting node. Store the result in
+  data/process_data folder
+- Optimize the pose graph by writing the vertices and edges information to a g2o file. Run g2o and parse the optimized
+  result to update the pose graph and stored it in data/optimzed_data folder.
+- Plot the optimized and unoptimized pose graph.
+
+Dependencies:
+matplotlib: https://matplotlib.org
+
+To use:
+- Open Terminal and run the code below:
+
+rosrun navigation_prototypes optimization.py
+
+"""
 from pose_graph import PoseGraph, Vertex, Edge
 import pickle
 from os import path
@@ -18,6 +44,10 @@ import seaborn as sns
 
 
 class Optimization:
+    """
+    The Optimization class, the main class of this script, calls methods defined in pose graph to process and optimize
+    the pose graph and parses the result
+    """
 
     def __init__(self, filename):
         self.package = RosPack().get_path('navigation_prototypes')
@@ -27,7 +57,7 @@ class Optimization:
         with open(path.join(self.raw_data_folder, filename), 'rb') as data:
             self.posegraph = pickle.load(data)  # pose graph that will be optimized
         with open(path.join(self.raw_data_folder, filename), 'rb') as data:
-            data.seek(0)
+            data.seek(0) # place the handler to the beginning of the pickle file
             self.unoptimzied_posegraph = pickle.load(data)
         self.g2o_result_path = self.posegraph.g2o_result_path
 
@@ -44,11 +74,10 @@ class Optimization:
         self.index_to_tag_conversion = {}
 
     def g2o(self):
-        #self.posegraph.tag_vertices = {}
-        #self.posegraph.odometry_tag_edges = {}
-        #self.posegraph.remove_dummy_nodes_edges()
-        #source_node = self.posegraph.odometry_vertices[self.posegraph.num_tags+1].id  # traverse from first pose
-        source_node = self.posegraph.origin_tag # traverse from first tag seen
+
+        #
+        # source_node = self.posegraph.odometry_vertices[self.posegraph.num_tags+1].id  # traverse from first pose
+        source_node = self.posegraph.origin_tag  # traverse from first tag seen
         self.posegraph.process_graph(source_node)
         with open(path.join(self.processed_data_folder, "data_processed.pkl"), 'wb') as f:
             pickle.dump(self.posegraph, f)
@@ -182,8 +211,8 @@ class Optimization:
                 edges[id].translation_computed = list(translation)
                 edges[id].rotation_computed = list(rotation)
             else:
-                edges[id].translation_computed = [0,0,0]
-                edges[id].rotation_computed = [0,0,0,1]
+                edges[id].translation_computed = [0, 0, 0]
+                edges[id].rotation_computed = [0, 0, 0, 1]
 
     def compute_all_new_edges_transformer(self):
         for odom_start_id in self.posegraph.odometry_edges.keys():
@@ -247,17 +276,6 @@ class Optimization:
         self.posegraph.optimization_cost = Optimization.compute_optimization_cost_for_edges(
             self.posegraph.odometry_edges, self.posegraph.odometry_tag_edges, self.posegraph.odometry_waypoints_edges)
         print "OPTIMIZATION COST:", self.posegraph.optimization_cost
-        # print "id:4384", self.posegraph.odometry_vertices[4384].translation + self.posegraph.odometry_vertices[4384].rotation
-        # print "id:4386", self.posegraph.odometry_vertices[4386].translation + self.posegraph.odometry_vertices[4386].rotation
-        # print "id:4384 4386 computed trans", self.posegraph.odometry_edges[4384][4386].translation_computed
-        # print "id:4384 4386 computed rot", self.posegraph.odometry_edges[4384][4386].rotation_computed
-        # print "trans_diff", self.posegraph.odometry_edges[4384][4386].translation_diff
-        # print "rot_diff", self.posegraph.odometry_edges[4384][4386].rotation_diff
-        # print "id: 4384 4386 cost", self.posegraph.odometry_edges[4384][4386].optimization_cost
-        #cost = Optimization.compute_optimization_cost_for_edges_hack(self.posegraph.odometry_edges,
-                                                                     #self.posegraph.odometry_tag_edges,
-                                                                     #self.posegraph.odometry_waypoints_edges)
-        # print "OPTIMIZATION COST:", cost
 
     def parse_g2o_result_math(self):
         self.update_vertices()
@@ -299,7 +317,7 @@ class Optimization:
         return optimized_vertices
 
     @staticmethod
-    def map_index_to_landmark_id(landmarks,stored_loc):
+    def map_index_to_landmark_id(landmarks, stored_loc):
         sorted_landmarks_id = sorted(landmarks.keys())
         for landmark_id in sorted(landmarks):
             id_index = sorted_landmarks_id.index(landmark_id)
@@ -325,7 +343,7 @@ class Optimization:
             ax.text(extreme_pt[1], extreme_pt[2], extreme_pt[3], str(extreme_pt[0]))
 
     @staticmethod
-    def plot_landmarks(ax, landmarks,landmarks_index_to_id):
+    def plot_landmarks(ax, landmarks, landmarks_index_to_id):
         for row in range(np.shape(landmarks)[0]):
             landmark = landmarks[row, :]
             plt.plot((landmark[0],), (landmark[1],), (landmark[2],), 'go')
@@ -339,7 +357,8 @@ class Optimization:
         ax = p3.Axes3D(fig)
 
         # plot optimized pose vertices
-        optimized_pose, = plt.plot(self.optimized_pose[:, 0], self.optimized_pose[:, 1], self.optimized_pose[:, 2], 'bo',
+        optimized_pose, = plt.plot(self.optimized_pose[:, 0], self.optimized_pose[:, 1], self.optimized_pose[:, 2],
+                                   'bo',
                                    label='corrected trajectory')
 
         # plot unoptimized pose vertices
@@ -363,11 +382,11 @@ class Optimization:
     def run(self):
         self.g2o()
         self.parse_g2o_result_transformer()
-        #self.parse_g2o_result_math()
+        # self.parse_g2o_result_math()
         self.plot_g2o_trajectory()
 
 
 if __name__ == "__main__":
-    #process = Optimization("tangodata07.27.2018.11.00.pkl")
+    # process = Optimization("tangodata07.27.2018.11.00.pkl")
     process = Optimization("data_collected.pkl")
     process.run()

@@ -413,3 +413,10 @@ class PoseGraph(object):
         system("g2o -o %s %s" % (self.g2o_result_path, self.g2o_data_path))  # Run G2o
         system("cp %s %s" % (self.g2o_data_path, self.g2o_data_copy_path))  # Copy Original Data
         print "OPTIMIZATION COMPLETED"
+
+    def optimize_pose_without_tags_dummy_nodes(self, tags_flag=False, dummy_nodes_flag=False):
+        if tags_flag:
+            self.tag_vertices = {}
+            self.odometry_tag_edges = {}
+        if dummy_nodes_flag:
+            self.remove_dummy_nodes_edges()
