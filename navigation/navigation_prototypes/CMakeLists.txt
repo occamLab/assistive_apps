@@ -63,6 +63,7 @@ find_package(catkin REQUIRED COMPONENTS
    FILES
    CheckMapFrame.srv
    TagSeen.srv
+   phone.srv
  )
 
 ## Generate actions in the 'action' folder

@@ -7,6 +7,7 @@ from apriltags_ros.msg import AprilTagDetectionArray
 from keyboard.msg import Key
 from navigation_prototypes.srv import CheckMapFrame
 from navigation_prototypes.srv import TagSeen
+from navigation_prototypes.srv import phone
 import tf
 from os import path
 import pyttsx
@@ -63,23 +64,35 @@ class DataCollection(object):
         self.pose_graph = PoseGraph(self.num_tags)
 
         #### ROS SUBSCRIBERS ####
-        ''' For use with the tango, uncomment the following lines. '''
-        # rospy.Subscriber('/tango_pose', PoseStamped, self.process_pose)  # Subscriber for the tango pose.
-        # rospy.Subscriber('/fisheye_undistorted/tag_detections',  # SUBSCRIBER FOR THE TAG_DETECTION TRANSFORMS.
-        #                  AprilTagDetectionArray,
-        #                  self.tag_callback)
+        print "CALLING THE SERVICE"
+        self.get_phone_type_client()
+        print "PHONE: ", self.phone
+        if self.phone == "iPhone":
+            ''' For use with the iPhone: '''
+            rospy.Subscriber('/ios_pose', PoseStamped, self.process_pose)
+            rospy.Subscriber('/april_tags_ios',  # SUBSCRIBER FOR THE TAG_DETECTION TRANSFORMS.
+                             AprilTagDetectionArray,
+                             self.tag_callback)
+        elif self.phone == "tango":
+            ''' For use with the tango: '''
+            rospy.Subscriber('/tango_pose', PoseStamped, self.process_pose)  # Subscriber for the tango pose.
+            rospy.Subscriber('/fisheye_undistorted/tag_detections',  # SUBSCRIBER FOR THE TAG_DETECTION TRANSFORMS.
+                             AprilTagDetectionArray,
+                             self.tag_callback)
 
-        ''' For use with the iPhone, uncomment the following lines. '''
-        rospy.Subscriber('/ios_pose', PoseStamped, self.process_pose)
-        rospy.Subscriber('/april_tags_ios',  # SUBSCRIBER FOR THE TAG_DETECTION TRANSFORMS.
-                         AprilTagDetectionArray,
-                         self.tag_callback)
-                         
         rospy.Subscriber('/keyboard/keydown', Key, self.key_pressed)  # Subscriber for the keyboard information.
 
         #### ROS Service ####
         rospy.Service('tag_seen', TagSeen, self.tag_seen_service)
         rospy.Service('check_map_frame', CheckMapFrame, self.check_map_frame_service)
+
+    def get_phone_type_client(self):
+        rospy.wait_for_service('/phone_type')
+        try:
+            get_phone_type = rospy.ServiceProxy('/phone_type', phone)
+            self.phone = get_phone_type().phoneType
+        except rospy.ServiceException, e:
+            print "Service call failed: %s"
 
     def tag_seen_service(self, req):
         if self.tag_in_frame is None:
