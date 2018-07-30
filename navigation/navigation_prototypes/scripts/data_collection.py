@@ -64,8 +64,15 @@ class DataCollection(object):
         self.pose_graph = PoseGraph(self.num_tags)
 
         #### ROS SUBSCRIBERS ####
-        print "CALLING THE SERVICE"
         self.get_phone_type_client()
+        self.determine_subscribed_topics_from_phone_type()
+        rospy.Subscriber('/keyboard/keydown', Key, self.key_pressed)  # Subscriber for the keyboard information.
+
+        #### ROS Service ####
+        rospy.Service('tag_seen', TagSeen, self.tag_seen_service)
+        rospy.Service('check_map_frame', CheckMapFrame, self.check_map_frame_service)
+
+    def determine_subscribed_topics_from_phone_type(self):
         print "PHONE: ", self.phone
         if self.phone == "iPhone":
             ''' For use with the iPhone: '''
@@ -80,13 +87,8 @@ class DataCollection(object):
                              AprilTagDetectionArray,
                              self.tag_callback)
 
-        rospy.Subscriber('/keyboard/keydown', Key, self.key_pressed)  # Subscriber for the keyboard information.
-
-        #### ROS Service ####
-        rospy.Service('tag_seen', TagSeen, self.tag_seen_service)
-        rospy.Service('check_map_frame', CheckMapFrame, self.check_map_frame_service)
-
     def get_phone_type_client(self):
+        print "CALLING THE SERVICE"
         rospy.wait_for_service('/phone_type')
         try:
             get_phone_type = rospy.ServiceProxy('/phone_type', phone)
@@ -95,6 +97,11 @@ class DataCollection(object):
             print "Service call failed: %s"
 
     def tag_seen_service(self, req):
+        """
+        Ros service responsible for offering the id of current april tags detected.
+        :param req: None
+        :return: if of current april tags detected
+        """
         if self.tag_in_frame is None:
             service_resp = -1
         else:
