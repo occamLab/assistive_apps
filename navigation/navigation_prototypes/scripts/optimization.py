@@ -65,6 +65,7 @@ class Optimization:
         self.optimized_pose = None
         self.unoptimized_pose = None
         self.optimized_tag = None
+        self.optimized_waypoint = None
         self.xmax = []
         self.xmin = []
         self.ymax = []
@@ -72,12 +73,14 @@ class Optimization:
         self.zmax = []
         self.zmin = []
         self.index_to_tag_conversion = {}
+        self.index_to_waypoint_conversion = {}
 
-    def g2o(self):
-
-        #
-        # source_node = self.posegraph.odometry_vertices[self.posegraph.num_tags+1].id  # traverse from first pose
-        source_node = self.posegraph.origin_tag  # traverse from first tag seen
+    def g2o(self, debug_flag=False):
+        if debug_flag:
+            self.posegraph.optimize_pose_without_tags_dummy_nodes(tags_flag=True, dummy_nodes_flag=True)
+            source_node = self.posegraph.odometry_vertices[self.posegraph.num_tags+1].id  # traverse from first pose
+        else:
+            source_node = self.posegraph.origin_tag  # traverse from first tag seen
         self.posegraph.process_graph(source_node)
         with open(path.join(self.processed_data_folder, "data_processed.pkl"), 'wb') as f:
             pickle.dump(self.posegraph, f)
@@ -250,7 +253,6 @@ class Optimization:
                 for end_id in edge[start_id].keys():
                     edge[start_id][end_id].compute_optimization_cost()
                     total_cost += edge[start_id][end_id].optimization_cost
-                    # print "optimization_cost:", start_id, end_id, total_cost
         return total_cost
 
     @staticmethod
@@ -326,8 +328,9 @@ class Optimization:
     def plot_extreme_vertices_for_pose(self, ax):
         all_translations = []
         for id in self.posegraph.odometry_vertices.keys():
-            translation = self.posegraph.odometry_vertices[id].translation
-            all_translations.append((id, translation[0], translation[1], translation[2]))
+            if not self.posegraph.odometry_vertices[id].fix_status: # not including dummy vertices
+                translation = self.posegraph.odometry_vertices[id].translation
+                all_translations.append((id, translation[0], translation[1], translation[2]))
         trans_sort_x = sorted(all_translations, key=lambda vertex: vertex[1])
         trans_sort_y = sorted(all_translations, key=lambda vertex: vertex[2])
         trans_sort_z = sorted(all_translations, key=lambda vertex: vertex[3])
@@ -353,6 +356,7 @@ class Optimization:
         self.optimized_pose = Optimization.process_vertices_for_plot(self.posegraph.odometry_vertices)
         self.unoptimized_pose = Optimization.process_vertices_for_plot(self.unoptimzied_posegraph.odometry_vertices)
         self.optimized_tag = Optimization.process_vertices_for_plot(self.posegraph.tag_vertices)
+        self.optimized_waypoint = Optimization.process_vertices_for_plot(self.posegraph.waypoints_vertices)
         fig = plt.figure()
         ax = p3.Axes3D(fig)
 
@@ -372,6 +376,10 @@ class Optimization:
         Optimization.map_index_to_landmark_id(self.posegraph.tag_vertices, self.index_to_tag_conversion)
         Optimization.plot_landmarks(ax, self.optimized_tag, self.index_to_tag_conversion)
 
+        # plot waypoint vertices
+        Optimization.map_index_to_landmark_id(self.posegraph.waypoints_vertices, self.index_to_waypoint_conversion)
+        Optimization.plot_landmarks(ax, self.optimized_waypoint, self.index_to_waypoint_conversion)
+
         plt.legend(handles=[optimized_pose, unoptimized_pose])
         plt.xlabel('X')
         plt.ylabel('Y')
@@ -382,7 +390,7 @@ class Optimization:
     def run(self):
         self.g2o()
         self.parse_g2o_result_transformer()
-        # self.parse_g2o_result_math()
+        # self.parse_g2o_result_math() # currently inaccurate
         self.plot_g2o_trajectory()
 
 

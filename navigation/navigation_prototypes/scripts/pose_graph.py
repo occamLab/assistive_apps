@@ -287,15 +287,6 @@ class PoseGraph(object):
             self.graph[source_node].append(neighbour)
             self.graph[neighbour].append(source_node)
 
-    def remove_dummy_nodes_edges(self):
-        for odom_id in self.odometry_vertices.keys():
-            if self.odometry_vertices[odom_id].fix_status is True:
-                del self.odometry_vertices[odom_id]
-        for start_id in self.odometry_edges.keys():
-            for end_id in self.odometry_edges[start_id].keys():
-                if self.odometry_edges[start_id][end_id].damping_status is True:
-                    del self.odometry_edges[start_id][end_id]
-
     def construct_graph(self):
         self.graph = {}
         for vertices in [self.odometry_vertices, self.tag_vertices, self.waypoints_vertices]:
@@ -413,6 +404,15 @@ class PoseGraph(object):
         system("g2o -o %s %s" % (self.g2o_result_path, self.g2o_data_path))  # Run G2o
         system("cp %s %s" % (self.g2o_data_path, self.g2o_data_copy_path))  # Copy Original Data
         print "OPTIMIZATION COMPLETED"
+
+    def remove_dummy_nodes_edges(self):
+        for odom_id in self.odometry_vertices.keys():
+            if self.odometry_vertices[odom_id].fix_status is True:
+                del self.odometry_vertices[odom_id]
+        for start_id in self.odometry_edges.keys():
+            for end_id in self.odometry_edges[start_id].keys():
+                if self.odometry_edges[start_id][end_id].damping_status is True:
+                    del self.odometry_edges[start_id][end_id]
 
     def optimize_pose_without_tags_dummy_nodes(self, tags_flag=False, dummy_nodes_flag=False):
         if tags_flag:
