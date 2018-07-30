@@ -24,6 +24,7 @@ class DataCollection(object):
         self.has_spoken = False  # Boolean for if the speech engine has spoken
         self.package = RosPack().get_path('navigation_prototypes')  # Directory for this ros package
         self.data_folder = path.join(self.package, 'data/raw_data')
+
         #### Transform Parameters ####
         self.listener = tf.TransformListener()  # The transform listener
         self.broadcaster = tf.TransformBroadcaster()  # The transform broadcaster
