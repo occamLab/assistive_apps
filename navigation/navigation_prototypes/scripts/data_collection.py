@@ -447,6 +447,7 @@ class DataCollection(object):
                 self.pose_failure = False
             else:
                 self.pose_failure_count += 1
+                self.last_record_time = self.curr_record_time
                 print "Pose failure count:", self.pose_failure_count
 
             # Write Testing Data: path
@@ -459,6 +460,7 @@ class DataCollection(object):
                 ValueError) as e:
             print "AR_CALIBRATION: recordTime Exception: " + str(e)
             self.pose_failure = True
+            self.last_record_time = self.curr_record_time
             self.pose_failure_count += 1
             print "Pose failure count:", self.pose_failure_count
 

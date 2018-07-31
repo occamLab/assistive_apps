@@ -35,7 +35,7 @@ class Edge(object):
         self.translation_computed = None
         self.rotation_computed = None
         self.translation_diff = None
-        self.rotation_diff = None # in euler angles
+        self.rotation_diff = None  # in euler angles
         self.optimization_cost = None
 
         #### importance ####
@@ -120,7 +120,7 @@ class Edge(object):
         Write to g2o for recorded edges
         """
         return datatype + "%i %i %f %f %f %f %f %f %f" % tuple(
-            [self.start.id, self.end.id] + self.translation + self.rotation)
+                [self.start.id, self.end.id] + self.translation + self.rotation)
 
     def write_to_g2o_importance(self):
         importance_uppertri = Edge.convert_matrix_uppertri_list(self.importance_matrix, 6)
@@ -139,6 +139,9 @@ class PoseGraph(object):
         self.origin_tag_pose = None
         self.supplement_tags = {}
         self.waypoints = {}
+        self.waypoint_start_id = None
+        self.waypoint_id_to_name = {}
+        self.waypoint_x_offset = 0.01
         self.distance_traveled = [0, 0, 0]
 
         #### vertices, edges ####
@@ -202,18 +205,34 @@ class PoseGraph(object):
     def add_waypoint_vertices(self, id, curr_pose):
         if id not in self.waypoints_vertices.keys():
             self.waypoints[id] = curr_pose  # store the pose of waypoint
-            self.waypoints_vertices[id] = Vertex(id, curr_pose.translation, curr_pose.rotation, "waypoint")
+            self.waypoints_vertices[id] = Vertex(id, list(curr_pose.translation), list(curr_pose.rotation), "waypoint")
             print "AR_CALIBRATION: Waypoint Found: " + str(id)
             print(self.waypoints.keys())
             return self.waypoints_vertices[id]
         else:
             print "AR_CALIBRATION: Found Old Waypoint: " + str(id)
 
+    def map_waypoint_name_to_number(self):
+        self.waypoint_id_to_name = {}
+        self.waypoint_start_id = sorted(self.odometry_vertices.keys())[-1] + 1
+        waypoint_id = self.waypoint_start_id
+        for waypoint in self.waypoints_vertices.keys():
+            self.waypoint_id_to_name[waypoint_id] = self.waypoints_vertices[waypoint].id
+            self.waypoints_vertices[waypoint].id = waypoint_id
+            waypoint_id += 1
+
+    def translation_offset_to_waypoint_vertices(self):
+        self.waypoint_x_offset = 0.01
+        for waypoint in self.waypoints_vertices.keys():
+            new_trans = list(self.waypoints_vertices[waypoint].translation)
+            new_trans[0] += self.waypoint_x_offset
+            self.waypoints_vertices[waypoint].translation = list(new_trans) # add 1cm offset o waypoint position
+
     def add_odometry_waypoint_edges(self, v_odom, v_waypoints):
         if v_waypoints not in self.odometry_waypoints_edges.keys():
             self.odometry_waypoints_edges[v_waypoints.id] = {}
-        self.odometry_waypoints_edges[v_waypoints.id][v_odom.id] = Edge(v_odom, v_waypoints, [0, 0, 0], [0, 0, 0, 1])
-        return self.odometry_waypoints_edges[v_waypoints.id]
+        self.odometry_waypoints_edges[v_waypoints.id][v_odom.id] = Edge(v_odom, v_waypoints, [self.waypoint_x_offset, 0, 0], [0, 0, 0, 1])
+        return self.odometry_waypoints_edges[v_waypoints.id][v_odom.id]
 
     def add_damping(self, curr_pose):
         """
@@ -313,7 +332,6 @@ class PoseGraph(object):
 
         for waypoint in self.odometry_waypoints_edges.keys():
             start_node, neighbour_node = waypoint, self.odometry_waypoints_edges[waypoint].keys()
-            print self.odometry_waypoints_edges[waypoint]
             # start_node, neighbour_node = waypoint, []
             # for odom in self.odometry_waypoints_edges[waypoint].keys():
             #     neighbour_node.append(odom.id)
@@ -331,6 +349,14 @@ class PoseGraph(object):
                     node_queue.append(neighbour)
                     self.visited_nodes.append(neighbour)
 
+    @staticmethod
+    def is_integer(num):
+        try:
+            int(num)
+            return True
+        except ValueError:
+            return False
+
     def remove_unconnected_portion(self, vertices, edges):
         for vertex_id in vertices.keys():
             if vertex_id not in self.visited_nodes:
@@ -338,7 +364,7 @@ class PoseGraph(object):
                 del vertices[vertex_id]
                 if vertex_id in edges.keys():
                     del edges[vertex_id]
-                if vertex_id > self.num_tags and vertex_id - 1 in edges.keys():
+                if PoseGraph.is_integer(vertex_id) and vertex_id > self.num_tags and vertex_id - 1 in edges.keys():
                     del edges[vertex_id - 1]
 
     def update_posegraph(self):
@@ -350,6 +376,9 @@ class PoseGraph(object):
         self.construct_graph()
         self.bfs(source_node)
         self.update_posegraph()
+        # map string waypoint id to number
+        self.map_waypoint_name_to_number()
+        self.translation_offset_to_waypoint_vertices()
         print("DATA PROCESSED")
 
     @staticmethod
@@ -414,9 +443,13 @@ class PoseGraph(object):
                 if self.odometry_edges[start_id][end_id].damping_status is True:
                     del self.odometry_edges[start_id][end_id]
 
-    def optimize_pose_without_tags_dummy_nodes(self, tags_flag=False, dummy_nodes_flag=False):
+    def optimize_pose_without_tags_dummy_nodes(self, tags_flag=False, waypoint_flag = False, dummy_nodes_flag=False):
         if tags_flag:
             self.tag_vertices = {}
             self.odometry_tag_edges = {}
         if dummy_nodes_flag:
             self.remove_dummy_nodes_edges()
+        if waypoint_flag:
+            self.waypoints_vertices = {}
+            self.odometry_waypoints_edges = {}
+

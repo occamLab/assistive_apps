@@ -57,7 +57,7 @@ class Optimization:
         with open(path.join(self.raw_data_folder, filename), 'rb') as data:
             self.posegraph = pickle.load(data)  # pose graph that will be optimized
         with open(path.join(self.raw_data_folder, filename), 'rb') as data:
-            data.seek(0) # place the handler to the beginning of the pickle file
+            data.seek(0)  # place the handler to the beginning of the pickle file
             self.unoptimzied_posegraph = pickle.load(data)
         self.g2o_result_path = self.posegraph.g2o_result_path
 
@@ -77,8 +77,9 @@ class Optimization:
 
     def g2o(self, debug_flag=False):
         if debug_flag:
-            self.posegraph.optimize_pose_without_tags_dummy_nodes(tags_flag=True, dummy_nodes_flag=True)
-            source_node = self.posegraph.odometry_vertices[self.posegraph.num_tags+1].id  # traverse from first pose
+            self.posegraph.optimize_pose_without_tags_dummy_nodes(tags_flag=False, waypoint_flag=True,
+                                                                  dummy_nodes_flag=False)
+            source_node = self.posegraph.odometry_vertices[self.posegraph.num_tags + 1].id  # traverse from first pose
         else:
             source_node = self.posegraph.origin_tag  # traverse from first tag seen
         self.posegraph.process_graph(source_node)
@@ -107,15 +108,16 @@ class Optimization:
                     line = line.strip().split()
                     translation = [float(data) for data in line[2:5]]
                     rotation = [float(data) for data in line[5:9]]
-                    if Optimization.is_integer(line[1]) and int(line[1]) <= self.posegraph.num_tags:
+                    if int(line[1]) <= self.posegraph.num_tags:
                         id = int(line[1])
                         Optimization.update_transformation(self.posegraph.tag_vertices, id, translation, rotation)
-                    elif Optimization.is_integer(line[1]) and int(line[1]) > self.posegraph.num_tags:
+                    elif self.posegraph.num_tags < int(line[1]) < self.posegraph.waypoint_start_id:
                         id = int(line[1])
                         Optimization.update_transformation(self.posegraph.odometry_vertices, id, translation, rotation)
                     else:
-                        id = line[1]
+                        id = self.posegraph.waypoint_id_to_name[int(line[1])]
                         Optimization.update_transformation(self.posegraph.waypoints_vertices, id, translation, rotation)
+                        self.posegraph.waypoints_vertices[id].id = id  # map waypoint id back to name
 
     def query_trans_rot_from_calibrated_vertices(self, id):
         """
@@ -328,7 +330,7 @@ class Optimization:
     def plot_extreme_vertices_for_pose(self, ax):
         all_translations = []
         for id in self.posegraph.odometry_vertices.keys():
-            if not self.posegraph.odometry_vertices[id].fix_status: # not including dummy vertices
+            if not self.posegraph.odometry_vertices[id].fix_status:  # not including dummy vertices
                 translation = self.posegraph.odometry_vertices[id].translation
                 all_translations.append((id, translation[0], translation[1], translation[2]))
         trans_sort_x = sorted(all_translations, key=lambda vertex: vertex[1])

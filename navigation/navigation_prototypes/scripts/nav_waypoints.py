@@ -18,9 +18,9 @@ from pose_graph import PoseGraph, Vertex, Edge
 import pyttsx
 
 
-class WaypointDetectionNavigation(object):
+class NavWaypoints(object):
     def __init__(self, filename):
-        rospy.init_node('waypoint_navigation')
+        rospy.init_node('nav_waypoints')
         self.engine = pyttsx.init()  # Speech engine
         self.has_spoken = False  # Boolean for if the speech engine has spoken
         self.listener = tf.TransformListener()
@@ -119,7 +119,7 @@ class WaypointDetectionNavigation(object):
             waypoint_pose = convert_translation_rotation_to_pose(
                 self.posegraph.waypoints_vertices[waypoint].translation,
                 self.posegraph.waypoints_vertices[waypoint].rotation)
-            distance = WaypointDetectionNavigation.distance_formula(curr_pose, waypoint_pose)
+            distance = NavWaypoints.distance_formula(curr_pose, waypoint_pose)
             # if the distance is less than the previously set waypoint radius
             if distance < self.proximity_to_destination:
                 mesg = "Found %s" % waypoint + "distance to point: %f" % distance
@@ -180,5 +180,5 @@ class WaypointDetectionNavigation(object):
 
 
 if __name__ == "__main__":
-    navigation = WaypointDetectionNavigation("data_optimized.pkl")
+    navigation = NavWaypoints("data_optimized.pkl")
     navigation.run()

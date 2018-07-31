@@ -51,7 +51,7 @@ class Frames:
             self.tag_in_frame = int(response.tag)
             if self.pose_graph and self.tag_in_frame in self.pose_graph.tag_vertices.keys():
                 self.tag_for_transform = self.tag_in_frame
-                print("Tag for Transform:", self.tag_for_transform)
+                # print("Tag for Transform:", self.tag_for_transform)
             elif self.pose_graph and not self.map_frame_published:
                 print "CURRENT TAG NOT RECORDED BEFORE. MAP FRAME NOT COMPUTED"
         except rospy.ServiceException, e:
