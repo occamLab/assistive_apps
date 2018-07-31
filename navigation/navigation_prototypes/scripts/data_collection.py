@@ -9,8 +9,7 @@ from navigation_prototypes.srv import CheckMapFrame
 from navigation_prototypes.srv import TagSeen
 from navigation_prototypes.srv import phone
 import tf
-from os import path
-import pyttsx
+from os import path, system
 
 import pickle
 from pose_graph import PoseGraph, Vertex, Edge
@@ -18,12 +17,12 @@ from pose_graph import PoseGraph, Vertex, Edge
 
 class DataCollection(object):
 
-    def __init__(self, num_tags=587):
+    def __init__(self, filename, num_tags=587):
         rospy.init_node('data_collection')  # Initialization of another node.
-        self.engine = pyttsx.init()  # Speech engine
-        self.has_spoken = False  # Boolean for if the speech engine has spoken
         self.package = RosPack().get_path('navigation_prototypes')  # Directory for this ros package
         self.data_folder = path.join(self.package, 'data/raw_data')
+        self.filename = filename
+        rospy.set_param('posegraph_filename', path.join(self.data_folder, self.filename))
 
         #### Transform Parameters ####
         self.listener = tf.TransformListener()  # The transform listener
@@ -124,17 +123,6 @@ class DataCollection(object):
         except rospy.ServiceException, e:
             print "Service call failed: %s" % e
 
-    def start_speech_engine(self):
-        """
-        Initialize the speech engine.
-        """
-        if not self.has_spoken:
-            self.engine.say("Starting up.")
-            self.engine.runAndWait()
-            self.engine.say("Hello.")
-            self.engine.runAndWait()
-            self.has_spoken = True
-
     def process_pose(self, msg):
         """
         Process received tango pose and process pose for waypoints recognition
@@ -176,12 +164,12 @@ class DataCollection(object):
             self.AR_calibration = not self.AR_calibration  # Toggle calibration_AR
             if self.AR_calibration:  # If AR Calibration just turned on,
                 print('Switched to AR Calibration Mode: New data collection')
-                self.engine.say('Switched to AR Calibration Mode: New data collection')
+                system('espeak "START DATA COLLECTION"')
                 self.determine_data_collection_mode()
             else:
                 print("AR Calibration Mode turned off")
                 self.recording = False
-                self.engine.say('Turned off AR Calibration Mode')
+                system('espeak "FINISH DATA COLLECTION"')
 
         if msg.code == ord('s'):
             """
@@ -356,7 +344,7 @@ class DataCollection(object):
             self.start_record()
         elif mode == "2":
             # load old pose graph
-            with open(path.join(self.data_folder, "data_collected.pkl"), 'rb') as file:  # read pose graph file
+            with open(path.join(self.data_folder, self.filename), 'rb') as file:  # read pose graph file
                 self.pose_graph = pickle.load(file)  # load pickle
                 # print "pose graph:", self.pose_graph.origin_tag
                 if self.pose_graph.origin_tag is not None:
@@ -426,8 +414,7 @@ class DataCollection(object):
     def run(self):
         r = rospy.Rate(10)  # Attempts to run loop at 10 times per second
         print "Starting Up."
-        self.start_speech_engine()
-        print "Ready to go."
+        system('espeak "WELCOME TO DATA COLLECTION"')
         while not rospy.is_shutdown():
             if self.AR_calibration and self.recording:  # if calibration_AR and recording
                 # find the time offset between last recorded time and now
@@ -443,5 +430,5 @@ class DataCollection(object):
 
 
 if __name__ == '__main__':
-    map_collection = DataCollection()
+    map_collection = DataCollection('data_collected.pkl')
     map_collection.run()

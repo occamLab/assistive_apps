@@ -6,6 +6,5 @@
   <node pkg="keyboard" type="keyboard" name="keyboard" />
 
   <node pkg="navigation_prototypes" type="nav_waypoints.py" name="nav_waypoints" output="screen" />
-  <node pkg="rqt_gui" type="rqt_gui" name="rqt_gui" />
 
 </launch>

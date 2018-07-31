@@ -21,8 +21,6 @@ class Frames:
 
     def __init__(self):
         rospy.init_node('frames')
-        self.package = RosPack().get_path('navigation_prototypes')  # Directory for this ros package
-        self.data_folder = path.join(self.package, 'data/raw_data')
 
         #### Transform Parameters ####
         self.listener = tf.TransformListener()
@@ -51,9 +49,10 @@ class Frames:
             self.tag_in_frame = int(response.tag)
             if self.pose_graph and self.tag_in_frame in self.pose_graph.tag_vertices.keys():
                 self.tag_for_transform = self.tag_in_frame
-                # print("Tag for Transform:", self.tag_for_transform)
-            elif self.pose_graph and not self.map_frame_published:
-                print "CURRENT TAG NOT RECORDED BEFORE. MAP FRAME NOT COMPUTED"
+            elif self.pose_graph and self.tag_in_frame and not self.map_frame_published:
+                print "CURRENT TAG NOT RECORDED BEFORE"
+            elif self.pose_graph and not (self.tag_in_frame or self.map_frame_published):
+                print "NO TAGS DETECTED. MAP FRAME NOT COMPUTED"
         except rospy.ServiceException, e:
             print "Service call failed: %s" % e
 
@@ -64,7 +63,8 @@ class Frames:
             map_frame_exist = rospy.ServiceProxy('check_map_frame', CheckMapFrame)
             response = map_frame_exist()
             if response.exist:
-                with open(path.join(self.data_folder, "data_collected.pkl"), 'rb') as f:  # read pose graph file
+                filename = rospy.get_param('posegraph_filename')
+                with open(filename, 'rb') as f:
                     self.pose_graph = pickle.load(f)  # load pickle
                     print("Posegraph LOADED FOR COORDINATE FRAMES")
         except rospy.ServiceException, e:
@@ -100,7 +100,7 @@ class Frames:
             self.AR_broadcasted = True
             #print "AR odom broadcasted"
         except (KeyError) as e:
-            print "BROADCAST ERROR: TAG TRANSFORMED NOT CACHED. PLEASE RESCAN."
+            print "BROADCAST ERROR: AR TRANSFORM NOT CACHED. PLEASE RESCAN."
 
     def compute_map_to_odom_transform_transformer(self, AR_in_map_trans, AR_in_map_rot, tag):
         transform = tf.Transformer(True, rospy.Duration(10))

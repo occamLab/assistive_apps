@@ -10,19 +10,16 @@ from navigation_prototypes.srv import TagSeen
 from navigation_prototypes.srv import phone
 from helper_functions import convert_translation_rotation_to_pose
 import tf
-from os import path
+from os import path, system
 from math import sqrt
 
 import pickle
 from pose_graph import PoseGraph, Vertex, Edge
-import pyttsx
 
 
 class NavWaypoints(object):
     def __init__(self, filename):
         rospy.init_node('nav_waypoints')
-        self.engine = pyttsx.init()  # Speech engine
-        self.has_spoken = False  # Boolean for if the speech engine has spoken
         self.listener = tf.TransformListener()
 
         #### POSE GRAPH PARAMETERS ####
@@ -30,13 +27,15 @@ class NavWaypoints(object):
         self.package = RosPack().get_path('navigation_prototypes')
         self.optimized_data_folder = path.join(self.package, 'data/optimized_data')
         self.filename = filename
+        rospy.set_param('posegraph_filename', path.join(self.optimized_data_folder,filename))
 
         #### NAVIGATION PARAMETERS ####
         self.origin_frame_presence = False
         self.tag_in_frame = None
         self.curr_pose = None
-        self.proximity_to_destination = 2
+        self.proximity_to_destination = 3
         self.terminate_session = False
+        self.waypoints_detected_time = {}
 
         #### ROS SUBSCRIBERS ####
         self.get_phone_type_client()
@@ -93,7 +92,7 @@ class NavWaypoints(object):
         return True
 
     def map_frame_published_client(self):
-        # print "REQUESTING FIRST TAG"
+        # print "REQUESTING MAP FRAME PRECENSE"
         rospy.wait_for_service('map_frame_published')
         try:
             map_frame_published = rospy.ServiceProxy('map_frame_published', CheckMapFrame)
@@ -106,8 +105,16 @@ class NavWaypoints(object):
 
     def process_pose(self, msg):
         if self.origin_frame_presence:
-            self.listener.waitForTransform("map", "odom", msg.header.stamp, rospy.Duration(0.5))
-            self.curr_pose = self.listener.transformPose("map", msg)
+            try:
+                self.listener.waitForTransform("map", "odom", msg.header.stamp, rospy.Duration(0.5))
+                self.curr_pose = self.listener.transformPose("map", msg).pose
+                # print "CURRENT POSE COMPUTED"
+            except (tf.ExtrapolationException,
+                    tf.LookupException,
+                    tf.ConnectivityException,
+                    tf.Exception,
+                    ValueError) as e:
+                print "CURRENT POSE TRANSFORM TO MAP FRAME ERROR: " + str(e)
 
     @staticmethod
     def distance_formula(a, b):
@@ -115,16 +122,26 @@ class NavWaypoints(object):
                 a.position.z - b.position.z) ** 2)
 
     def query_nearby_waypoints(self, curr_pose):
+        waypoints_detected = []
         for waypoint in self.posegraph.waypoints_vertices.keys():
+            waypoint_id = self.posegraph.waypoints_vertices[waypoint].id
             waypoint_pose = convert_translation_rotation_to_pose(
                 self.posegraph.waypoints_vertices[waypoint].translation,
                 self.posegraph.waypoints_vertices[waypoint].rotation)
             distance = NavWaypoints.distance_formula(curr_pose, waypoint_pose)
             # if the distance is less than the previously set waypoint radius
             if distance < self.proximity_to_destination:
-                mesg = "Found %s" % waypoint + "distance to point: %f" % distance
-                print mesg  # print the waypoint was found
-                self.engine.say(mesg)  # have engine read out waypoint
+                print "DISTANCE TO %s: %f" % (waypoint_id, distance)  # print the waypoint was found
+                self.announce_waypoint(waypoint_id)
+                waypoints_detected.append(waypoint_id)
+        if not waypoints_detected:
+            print "NO WAYPOINTS DETECTED"
+
+    def announce_waypoint(self, waypoint_id):
+        if waypoint_id not in self.waypoints_detected_time.keys() or rospy.Time.now() - self.waypoints_detected_time[waypoint_id] > rospy.Duration(10):
+            mesg = waypoint_id
+            system('espeak "{}"'.format(mesg))
+            self.waypoints_detected_time[waypoint_id] = rospy.Time.now()
 
     def tag_callback(self, msg):
         """
@@ -151,25 +168,20 @@ class NavWaypoints(object):
             self.posegraph = pickle.load(data)  # pose graph that will be optimized
             print "POSE GRAPH LOADED. Ready to go."
 
-    def start_speech_engine(self):
-        """
-        Initialize the speech engine.
-        """
-        if not self.has_spoken:
-            self.engine.say("Starting up.")
-            self.engine.runAndWait()
-            self.engine.say("Welcome to Waypoints Detection Navigation")
-            self.engine.runAndWait()
-            self.has_spoken = True
+    def start_session(self):
+        while not self.origin_frame_presence:
+            self.map_frame_published_client()
+
+        if self.posegraph and self.curr_pose:  # if calibration_AR and recording
+            self.query_nearby_waypoints(self.curr_pose)
 
     def run(self):
         r = rospy.Rate(10)  # Attempts to run loop at 10 times per second
         print "Starting Up."
-        self.start_speech_engine()
+        system("espeak 'Welcome to Waypoints Detection Navigation'")
         self.load_pose_graph()
         while not rospy.is_shutdown():
-            if self.posegraph and self.origin_frame_presence:  # if calibration_AR and recording
-                self.query_nearby_waypoints(self.curr_pose)
+            self.start_session()
 
             if self.terminate_session:
                 break
