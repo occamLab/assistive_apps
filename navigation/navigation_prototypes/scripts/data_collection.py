@@ -46,7 +46,6 @@ class DataCollection(object):
         #### Tag Specific Parameters ####
         self.num_tags = num_tags
         self.pose_vertex_id = self.num_tags + 1  # starting vertex id for tango odometry data written to pose graph
-        self.test_data_count = 0  # key for recording test data to pose graph
         self.tags_detected = None  # List of tags seen at the moment
         self.tagtimes = {}
         for i in range(self.num_tags):
@@ -107,7 +106,7 @@ class DataCollection(object):
             service_resp = -1
         else:
             service_resp = self.tag_in_frame
-            #print "RETURNING TAG SERVICE:", service_resp
+            # print "RETURNING TAG SERVICE:", service_resp
         return service_resp
 
     def check_map_frame_service(self, req):
@@ -237,7 +236,6 @@ class DataCollection(object):
         # Only prompt user to input tag name once
         if not self.record_tag_vertex(tag, transformed_pose, self.transform_wait_time):
             print("AR_CALIBRATION: No tags recorded.")
-        self.record_test_data_tag(tag)
 
     def gather_transformation(self, frame1, time1, frame2, time2, wait_time):
         """
@@ -351,41 +349,6 @@ class DataCollection(object):
             self.record_pose_to_waypoint_edge(waypoint_id)
         self.Waypoint_Find_Try = False
 
-    def record_test_data_tag(self, tag):
-        try:
-            print("tried to record test tag")
-            if self.gather_transformation(self.origin_frame, tag.pose.header.stamp, "tag_" + str(tag.id),
-                                          tag.pose.header.stamp,
-                                          self.transform_wait_time):
-                (trans, rot) = self.listener.lookupTransform(self.origin_frame, "tag_" + str(tag.id),
-                                                             tag.pose.header.stamp)
-                self.pose_graph.add_test_data_tag(tag.id, trans, rot)
-                # print "RECORDED: test tag transformation"
-            else:
-                print "RECORD FAILURE: test tag transformation"
-
-        except (tf.ExtrapolationException,
-                tf.LookupException,
-                tf.ConnectivityException,
-                tf.Exception,
-                ValueError) as e:
-            print "TestTag Exception: " + str(e)
-
-    def record_test_data_path(self):
-        """
-        Record test data for comparing g2o optimized path with unoptimized path from phone odometry
-        """
-        time = self.listener.getLatestCommonTime("real_device", self.origin_frame)
-        if self.gather_transformation(self.origin_frame, time, "real_device", time,
-                                                            self.transform_wait_time):
-            (trans, rot) = self.listener.lookupTransformFull(self.origin_frame, time, "real_device", time,
-                                                             self.origin_frame)
-            self.pose_graph.add_test_data_path(self.test_data_count, trans, rot)
-            self.test_data_count += 1
-            # print "RECORD: path transformation"
-        else:
-            print "RECORD FAILURE: path from AR to real device"
-
     def determine_data_collection_mode(self):
         mode = raw_input("New data collection or continue with old data? 1/2")
         if mode == "1":
@@ -399,7 +362,6 @@ class DataCollection(object):
                 if self.pose_graph.origin_tag is not None:
                     self.origin_frame = self.map_frame
                 self.pose_vertex_id = max(self.pose_graph.odometry_vertices.keys()) + 1
-                self.test_data_count = max(self.pose_graph.test_data_path.keys()) + 1
                 print("Posegraph LOADED FOR DATA COLLECTION")
                 self.start_record_with_map_frame()
         else:
@@ -449,9 +411,6 @@ class DataCollection(object):
                 self.pose_failure_count += 1
                 self.last_record_time = self.curr_record_time
                 print "Pose failure count:", self.pose_failure_count
-
-            # Write Testing Data: path
-            self.record_test_data_path()
 
         except (tf.ExtrapolationException,
                 tf.LookupException,

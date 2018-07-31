@@ -137,8 +137,7 @@ class PoseGraph(object):
         self.num_tags = num_tags
         self.origin_tag = None  # First tag seen
         self.origin_tag_pose = None
-        self.supplement_tags = {}
-        self.waypoints = {}
+        self.supplement_tags = []
         self.waypoint_start_id = None
         self.waypoint_id_to_name = {}
         self.waypoint_x_offset = 0.01
@@ -157,17 +156,7 @@ class PoseGraph(object):
         self.visited_nodes = deque([])
 
         #### g2o parameters ####
-        self.package = RosPack().get_path('navigation_prototypes')
-        self.g2o_data_path = path.join(self.package, 'data/data_g2o/data.g2o')  # path to compiled g2o file
-        self.g2o_data_copy_path = path.join(self.package, 'data/data_g2o/data_cp.g2o')  # copy of the unedit data
-        self.g2o_result_path = path.join(self.package, 'data/data_g2o/result.g2o')
         self.optimization_cost = None
-
-        #### test data ####
-        self.test_tag_id = None
-        self.test_data_tag = {}
-        self.test_data_path = {}
-        self.testfile = path.join(self.package, 'data/data_g2o/naive.txt')
 
     def add_odometry_vertices(self, id, trans, rot, fix_status):
         self.odometry_vertices[id] = Vertex(id, trans, rot, "odometry", fix_status)
@@ -185,11 +174,11 @@ class PoseGraph(object):
             self.origin_tag_pose = transformed_pose  # make this tag the origin tag
             self.tag_vertices[id] = Vertex(id, trans, rot, "tag", True)
             print "AR_CALIBRATION: Origin Tag Found: " + str(id)
-        elif not (id == self.origin_tag or id in self.supplement_tags.keys()):
-            self.supplement_tags[id] = transformed_pose  # set new supplemental AR Tag
+        elif not (id == self.origin_tag or id in self.supplement_tags):
+            self.supplement_tags.append(id) # set new supplemental AR Tag
             self.tag_vertices[id] = Vertex(id, trans, rot, "tag", False)
             print "AR_CALIBRATION: Supplementary Tag Found: " + str(id)
-            print(self.supplement_tags.keys())
+            print(self.supplement_tags)
         elif id == self.origin_tag:
             self.origin_tag_pose = transformed_pose  # Reset the origin tag
             print "AR_CALIBRATION: Origin Tag Refound: " + str(id)
@@ -204,10 +193,9 @@ class PoseGraph(object):
 
     def add_waypoint_vertices(self, id, curr_pose):
         if id not in self.waypoints_vertices.keys():
-            self.waypoints[id] = curr_pose  # store the pose of waypoint
             self.waypoints_vertices[id] = Vertex(id, list(curr_pose.translation), list(curr_pose.rotation), "waypoint")
             print "AR_CALIBRATION: Waypoint Found: " + str(id)
-            print(self.waypoints.keys())
+            print self.waypoints_vertices.keys()
             return self.waypoints_vertices[id]
         else:
             print "AR_CALIBRATION: Found Old Waypoint: " + str(id)
@@ -290,12 +278,6 @@ class PoseGraph(object):
             return True
         else:
             return False
-
-    def add_test_data_tag(self, id, trans, rot):
-        self.test_data_tag[id] = trans + rot
-
-    def add_test_data_path(self, id, trans, rot):
-        self.test_data_path[id] = trans + rot
 
     def initialize_nodes(self, vertices):
         for vertex in vertices.keys():
@@ -407,31 +389,25 @@ class PoseGraph(object):
         """
         Write to g2o data file
         """
-        with open(self.g2o_data_path, 'wb') as g2o_data:
+        package = RosPack().get_path('navigation_prototypes')
+        g2o_data_path = path.join(package, 'data/data_g2o/data.g2o')  # path to compiled g2o file
+        with open(g2o_data_path, 'wb') as g2o_data:
             PoseGraph.write_g2o_vertices(g2o_data, self.odometry_vertices, self.tag_vertices, self.waypoints_vertices)
             PoseGraph.write_g2o_edges(g2o_data, self.odometry_edges, self.odometry_tag_edges,
                                       self.odometry_waypoints_edges)
         print "g2o data has wrote to file"
-
-    def write_g2o_test_data(self):
-        """
-        Write to g2o test data
-        """
-        with open(self.testfile, 'wb') as g2o_test_data:
-            for tags in self.test_data_tag.values():
-                g2o_test_data.write("TAG %f %f %f %f %f %f %f\n" % tuple(tags))
-            for paths in self.test_data_path.values():
-                g2o_test_data.write("PATH %f %f %f %f %f %f %f\n" % tuple(paths))
-            print "test data has wrote to file"
 
     def optimize_pose(self):
         """
         Run g2o
         """
         self.write_g2o_data()
-        self.write_g2o_test_data()
-        system("g2o -o %s %s" % (self.g2o_result_path, self.g2o_data_path))  # Run G2o
-        system("cp %s %s" % (self.g2o_data_path, self.g2o_data_copy_path))  # Copy Original Data
+        package = RosPack().get_path('navigation_prototypes')
+        g2o_data_path = path.join(package, 'data/data_g2o/data.g2o')  # path to compiled g2o file
+        g2o_data_copy_path = path.join(package, 'data/data_g2o/data_cp.g2o')  # copy of the unedit data
+        g2o_result_path = path.join(package, 'data/data_g2o/result.g2o')
+        system("g2o -o %s %s" % (g2o_result_path, g2o_data_path))  # Run G2o
+        system("cp %s %s" % (g2o_data_path, g2o_data_copy_path))  # Copy Original Data
         print "OPTIMIZATION COMPLETED"
 
     def remove_dummy_nodes_edges(self):
