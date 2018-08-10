@@ -20,7 +20,7 @@ import time
 
 import numpy as np
 from numpy.random import random_sample
-from sklearn.neighbors import NearestNeighbors
+# from sklearn.neighbors import NearestNeighbors
 
 def convert_translation_rotation_to_pose(translation, rotation):
     """ Convert from representation of a pose as translation and rotation (Quaternion) tuples to a geometry_msgs/Pose message """
