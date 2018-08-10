@@ -66,6 +66,6 @@ class PickleJson:
         self.storage.child(self.firebase_filename).put(self.filename)
 
 if __name__ == "__main__":
-    converter = PickleJson('data.json', 'map.json')
+    converter = PickleJson('data.json', 'milas_hall.json')
     converter.create_json_file()
     converter.push_to_firebase()

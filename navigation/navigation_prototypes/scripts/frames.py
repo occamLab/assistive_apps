@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import rospy
-from rospkg import RosPack
 import tf
 import tf2_ros
 from std_msgs.msg import Header
@@ -10,7 +9,6 @@ from navigation_prototypes.srv import CheckMapFrame
 from navigation_prototypes.srv import TagSeen
 
 import pickle
-from os import path
 from helper_functions import (convert_pose_inverse_transform,
                               convert_translation_rotation_to_pose)
 from optimization import Optimization

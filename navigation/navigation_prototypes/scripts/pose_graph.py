@@ -1,3 +1,28 @@
+#!/usr/bin/env python
+
+"""
+Data Collection Module for recording data streamed from a phone to construct a pose graph of phone and landmarks positions
+at multiple time steps.
+
+by Sherrie Shen, 2018
+
+Last Modified August, 2018
+
+This script will:
+- Communicate with Frames class defined in frames.py for broadcasting necessary frames in the tf tree.
+- Record data streamed from a phone to construct a pose graph as defined in pose_graph.py
+- Record data to a new data file
+- Record positions of phone at different time steps as vertices in pose graph.
+- Record positions of each april tag seen as vertices in pose graph.
+- Record positions of each waypoints as vertices in pose graph.
+- Record transformations between consecutive phone positions at two consecutive time stamp as edges.
+- Record transformations between phone position and a tag position each time a tag is seen as edges.
+- Record transformations between phone position and a waypoint position each time a waypoint is seen as edges.
+- Store the data as a pickle file in data/raw_data folder. The default file is named as data_collection.pkl and a copy
+of the file is user named.
+
+"""
+
 from collections import OrderedDict
 from tf.transformations import quaternion_from_euler, quaternion_multiply, quaternion_matrix
 from os import path, system
@@ -120,7 +145,7 @@ class Edge(object):
         Write to g2o for recorded edges
         """
         return datatype + "%i %i %f %f %f %f %f %f %f" % tuple(
-                [self.start.id, self.end.id] + self.translation + self.rotation)
+            [self.start.id, self.end.id] + self.translation + self.rotation)
 
     def write_to_g2o_importance(self):
         importance_uppertri = Edge.convert_matrix_uppertri_list(self.importance_matrix, 6)
@@ -169,13 +194,14 @@ class PoseGraph(object):
         return self.odometry_edges[v_start.id][v_end.id]
 
     def add_tag_vertices(self, id, trans, rot, transformed_pose):
+
         if self.origin_tag is None:
             self.origin_tag = id
             self.origin_tag_pose = transformed_pose  # make this tag the origin tag
             self.tag_vertices[id] = Vertex(id, trans, rot, "tag", True)
             print "AR_CALIBRATION: Origin Tag Found: " + str(id)
         elif not (id == self.origin_tag or id in self.supplement_tags):
-            self.supplement_tags.append(id) # set new supplemental AR Tag
+            self.supplement_tags.append(id)  # set new supplemental AR Tag
             self.tag_vertices[id] = Vertex(id, trans, rot, "tag", False)
             print "AR_CALIBRATION: Supplementary Tag Found: " + str(id)
             print(self.supplement_tags)
@@ -214,12 +240,13 @@ class PoseGraph(object):
         for waypoint in self.waypoints_vertices.keys():
             new_trans = list(self.waypoints_vertices[waypoint].translation)
             new_trans[0] += self.waypoint_x_offset
-            self.waypoints_vertices[waypoint].translation = list(new_trans) # add 1cm offset o waypoint position
+            self.waypoints_vertices[waypoint].translation = list(new_trans)  # add 1cm offset o waypoint position
 
     def add_odometry_waypoint_edges(self, v_odom, v_waypoints):
         if v_waypoints not in self.odometry_waypoints_edges.keys():
             self.odometry_waypoints_edges[v_waypoints.id] = {}
-        self.odometry_waypoints_edges[v_waypoints.id][v_odom.id] = Edge(v_odom, v_waypoints, [self.waypoint_x_offset, 0, 0], [0, 0, 0, 1])
+        self.odometry_waypoints_edges[v_waypoints.id][v_odom.id] = Edge(v_odom, v_waypoints,
+                                                                        [self.waypoint_x_offset, 0, 0], [0, 0, 0, 1])
         return self.odometry_waypoints_edges[v_waypoints.id][v_odom.id]
 
     def add_damping(self, curr_pose):
@@ -320,6 +347,11 @@ class PoseGraph(object):
             self.add_nodes_to_graph(start_node, neighbour_node)
 
     def bfs(self, source):
+        """
+
+        :param source:
+        :return:
+        """
         self.visited_nodes = deque([])
         self.visited_nodes.append(source)
         node_queue = deque([])
@@ -340,6 +372,12 @@ class PoseGraph(object):
             return False
 
     def remove_unconnected_portion(self, vertices, edges):
+        """
+
+        :param vertices:
+        :param edges:
+        :return:
+        """
         for vertex_id in vertices.keys():
             if vertex_id not in self.visited_nodes:
                 print "DELETE VERTEX:", vertex_id
@@ -350,11 +388,20 @@ class PoseGraph(object):
                     del edges[vertex_id - 1]
 
     def update_posegraph(self):
+        """
+
+        :return:
+        """
         self.remove_unconnected_portion(self.odometry_vertices, self.odometry_edges)
         self.remove_unconnected_portion(self.tag_vertices, self.odometry_tag_edges)
         self.remove_unconnected_portion(self.waypoints_vertices, self.odometry_waypoints_edges)
 
     def process_graph(self, source_node):
+        """
+
+        :param source_node:
+        :return:
+        """
         self.construct_graph()
         self.bfs(source_node)
         self.update_posegraph()
@@ -365,6 +412,12 @@ class PoseGraph(object):
 
     @staticmethod
     def write_g2o_vertices(data_file, *vertices_list):
+        """
+
+        :param data_file:
+        :param vertices_list:
+        :return:
+        """
         for vertices in vertices_list:
             for id in vertices.keys():
                 data = vertices[id].write_to_g2o()
@@ -419,7 +472,14 @@ class PoseGraph(object):
                 if self.odometry_edges[start_id][end_id].damping_status is True:
                     del self.odometry_edges[start_id][end_id]
 
-    def optimize_pose_without_tags_dummy_nodes(self, tags_flag=False, waypoint_flag = False, dummy_nodes_flag=False):
+    def optimize_pose_without_landmarks_dummy_nodes(self, tags_flag=False, waypoint_flag=False, dummy_nodes_flag=False):
+        """
+        Help debug optimization result by choosing which nodes to optimize.
+        :param tags_flag: Flag to indicate whether
+        :param waypoint_flag:
+        :param dummy_nodes_flag:
+        :return:
+        """
         if tags_flag:
             self.tag_vertices = {}
             self.odometry_tag_edges = {}
@@ -428,4 +488,3 @@ class PoseGraph(object):
         if waypoint_flag:
             self.waypoints_vertices = {}
             self.odometry_waypoints_edges = {}
-

@@ -1,5 +1,38 @@
 #!/usr/bin/env python
 
+"""
+Data Collection Module for recording data streamed from a phone to construct a pose graph of phone and landmarks positions
+at multiple time steps.
+
+by Sherrie Shen & Daniel Connolly, 2018
+
+Last Modified August, 2018
+
+This script will:
+- Communicate with Frames class defined in frames.py for broadcasting necessary frames in the tf tree.
+- Record data streamed from a phone to construct a pose graph as defined in pose_graph.py
+- Record data to a new data file
+- Record positions of phone at different time steps as vertices in pose graph.
+- Record positions of each april tag seen as vertices in pose graph.
+- Record positions of each waypoints as vertices in pose graph.
+- Record transformations between consecutive phone positions at two consecutive time stamp as edges.
+- Record transformations between phone position and a tag position each time a tag is seen as edges.
+- Record transformations between phone position and a waypoint position each time a waypoint is seen as edges.
+- Store the data as a pickle file in data/raw_data folder. The default file is named as data_collection.pkl and a copy
+of the file is user named.
+
+
+To use:
+- Open Terminal, run the code below:
+
+roslaunch navigation_prototypes data_collection.py
+Press "a" in the Ros keyboard input to start collecting data.
+Type:
+- 1 in the terminal window for starting a new data collection
+- 2 in the terminal window for continue recording to a previous data collection
+
+"""
+
 import rospy
 from rospkg import RosPack
 from geometry_msgs.msg import PoseStamped
@@ -16,62 +49,72 @@ from pose_graph import PoseGraph, Vertex, Edge
 
 
 class DataCollection(object):
+    """
+        The DataCollection class, the main class of this script, calls methods defined in pose graph to construct the
+        pose graph from streamed data.
+        """
 
     def __init__(self, filename, num_tags=587):
         rospy.init_node('data_collection')  # Initialization of another node.
-        self.package = RosPack().get_path('navigation_prototypes')  # Directory for this ros package
-        self.data_folder = path.join(self.package, 'data/raw_data')
-        self.filename = filename
+        self.package = RosPack().get_path('navigation_prototypes')  # Directory of ros package for this script
+        self.data_folder = path.join(self.package, 'data/raw_data')  # Folder where the result will be stored.
+        self.filename = filename  # Name of the file to start/continue recording and store the recorded data.
+        # set filename as a parameter such that the Frames class would load the same file
         rospy.set_param('posegraph_filename', path.join(self.data_folder, self.filename))
 
-        #### Transform Parameters ####
+        """ Transformation Parameters """
         self.listener = tf.TransformListener()  # The transform listener
         self.broadcaster = tf.TransformBroadcaster()  # The transform broadcaster
         self.odom_frame = "odom"
         self.map_frame = "map"
-        self.origin_frame = self.odom_frame
+        self.origin_frame = self.odom_frame  # Default origin frame is the odom frame assuming new data collection
 
-        #### Data Collection Parameters ####
-        self.record_interval = rospy.Duration(.1)  # Interval of time between recording normally
-        self.tag_record_duration = rospy.Duration(0.025)
-        self.transform_wait_time = rospy.Duration(0.5)
+        """Data Collection Parameters"""
+        self.record_interval = rospy.Duration(.1)  # Interval of time between recording
+        self.tag_record_duration = rospy.Duration(
+            0.025)  # Interval of time between recording the transformation between phone postion and tag position
+        self.transform_wait_time = rospy.Duration(0.5)  # Time duration to wait for an available transform.
+        self.pose_failure_wait_time = rospy.Duration(1)  # Time duration threshold to signify a pose failure
         self.curr_record_time = None
         self.last_record_time = None
         self.pose_failure = False
-        self.curr_pose = None  # current pose of the tango
+        self.curr_pose = None  # Current pose of the tango
         self.last_pose = None
         self.pose_failure_count = 0
 
-        #### Tag Specific Parameters ####
+        """ Tag Specific Parameters"""
         self.num_tags = num_tags
-        self.pose_vertex_id = self.num_tags + 1  # starting vertex id for tango odometry data written to pose graph
+        self.pose_vertex_id = self.num_tags + 1  # Starting vertex id for odometry data
         self.tags_detected = None  # List of tags seen at the moment
-        self.tagtimes = {}
+        self.tagtimes = {}  #
         for i in range(self.num_tags):
             self.tagtimes[i] = rospy.Time(1)
         self.tag_in_frame = None
 
-        #### Data Collection Mode ####
-        self.AR_calibration = False
-        self.origin_frame_presence = False
-        self.AR_Find_Try = False
-        self.Waypoint_Find_Try = False
+        """ Data Collection Mode """
+        self.AR_calibration = False  # Boolean for starting data collection
+        self.origin_frame_presence = False  # Boolean to check whether the origin frame is available on tf tree
+        self.AR_Find_Try = False  # Boolean for recording a tag vertex
+        self.Waypoint_Find_Try = False  # Boolean for recording a waypoint vertex
         self.recording = False  # Boolean for recording
         self.data_saved = False  # Boolean for indicating data saved
 
-        #### Pose Graph ####
+        """ Pose Graph """
         self.pose_graph = PoseGraph(self.num_tags)
 
-        #### ROS SUBSCRIBERS ####
-        self.get_phone_type_client()
+        """ ROS Service & Subscribers """
+        self.phone = None  # Type of phone used
+        self.get_phone_type_client()  # Determine the type of used for data collection
         self.determine_subscribed_topics_from_phone_type()
-        rospy.Subscriber('/keyboard/keydown', Key, self.key_pressed)  # Subscriber for the keyboard information.
-
-        #### ROS Service ####
-        rospy.Service('tag_seen', TagSeen, self.tag_seen_service)
-        rospy.Service('check_map_frame', CheckMapFrame, self.check_map_frame_service)
+        rospy.Subscriber('/keyboard/keydown', Key, self.key_pressed)
+        rospy.Service('tag_seen', TagSeen, self.tag_seen_service)  # Current tag in frame
+        rospy.Service('check_map_frame', CheckMapFrame, self.check_map_frame_service)  # Name of origin frame
 
     def determine_subscribed_topics_from_phone_type(self):
+        """
+        Determine Ros topic to subscribe to for streaming data from phone and April Tag Detection
+        :return: None
+        """
         print "PHONE: ", self.phone
         if self.phone == "iPhone":
             ''' For use with the iPhone: '''
@@ -87,7 +130,11 @@ class DataCollection(object):
                              self.tag_callback)
 
     def get_phone_type_client(self):
-        print "CALLING THE SERVICE"
+        """
+        Determine the type of phone used for Data Collection
+        :return: None
+        """
+        print "CALLING THE SERVICE FOR PHONE TYPE"
         rospy.wait_for_service('/phone_type')
         try:
             get_phone_type = rospy.ServiceProxy('/phone_type', phone)
@@ -97,22 +144,29 @@ class DataCollection(object):
 
     def tag_seen_service(self, req):
         """
-        Ros service responsible for offering the id of current april tags detected.
+        Ros service responsible for offering the id of current detected april tag.
         :param req: None
-        :return: if of current april tags detected
+        :return: id of current detected tag
         """
         if self.tag_in_frame is None:
             service_resp = -1
         else:
             service_resp = self.tag_in_frame
-            # print "RETURNING TAG SERVICE:", service_resp
         return service_resp
 
     def check_map_frame_service(self, req):
+        """
+        Ros service responsible for checking if the origin frame is the map frame or odom frame.
+        :param req: None
+        :return: True if origin frame is map frame. False if origin frame is odom frame.
+        """
         return self.origin_frame == self.map_frame
 
     def map_frame_published_client(self):
-        # print "REQUESTING FIRST TAG"
+        """
+        Check presence of map frame when continue recording from a previous dataset.
+        :return: None
+        """
         rospy.wait_for_service('map_frame_published')
         try:
             map_frame_published = rospy.ServiceProxy('map_frame_published', CheckMapFrame)
@@ -125,11 +179,17 @@ class DataCollection(object):
 
     def process_pose(self, msg):
         """
-        Process received tango pose and process pose for waypoints recognition
+        Process received tango pose.
+        :param msg: Pose stamped message
         """
         self.compute_distance_traveled(msg)
 
     def compute_distance_traveled(self, msg):
+        """
+        Compute 3D distance of phone movement.
+        :param msg: Pose stamped message
+        :return: None
+        """
         if self.AR_calibration:
             if self.last_pose:
                 new_pose = msg.pose.position
@@ -142,7 +202,9 @@ class DataCollection(object):
 
     def key_pressed(self, msg):
         """
-        This is the callback function for the ROS keyboard.  The msg.code here returns the ord's of what's pressed.
+        This is the callback function for ROS keyboard input.
+        :param msg: Keyboard Events
+        :return: None
         """
 
         if msg.code == ord('t'):  # when user presses t
@@ -159,7 +221,7 @@ class DataCollection(object):
 
         if msg.code == ord('a'):  # When user presses a
             """
-            Turn on AR_Calibration (start and stop data collection.) for new data collection.
+            Toggle AR_Calibration (start and stop data collection.) for data collection.
             """
             self.AR_calibration = not self.AR_calibration  # Toggle calibration_AR
             if self.AR_calibration:  # If AR Calibration just turned on,
@@ -173,7 +235,7 @@ class DataCollection(object):
 
         if msg.code == ord('s'):
             """
-            Save Everything.
+            Pickle pose graph.
             """
             if not self.recording:
                 self.tag_in_frame = None
@@ -189,20 +251,26 @@ class DataCollection(object):
 
     def tag_callback(self, msg):
         """
-        Process tag
+        This is the callback function for tag detection
+        :param msg: Tag stamped message
+        :return: None
         """
         # Processes the april tags currently in Tango's view.
         self.tags_detected = None  # Initialize tags_detected
-        if msg.detections:  # if a tag is detected
+        if msg.detections:
             self.tags_detected = msg.detections  # save the detected tags
             # get first tag (assume only 1 tag for the most part, if not then this code will just choose one.)
             curr_tag = msg.detections[0]
             self.tag_in_frame = curr_tag.id
             if self.origin_frame_presence:
                 self.process_current_tag(curr_tag)
-        self.AR_Find_Try = False  # Finish trying to find a tag.
+        self.AR_Find_Try = False  # Finish recording a tag vertex.
 
     def process_current_tag(self, curr_tag):
+        """
+        :param curr_tag: 
+        :return:
+        """
         if self.gather_transformation(curr_tag.pose.header.frame_id, curr_tag.pose.header.stamp, self.origin_frame,
                                       curr_tag.pose.header.stamp,
                                       self.transform_wait_time):
@@ -220,6 +288,12 @@ class DataCollection(object):
             print "TRANSFORM FAILURE: from tag to odom in tag callback"
 
     def record_tag_in_frame(self, tag, transformed_pose):
+        """
+
+        :param tag:
+        :param transformed_pose:
+        :return:
+        """
         print "AR_CALIBRATION: executing a find try", tag.id
         # Only prompt user to input tag name once
         if not self.record_tag_vertex(tag, transformed_pose, self.transform_wait_time):
@@ -228,6 +302,12 @@ class DataCollection(object):
     def gather_transformation(self, frame1, time1, frame2, time2, wait_time):
         """
         Check availability of transformation for given frames
+        :param frame1:
+        :param time1:
+        :param frame2:
+        :param time2:
+        :param wait_time:
+        :return:
         """
         self.listener.waitForTransformFull(frame1, time1, frame2, time2, self.origin_frame, wait_time)
         return self.listener.canTransformFull(frame1, time1, frame2, time2, self.origin_frame)
@@ -236,6 +316,8 @@ class DataCollection(object):
         """
         Record vertex for current position to pose graph
         Record vertex, edge and importance matrix to pose graph for reducing damping
+        :param wait_time:
+        :return:
         """
         self.curr_record_time = self.listener.getLatestCommonTime("real_device", self.origin_frame)
         if self.gather_transformation(self.origin_frame, self.curr_record_time, "real_device", self.curr_record_time,
@@ -273,6 +355,11 @@ class DataCollection(object):
             return False
 
     def record_waypoint_vertex(self, waypoint_id):
+        """
+
+        :param waypoint_id:
+        :return:
+        """
         self.pose_graph.add_waypoint_vertices(waypoint_id, self.curr_pose)
         print ("RECORD VERTEX: waypoint" + waypoint_id)
 
@@ -284,7 +371,7 @@ class DataCollection(object):
                                       wait_time):
             (trans, rot) = self.listener.lookupTransformFull("real_device", self.last_record_time, "real_device",
                                                              self.curr_record_time, self.origin_frame)
-            if self.curr_record_time - self.last_record_time > rospy.Duration(1):
+            if self.curr_record_time - self.last_record_time > self.pose_failure_wait_time:
                 self.pose_failure = True
                 print "POSE FAILURE: Most recent transform time is too far from current time"
             if not self.pose_failure:  # set edge importance to 1
@@ -335,6 +422,7 @@ class DataCollection(object):
             waypoint_id = raw_input("What do you want to name this waypoint with?")
             self.record_waypoint_vertex(waypoint_id)
             self.record_pose_to_waypoint_edge(waypoint_id)
+            self.curr_record_time = self.listener.getLatestCommonTime("real_device", self.origin_frame)
         self.Waypoint_Find_Try = False
 
     def determine_data_collection_mode(self):

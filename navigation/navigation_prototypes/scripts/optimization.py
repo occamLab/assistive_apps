@@ -21,7 +21,7 @@ Dependencies:
 matplotlib: https://matplotlib.org
 
 To use:
-- Open Terminal and run the code below:
+- Open Terminal, change the filename to the data that needs to be optimized,  run the code below:
 
 rosrun navigation_prototypes optimization.py
 
@@ -40,7 +40,6 @@ from helper_functions import (convert_pose_inverse_transform,
                               convert_translation_rotation_to_pose)
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d.axes3d as p3
-import seaborn as sns
 
 
 class Optimization:
@@ -52,16 +51,15 @@ class Optimization:
     def __init__(self, filename):
         self.package = RosPack().get_path('navigation_prototypes')
         self.raw_data_folder = path.join(self.package, 'data/raw_data')
-        self.processed_data_folder = path.join(self.package, 'data/processed_data')
         self.optimized_data_folder = path.join(self.package, 'data/optimized_data')
         with open(path.join(self.raw_data_folder, filename), 'rb') as data:
             self.posegraph = pickle.load(data)  # pose graph that will be optimized
         with open(path.join(self.raw_data_folder, filename), 'rb') as data:
             data.seek(0)  # place the handler to the beginning of the pickle file
             self.unoptimzied_posegraph = pickle.load(data)
-        self.g2o_result_path = self.posegraph.g2o_result_path
+        self.g2o_result_path = path.join(self.package, 'data/data_g2o/result.g2o')
 
-        #### Interpretation of optimized data ####
+        """Interpretation of Optimized Data (Plotting)"""
         self.optimized_pose = None
         self.unoptimized_pose = None
         self.optimized_tag = None
@@ -76,16 +74,20 @@ class Optimization:
         self.index_to_waypoint_conversion = {}
 
     def g2o(self, debug_flag=False):
+        """
+        Process pose graph with breath first search algorithm traversing from the first tag seen to delete disconnected
+        portion.
+        Optimize pose graph with g2o optimization.
+        :param debug_flag: Flag to debug optimization error by turning on and off dummy and landmark nodes.
+        :return: None
+        """
         if debug_flag:
-            self.posegraph.optimize_pose_without_tags_dummy_nodes(tags_flag=False, waypoint_flag=True,
-                                                                  dummy_nodes_flag=False)
+            self.posegraph.optimize_pose_without_landmarks_dummy_nodes(tags_flag=False, waypoint_flag=True,
+                                                                       dummy_nodes_flag=False)
             source_node = self.posegraph.odometry_vertices[self.posegraph.num_tags + 1].id  # traverse from first pose
         else:
             source_node = self.posegraph.origin_tag  # traverse from first tag seen
         self.posegraph.process_graph(source_node)
-        with open(path.join(self.processed_data_folder, "data_processed.pkl"), 'wb') as f:
-            pickle.dump(self.posegraph, f)
-            print "PROCESSED POSE GRAPH SAVED"
         self.posegraph.optimize_pose()
 
     @staticmethod
@@ -98,24 +100,36 @@ class Optimization:
 
     @staticmethod
     def update_transformation(dataset, id, translation, rotation):
+        """
+        Helper function that updates the transform of a node or edge given a certain dataset.
+        :param dataset: input dataset
+        :param id: id of the node or key of the edge
+        :param translation: translation of a node or edge
+        :param rotation: rotation in quaternions of a node or edge
+        :return: None
+        """
         dataset[id].translation = translation
         dataset[id].rotation = rotation
 
     def update_vertices(self):
+        """
+        Update the vertices in pose graph from g2o optimization.
+        :return: None
+        """
         with open(self.g2o_result_path, 'rb') as g2o_result:
             for line in g2o_result:
                 if line.startswith("VERTEX_SE3:QUAT "):
                     line = line.strip().split()
                     translation = [float(data) for data in line[2:5]]
                     rotation = [float(data) for data in line[5:9]]
-                    if int(line[1]) <= self.posegraph.num_tags:
+                    if int(line[1]) <= self.posegraph.num_tags: # update tags
                         id = int(line[1])
                         Optimization.update_transformation(self.posegraph.tag_vertices, id, translation, rotation)
-                    elif self.posegraph.num_tags < int(line[1]) < self.posegraph.waypoint_start_id:
+                    elif self.posegraph.num_tags < int(line[1]) < self.posegraph.waypoint_start_id: # update odometry
                         id = int(line[1])
                         Optimization.update_transformation(self.posegraph.odometry_vertices, id, translation, rotation)
                     else:
-                        id = self.posegraph.waypoint_id_to_name[int(line[1])]
+                        id = self.posegraph.waypoint_id_to_name[int(line[1])] # update waypoints
                         Optimization.update_transformation(self.posegraph.waypoints_vertices, id, translation, rotation)
                         self.posegraph.waypoints_vertices[id].id = id  # map waypoint id back to name
 
@@ -397,6 +411,5 @@ class Optimization:
 
 
 if __name__ == "__main__":
-    # process = Optimization("tangodata07.27.2018.11.00.pkl")
     process = Optimization("data_collected.pkl")
     process.run()

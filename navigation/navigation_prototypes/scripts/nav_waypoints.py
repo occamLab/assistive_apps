@@ -33,7 +33,7 @@ class NavWaypoints(object):
         self.origin_frame_presence = False
         self.tag_in_frame = None
         self.curr_pose = None
-        self.proximity_to_destination = 3
+        self.proximity_to_destination = 1.5
         self.terminate_session = False
         self.waypoints_detected_time = {}
 
@@ -192,5 +192,5 @@ class NavWaypoints(object):
 
 
 if __name__ == "__main__":
-    navigation = NavWaypoints("data_optimized.pkl")
+    navigation = NavWaypoints("library_data_optimized.pkl")
     navigation.run()
