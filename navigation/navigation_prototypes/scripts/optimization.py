@@ -30,6 +30,7 @@ from pose_graph import PoseGraph, Vertex, Edge
 import pickle
 from os import path
 import numpy as np
+import math as math
 from rospkg import RosPack
 import rospy
 import geometry_msgs.msg
@@ -48,16 +49,20 @@ class Optimization:
     the pose graph and parses the result
     """
 
-    def __init__(self, filename):
+    def __init__(self, filename, analyze=False):
         self.package = RosPack().get_path('navigation_prototypes')
         self.raw_data_folder = path.join(self.package, 'data/raw_data')
+        self.analyzed_data_folder = path.join(self.package, 'data/analyzed_data')
         self.optimized_data_folder = path.join(self.package, 'data/optimized_data')
-        with open(path.join(self.raw_data_folder, filename), 'rb') as data:
-            self.posegraph = pickle.load(data)  # pose graph that will be optimized
-        with open(path.join(self.raw_data_folder, filename), 'rb') as data:
-            data.seek(0)  # place the handler to the beginning of the pickle file
-            self.unoptimzied_posegraph = pickle.load(data)
         self.g2o_result_path = path.join(self.package, 'data/data_g2o/result.g2o')
+
+        if analyze:
+            self.input_data = path.join(self.analyzed_data_folder, filename)
+        else:
+            self.input_data = path.join(self.raw_data_folder, filename)
+
+        self.posegraph = None
+        self.unoptimzied_posegraph = None
 
         """Interpretation of Optimized Data (Plotting)"""
         self.optimized_pose = None
@@ -73,6 +78,13 @@ class Optimization:
         self.index_to_tag_conversion = {}
         self.index_to_waypoint_conversion = {}
 
+    def load_pose_graph(self):
+        with open(self.input_data, 'rb') as data:
+            self.posegraph = pickle.load(data)  # pose graph that will be optimized
+        with open(self.input_data, 'rb') as data:
+            data.seek(0)  # place the handler to the beginning of the pickle file
+            self.unoptimzied_posegraph = pickle.load(data)
+
     def g2o(self, debug_flag=False):
         """
         Process pose graph with breath first search algorithm traversing from the first tag seen to delete disconnected
@@ -81,6 +93,7 @@ class Optimization:
         :param debug_flag: Flag to debug optimization error by turning on and off dummy and landmark nodes.
         :return: None
         """
+        self.load_pose_graph()
         if debug_flag:
             self.posegraph.optimize_pose_without_landmarks_dummy_nodes(tags_flag=False, waypoint_flag=True,
                                                                        dummy_nodes_flag=False)
@@ -122,14 +135,14 @@ class Optimization:
                     line = line.strip().split()
                     translation = [float(data) for data in line[2:5]]
                     rotation = [float(data) for data in line[5:9]]
-                    if int(line[1]) <= self.posegraph.num_tags: # update tags
+                    if int(line[1]) <= self.posegraph.num_tags:  # update tags
                         id = int(line[1])
                         Optimization.update_transformation(self.posegraph.tag_vertices, id, translation, rotation)
-                    elif self.posegraph.num_tags < int(line[1]) < self.posegraph.waypoint_start_id: # update odometry
+                    elif self.posegraph.num_tags < int(line[1]) < self.posegraph.waypoint_start_id:  # update odometry
                         id = int(line[1])
                         Optimization.update_transformation(self.posegraph.odometry_vertices, id, translation, rotation)
                     else:
-                        id = self.posegraph.waypoint_id_to_name[int(line[1])] # update waypoints
+                        id = self.posegraph.waypoint_id_to_name[int(line[1])]  # update waypoints
                         Optimization.update_transformation(self.posegraph.waypoints_vertices, id, translation, rotation)
                         self.posegraph.waypoints_vertices[id].id = id  # map waypoint id back to name
 
@@ -170,28 +183,24 @@ class Optimization:
     @staticmethod
     def compute_new_edges_math(edges):
         for id in edges.keys():
-            if not edges[id].damping_status:
-                # write start vertex as a transformation
-                start_trans = edges[id].start.translation
-                start_rot = edges[id].start.rotation
-                start_pose = convert_translation_rotation_to_pose(start_trans, start_rot)
-                start_trans_inv, start_rot_inv = convert_pose_inverse_transform(start_pose)
-                start_transformation = quaternion_matrix(start_rot_inv)
-                start_transformation[:-1, -1] = np.array(start_trans_inv).T
-                # write end vertex as a transformation
-                end_trans = edges[id].end.translation
-                end_rot = edges[id].end.rotation
-                end_transformation = quaternion_matrix(end_rot)
-                end_transformation[:-1, -1] = np.array(end_trans).T
-                # compute transformation between two vertices
-                start_end_transformation = np.matmul(end_transformation, start_transformation)
-                translation = translation_from_matrix(start_end_transformation)
-                rotation = quaternion_from_matrix(start_end_transformation)
-                edges[id].translation_computed = list(translation)
-                edges[id].rotation_computed = list(rotation)
-            else:
-                edges[id].translation_computed = [0, 0, 0]
-                edges[id].rotation_computed = [0, 0, 0, 1]
+            # write start vertex as a transformation
+            start_trans = edges[id].start.translation
+            start_rot = edges[id].start.rotation
+            start_pose = convert_translation_rotation_to_pose(start_trans, start_rot)
+            start_trans_inv, start_rot_inv = convert_pose_inverse_transform(start_pose)
+            start_transformation = quaternion_matrix(start_rot_inv)
+            start_transformation[:-1, -1] = np.array(start_trans_inv).T
+            # write end vertex as a transformation
+            end_trans = edges[id].end.translation
+            end_rot = edges[id].end.rotation
+            end_transformation = quaternion_matrix(end_rot)
+            end_transformation[:-1, -1] = np.array(end_trans).T
+            # compute transformation between two vertices
+            start_end_transformation = np.matmul(end_transformation, start_transformation)
+            translation = translation_from_matrix(start_end_transformation)
+            rotation = quaternion_from_matrix(start_end_transformation)
+            edges[id].translation_computed = list(translation)
+            edges[id].rotation_computed = list(rotation)
 
     def compute_all_new_edges_math(self):
         for odom_start_id in self.posegraph.odometry_edges.keys():
@@ -218,20 +227,16 @@ class Optimization:
     @staticmethod
     def compute_new_edges_transformer(edges):
         for id in edges.keys():
-            if not edges[id].damping_status:
-                transform = tf.Transformer(True, rospy.Duration(10))
-                start_trans = edges[id].start.translation
-                start_rot = edges[id].start.rotation
-                end_trans = edges[id].end.translation
-                end_rot = edges[id].end.rotation
-                Optimization.write_transform_stamped_msg(transform, "start", start_trans, start_rot, "map")
-                Optimization.write_transform_stamped_msg(transform, "end", end_trans, end_rot, "map")
-                translation, rotation = transform.lookupTransform("start", "end", rospy.Time(0))
-                edges[id].translation_computed = list(translation)
-                edges[id].rotation_computed = list(rotation)
-            else:
-                edges[id].translation_computed = [0, 0, 0]
-                edges[id].rotation_computed = [0, 0, 0, 1]
+            transform = tf.Transformer(True, rospy.Duration(10))
+            start_trans = edges[id].start.translation
+            start_rot = edges[id].start.rotation
+            end_trans = edges[id].end.translation
+            end_rot = edges[id].end.rotation
+            Optimization.write_transform_stamped_msg(transform, "start", start_trans, start_rot, "map")
+            Optimization.write_transform_stamped_msg(transform, "end", end_trans, end_rot, "map")
+            translation, rotation = transform.lookupTransform("start", "end", rospy.Time(0))
+            edges[id].translation_computed = list(translation)
+            edges[id].rotation_computed = list(rotation)
 
     def compute_all_new_edges_transformer(self):
         for odom_start_id in self.posegraph.odometry_edges.keys():
@@ -251,6 +256,11 @@ class Optimization:
 
     @staticmethod
     def compute_edges_transformation_difference(edges):
+        """
+        Given a dictionary of edges, compute the difference between the new edges and old edges
+        :param edges:
+        :return: None
+        """
         for id in edges.keys():
             trans_old = edges[id].translation
             trans_new = edges[id].translation_computed
@@ -259,7 +269,37 @@ class Optimization:
             rot_old_euler = euler_from_quaternion(rot_old)
             rot_new = edges[id].rotation_computed
             rot_new_euler = euler_from_quaternion(rot_new)
-            edges[id].rotation_diff = [rot_new_euler[i] - rot_old_euler[i] for i in range(3)]
+            edges[id].rotation_diff = [Optimization.angle_diff(rot_new_euler[i], rot_old_euler[i]) for i in range(3)]
+            # if edges[id].damping_status:
+            #     print id
+            #     print rot_old_euler
+            #     print rot_new_euler
+
+    @staticmethod
+    def angle_normalize(z):
+        """ convenience function to map an angle to the range [-pi,pi] """
+        return math.atan2(math.sin(z), math.cos(z))
+
+    @staticmethod
+    def angle_diff(a, b):
+        """ Calculates the difference between angle a and angle b (both should
+            be in radians) the difference is always based on the closest
+            rotation from angle a to angle b.
+            examples:
+                angle_diff(.1,.2) -> -.1
+                angle_diff(.1, 2*math.pi - .1) -> .2
+                angle_diff(.1, .2+2*math.pi) -> -.1
+        """
+        a = Optimization.angle_normalize(a)
+        b = Optimization.angle_normalize(b)
+        d1 = a - b
+        d2 = 2 * math.pi - math.fabs(d1)
+        if d1 > 0:
+            d2 *= -1.0
+        if math.fabs(d1) < math.fabs(d2):
+            return d1
+        else:
+            return d2
 
     @staticmethod
     def compute_optimization_cost_for_edges(*edges):
@@ -411,5 +451,6 @@ class Optimization:
 
 
 if __name__ == "__main__":
-    process = Optimization("data_collected.pkl")
+    #process = Optimization("academic_center.pkl")
+    process = Optimization("data_analyzed.pkl", analyze=True)
     process.run()

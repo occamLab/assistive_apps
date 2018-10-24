@@ -69,7 +69,7 @@ class Edge(object):
         self.odometry_importance = 1
         self.tag_importance = 100
         self.waypoint_importance = 100
-        self.yaw_importance = 0.001
+        self.yaw_importance = 0.001  # dummy node
         self.pitch_importance = 1000
         self.roll_importance = 1000
         self.eigenvalue_PSD = False
@@ -80,20 +80,21 @@ class Edge(object):
         rank = (s > rtol * s[0]).sum()
         return rank, v[rank:].T.copy()
 
-    def compute_basis_vector(self):
+    @staticmethod
+    def compute_basis_vector(rot, yaw, pitch, roll):
         # Generate a rotation matrix to rotate a small amount around the z axis
         q2 = quaternion_from_euler(0, 0, .05)
         # Rotate current pose by 0.05 degrees in yaw
-        qsecondrotation = quaternion_multiply(q2, self.start.rotation)
+        qsecondrotation = quaternion_multiply(q2, rot)
         # Get difference in rotated pose with current pose.
-        change = (qsecondrotation[0:3] - self.start.rotation[0:3])
+        change = (qsecondrotation[0:3] - rot[0:3])
         # Determine which direction is the yaw direction and then make sure that direction is diminished in the information matrix
         change = change / np.linalg.norm(change)
         v = change / np.linalg.norm(change)
         _, u = Edge.null(v[np.newaxis])
         basis = np.hstack((v[np.newaxis].T, u))
         # place high information content on pitch and roll and low on changes in yaw
-        I = basis.dot(np.diag([self.yaw_importance, self.pitch_importance, self.roll_importance])).dot(basis.T)
+        I = basis.dot(np.diag([yaw, pitch, roll])).dot(basis.T)
         return I
 
     @staticmethod
@@ -112,7 +113,8 @@ class Edge(object):
 
     def compute_importance_matrix(self):
         if self.damping_status:  # if the edge is for damping correction
-            I = self.compute_basis_vector()
+            I = Edge.compute_basis_vector(self.end.rotaton, self.yaw_importance, self.pitch_importance,
+                                          self.roll_importance)
             indeces = np.triu_indices(3)  # get indices of upper triangular entry of a 3x3 matrix
             importance = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] + list(I[indeces])
             for ind in np.cumsum([0] + range(6, 1, -1))[3:6]:  # increase eigenvalue of rotation importance
