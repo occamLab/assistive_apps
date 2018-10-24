@@ -12,9 +12,15 @@ import SceneKit.ModelIO
 import AVFoundation
 import AudioToolbox
 import MediaPlayer
+import VectorMath
+import Firebase
+import FirebaseDatabase
 
-// MARK! Fading animation extension for UIView
+
+// MARK: Extensions
 extension UIView {
+    
+    /// Custom fade used for direction text UILabel.
     func fadeTransition(_ duration:CFTimeInterval) {
         let animation = CATransition()
         animation.timingFunction = CAMediaTimingFunction(name:
@@ -24,20 +30,155 @@ extension UIView {
         animation.duration = duration
         layer.add(animation, forKey: kCATransitionFade)
     }
+    
+    /// Configures a button container view and adds a button.
+    ///
+    /// - Parameter buttonComponents: holds information about the button to add
+    ///
+    /// - TODO: generalize for code reuse with the other kinds of subview containers in this app
+    func setupButtonContainer(withButton buttonComponents: ActionButtonComponents) {
+        self.backgroundColor = UIColor.black.withAlphaComponent(0.4)
+        self.isHidden = true
+        let button = UIButton.makeImageButton(self, buttonComponents)
+        self.addSubview(button)
+    }
+}
+
+extension UIButton {
+    
+    /// Factory to make an image button.
+    ///
+    /// Used for start and stop recording and navigation buttons.
+    ///
+    /// - Parameters:
+    ///   - containerView: button container, configured with `UIView.setupButtonContainer(withButton:)`
+    ///   - buttonViewParts: holds information about the button (image, label, and target)
+    /// - Returns: A formatted button
+    ///
+    /// - SeeAlso: `UIView.setupButtonContainer(withButton:)`
+    ///
+    /// - TODO:
+    ///   - Implement AutoLayout
+    static func makeImageButton(_ containerView: UIView, _ buttonViewParts: ActionButtonComponents) -> UIButton {
+        let buttonWidth = containerView.bounds.size.width / 4.5
+        
+        let button = UIButton(type: .custom)
+        
+        button.frame = CGRect(x: 0, y: 0, width: buttonWidth, height: buttonWidth)
+        button.layer.cornerRadius = 0.5 * button.bounds.size.width
+        button.clipsToBounds = true
+        button.center.x = containerView.center.x
+        button.center.y = containerView.bounds.size.height * (6/10)
+        
+        button.setImage(buttonViewParts.image, for: .normal)
+        button.accessibilityLabel = buttonViewParts.label
+        button.addTarget(nil, action: buttonViewParts.targetSelector, for: .touchUpInside)
+        
+        return button
+    }
+}
+
+// Neat way of storing the selectors for all the targets we use.
+// Source: https://medium.com/swift-programming/swift-selector-syntax-sugar-81c8a8b10df3
+fileprivate extension Selector {
+    static let recordPathButtonTapped = #selector(ViewController.recordPath)
+    static let stopRecordingButtonTapped = #selector(ViewController.stopRecording)
+    static let startNavigationButtonTapped = #selector(ViewController.startNavigation)
+    static let stopNavigationButtonTapped = #selector(ViewController.stopNavigation)
+}
+
+/// Holds information about the buttons that are used to control navigation and tracking.
+///
+/// These button attributes are the only ones unique to each of these buttons.
+public struct ActionButtonComponents {
+    
+    /// Button image
+    var image: UIImage
+    
+    /// Accessibility label
+    var label: String
+    
+    /// Function to call when the button is tapped
+    ///
+    /// - TODO: Potentially unnecessary when the transitioning between views is refactored.
+    var targetSelector: Selector
 }
 
 class ViewController: UIViewController, ARSCNViewDelegate {
     
-    // MARK! UI Setup
-    @IBOutlet weak var sceneView: ARSCNView!
+    // MARK: - Refactoring UI definition
     
+    // MARK: Properties and subview declarations
+    
+    // TODO: Define frame for all subview initializations (...AutoLayout?)
+//    let buttonContainerFrame: CGRect = ???
+    
+    /// While recording, every 0.01s, check to see if we should reset the heading offset
+    var angleOffsetTimer: Timer?
+    
+    /// A threshold to determine when the phone rotated too much to update the angle offset
+    let angleDeviationThreshold : Float = 0.2
+    /// The minimum distance traveled in the floor plane in order to update the angle offset
+    let requiredDistance : Float = 0.3
+    /// A threshold to determine when a path is too curvy to update the angle offset
+    let linearDeviationThreshold: Float = 0.05
+    
+    /// a ring buffer used to keep the last 100 positions of the phone
+    var locationRingBuffer = RingBuffer<Vector3>(capacity: 50)
+    /// a ring buffer used to keep the last 100 headings of the phone
+    var headingRingBuffer = RingBuffer<Float>(capacity: 50)
+
+    /// Image, label, and target for start recording button.
+    let recordPathButton = ActionButtonComponents(image: UIImage(named: "StartRecording")!, label: "Record path", targetSelector: Selector.recordPathButtonTapped)
+    
+    /// Image, label, and target for stop recording button.
+    let stopRecordingButton = ActionButtonComponents(image: UIImage(named: "StopRecording")!, label: "Stop recording", targetSelector: Selector.stopRecordingButtonTapped)
+    
+    /// Image, label, and target for start navigation button.
+    let startNavigationButton = ActionButtonComponents(image: UIImage(named: "StartNavigation")!, label: "Start navigation", targetSelector: Selector.startNavigationButtonTapped)
+
+    /// Image, label, and target for stop navigation button.
+    let stopNavigationButton = ActionButtonComponents(image: UIImage(named: "StopNavigation")!, label: "Stop navigation", targetSelector: Selector.stopNavigationButtonTapped)
+    
+    /// A handle to the Firebase storage
+    let storageBaseRef = Storage.storage().reference()
+    var databaseHandle = Database.database()
+    
+    // MARK: - Parameters that can be controlled remotely via Firebase
+    
+    /// True if the offset between direction of travel and phone should be updated over time
+    var adjustOffset = true
+    
+    /// True if we should use a cone of pi/12 and false if we should use a cone of pi/6 when deciding whether to issue haptic feedback
+    var strictHaptic = true
+
+    /// A UUID for the current device (note: this can change in various circumstances, so we should be wary of using this, see: https://developer.apple.com/documentation/uikit/uidevice#//apple_ref/occ/instp/UIDevice/identifierForVendor)
+    let deviceID = UIDevice.current.identifierForVendor
+    
+    /// Button view container for stop recording button
+    var stopRecordingView: UIView!
+    
+    /// Button view container for start recording button.
+    var recordPathView: UIView!
+    
+    /// Button view container for start navigation button
+    var startNavigationView: UIView!
+
+    /// Button view container for stop navigation button
+    var stopNavigationView: UIView!
+    
+    var sceneView = ARSCNView()
+    
+    // MARK: - UI Setup
+//    @IBOutlet weak var sceneView: ARSCNView!
+    
+    /// Hide status bar
     override var prefersStatusBarHidden: Bool {
-        // hide status bar
         return true
     }
     
+    /// Button frame extends the entire width of screen
     var buttonFrameWidth: CGFloat {
-        // button frame extends the entire width of screen
         return UIScreen.main.bounds.size.width
     }
     
@@ -68,13 +209,13 @@ class ViewController: UIViewController, ARSCNViewDelegate {
      * UIViewss for all UI button containers
      */
     var getDirectionButton: UIButton!
-    var recordPathView: UIView!
-    var stopRecordingView: UIView!
-    var startNavigationView: UIView!
+//    var recordPathView: UIView!
+//    var stopRecordingView: UIView!
+//    var startNavigationView: UIView!
     var pauseTrackingView: UIView!
     var resumeTrackingView: UIView!
     var resumeTrackingConfirmView: UIView!
-    var stopNavigationView: UIView!
+//    var stopNavigationView: UIView!
     var directionText: UILabel!
     var routeRatingView: UIView!
     var routeRatingLabel: UILabel?
@@ -93,11 +234,41 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        // Scene view setup
+        sceneView.frame = view.frame
+        view.addSubview(sceneView)
+
         createSettingsBundle()
         listenVolumeButton()
         createARSession()
         drawUI()
         addGestures()
+        setupFirebaseObservers()
+    }
+    
+    func setupFirebaseObservers() {
+        let responsePathRef = databaseHandle.reference(withPath: "config/" + deviceID!.uuidString)
+        responsePathRef.observe(.childChanged) { (snapshot) -> Void in
+            self.handleNewConfig(snapshot: snapshot)
+        }
+        responsePathRef.observe(.childAdded) { (snapshot) -> Void in
+            self.handleNewConfig(snapshot: snapshot)
+        }
+
+    }
+    
+    func handleNewConfig(snapshot: DataSnapshot) {
+        if snapshot.key == "adjust_offset", let newValue = snapshot.value as? Bool {
+            self.adjustOffset = newValue
+            if !self.adjustOffset {
+                // clear the offset in case one was set from before
+                nav.headingOffset = 0.0
+            }
+            print("set new adjust offset value", newValue)
+        } else if snapshot.key == "strict_haptic", let newValue = snapshot.value as? Bool {
+            strictHaptic = newValue
+            print("set new strict haptic value", newValue)
+        }
     }
     
     override func viewDidAppear(_ animated: Bool) {
@@ -146,10 +317,10 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     }
     
     func registerSettingsBundle(){
-        let appDefaults = ["voiceFeedback": true, "hapticFeedback": true, "sendLogs": true]
+        let appDefaults = ["crumbColor": 0, "hapticFeedback": true, "sendLogs": true, "voiceFeedback": true, "soundFeedback": true, "units": 0] as [String : Any]
         UserDefaults.standard.register(defaults: appDefaults)
     }
-    
+
     func updateDisplayFromDefaults(){
         let defaults = UserDefaults.standard
         
@@ -173,7 +344,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         configuration.planeDetection = .horizontal
         sceneView.session.run(configuration)
         sceneView.delegate = self
-        sceneView.backgroundColor = UIColor(patternImage: UIImage(named: "SplashScreen")!)
     }
     
     /*
@@ -230,7 +400,33 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         tapGestureRecognizer.numberOfTapsRequired = 2
         self.view.addGestureRecognizer(tapGestureRecognizer)
     }
+    // MARK: - drawUI() temp mark for navigation
     
+    /// Initializes, configures, and adds all subviews defined programmatically.
+    ///
+    /// Subviews:
+    /// - `getDirectionButton` (`UIButton`)
+    /// - `directionText` (`UILabel`)
+    /// - `recordPathView` (`UIView`):
+    ///   - configured with `UIView.setupButtonContainer(withButton:)`
+    ///   - contains record path button, with information stored in `recordPathButton` instance of `ActionButtonComponents`
+    /// - `stopRecordingView` (`UIView`):
+    ///   - configured with `UIView.setupButtonContainer(withButton:)`
+    ///   - contains record path button, with information stored in `stopRecordingButton` instance of `ActionButtonComponents`
+    /// - `startNavigationView` (`UIView`)
+    /// - `stopNavigationView` (`UIView`):
+    ///   - configured with `UIView.setupButtonContainer(withButton:)`
+    ///   - contains record path button, with information stored in `stopNavigationButton` instance of `ActionButtonComponents`
+    /// - `pauseTrackingView` (`UIView`)
+    /// - `resumeTrackingView` (`UIView`)
+    /// - `resumeTrackingConfirmView` (`UIView`)
+    /// - `routeRatingView` (`UIView`)
+    ///
+    /// - TODO:
+    ///   - DRY
+    ///   - AutoLayout
+    ///   - `startNavigationView` pause button configuration
+    ///   - subview transitions?
     func drawUI() {
         // button that gives direction to the nearist keypoint
         getDirectionButton = UIButton(frame: CGRect(x: 0, y: 0, width: buttonFrameWidth, height: yOriginOfButtonFrame))
@@ -248,23 +444,18 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         // Record Path button container
         recordPathView = UIView(frame: CGRect(x: 0, y: yOriginOfButtonFrame, width: buttonFrameWidth, height: buttonFrameHeight))
-        recordPathView.backgroundColor = UIColor.black.withAlphaComponent(0.4)
-        recordPathView.isHidden = false
-        addButtons(buttonView: recordPathView, buttonViewType: .recordPath)
-        
+        recordPathView.setupButtonContainer(withButton: recordPathButton)
         
         // Stop Recording button container
         stopRecordingView = UIView(frame: CGRect(x: 0, y: yOriginOfButtonFrame, width: buttonFrameWidth, height: buttonFrameHeight))
-        stopRecordingView.backgroundColor = UIColor.black.withAlphaComponent(0.4)
-        stopRecordingView.isHidden = true
-        addButtons(buttonView: stopRecordingView, buttonViewType: .stopRecording)
-        
+        stopRecordingView.setupButtonContainer(withButton: stopRecordingButton)
         
         // Start Navigation button container
         startNavigationView = UIView(frame: CGRect(x: 0, y: yOriginOfButtonFrame, width: buttonFrameWidth, height: buttonFrameHeight))
+//        startNavigationView.setupButtonContainer(withButton: startNavigationButton)
         startNavigationView.backgroundColor = UIColor.black.withAlphaComponent(0.4)
         startNavigationView.isHidden = true
-        addButtons(buttonView: startNavigationView, buttonViewType: .startNavigation)
+        addButtons(buttonView: startNavigationView)
         
         
         pauseTrackingView = UIView(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.size.width, height: UIScreen.main.bounds.size.height))
@@ -285,10 +476,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         // Stop Navigation button container
         stopNavigationView = UIView(frame: CGRect(x: 0, y: yOriginOfButtonFrame, width: buttonFrameWidth, height: buttonFrameHeight))
-        stopNavigationView.backgroundColor = UIColor.black.withAlphaComponent(0.4)
-        stopNavigationView.isHidden = true
-        addButtons(buttonView: stopNavigationView, buttonViewType: .stopNavigation)
-        
+        stopNavigationView.setupButtonContainer(withButton: stopNavigationButton)
         
         routeRatingView = UIView(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.size.width, height: UIScreen.main.bounds.size.height))
         routeRatingView.backgroundColor = UIColor.black.withAlphaComponent(0.4)
@@ -394,7 +582,12 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     /*
      * Adds buttons to given UIView container
      */
-    func addButtons(buttonView: UIView, buttonViewType: ButtonViewType) {
+    /// Adds start navigation and pause buttons the `startNavigationView` button container.
+    ///
+    /// Largely vestigial. Should be refactored completely out of the code soon.
+    ///
+    /// - Parameter buttonView: `startNavigationView` button container
+    func addButtons(buttonView: UIView) {
         let buttonWidth = buttonView.bounds.size.width / 4.5
         
         let button = UIButton(type: .custom)
@@ -405,53 +598,23 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         button.center.x = buttonView.center.x
         button.center.y = buttonView.bounds.size.height * (6/10)
         
-        // Adds custom button labels
-        switch buttonViewType {
-        case .recordPath:
-            let buttonImage = UIImage(named: "StartRecording")
-            button.setImage(buttonImage, for: .normal)
-            button.accessibilityLabel = "Record path"
-            button.addTarget(self, action: #selector(recordPath), for: .touchUpInside)
-        case.stopRecording:
-            let buttonImage = UIImage(named: "StopRecording")
-            button.setImage(buttonImage, for: .normal)
-            button.accessibilityLabel = "Stop recording"
-            button.addTarget(self, action: #selector(stopRecording), for: .touchUpInside)
-        case .startNavigation:
-            let buttonImage = UIImage(named: "StartNavigation")
-            button.setImage(buttonImage, for: .normal)
-            button.accessibilityLabel = "Start Navigation"
-            button.addTarget(self, action: #selector(startNavigation), for: .touchUpInside)
-            
-            let pauseButton = UIButton(type: .custom)
-            pauseButton.frame = CGRect(x: 0, y: 0, width: buttonWidth , height: buttonWidth )
-            pauseButton.layer.cornerRadius = 0.5 * button.bounds.size.width
-            pauseButton.clipsToBounds = true
-            pauseButton.center.x = buttonView.center.x + displayWidth/3
-            pauseButton.center.y = buttonView.bounds.size.height * (6/10)
-            pauseButton.addTarget(self, action: #selector(showPauseTrackingButton), for: .touchUpInside)
-            pauseButton.setTitle("Pause", for: .normal)
-            pauseButton.layer.borderWidth = 2
-            pauseButton.layer.borderColor = UIColor.white.cgColor
-            
-            buttonView.addSubview(pauseButton)
-        case .pauseTracking:
-            button.addTarget(self, action: #selector(pauseTracking), for: .touchUpInside)
-            button.setTitle("Pause", for: .normal)
-            button.layer.borderWidth = 2
-            button.layer.borderColor = UIColor.white.cgColor
-        case .resumeTracking:
-            button.addTarget(self, action: #selector(resumeTracking), for: .touchUpInside)
-            button.setTitle("Resume", for: .normal)
-            button.layer.borderWidth = 2
-            button.layer.borderColor = UIColor.white.cgColor
-        case.stopNavigation:
-            let buttonImage = UIImage(named: "StopNavigation")
-            button.setImage(buttonImage, for: .normal)
-            button.accessibilityLabel = "Stop Navigation"
-            button.addTarget(self, action: #selector(stopNavigation), for: .touchUpInside)
-        }
+        let buttonImage = UIImage(named: "StartNavigation")
+        button.setImage(buttonImage, for: .normal)
+        button.accessibilityLabel = "Start Navigation"
+        button.addTarget(self, action: #selector(startNavigation), for: .touchUpInside)
         
+        let pauseButton = UIButton(type: .custom)
+        pauseButton.frame = CGRect(x: 0, y: 0, width: buttonWidth , height: buttonWidth )
+        pauseButton.layer.cornerRadius = 0.5 * button.bounds.size.width
+        pauseButton.clipsToBounds = true
+        pauseButton.center.x = buttonView.center.x + displayWidth/3
+        pauseButton.center.y = buttonView.bounds.size.height * (6/10)
+        pauseButton.addTarget(self, action: #selector(showPauseTrackingButton), for: .touchUpInside)
+        pauseButton.setTitle("Pause", for: .normal)
+        pauseButton.layer.borderWidth = 2
+        pauseButton.layer.borderColor = UIColor.white.cgColor
+        
+        buttonView.addSubview(pauseButton)
         buttonView.addSubview(button)
     }
     
@@ -598,26 +761,27 @@ class ViewController: UIViewController, ARSCNViewDelegate {
      * update directionText UILabel given text string and font size
      * distance Bool used to determine whether to add string "meters" to direction text
      */
-    func updateDirectionText(_ discription: String, distance: Float, size: CGFloat, displayDistance: Bool) {
+    func updateDirectionText(_ description: String, distance: Float, size: CGFloat, displayDistance: Bool) {
         directionText.fadeTransition(0.4)
         directionText.font = directionText.font.withSize(size)
+        let distanceToDisplay = roundToTenths(distance * unitConversionFactor[defaultUnit]!)
         var altText = ""
-        if(displayDistance) {
-            directionText.text = discription + " for \(distance)" + unit[defaultUnit]!
+        if (displayDistance) {
+            directionText.text = description + " for \(distanceToDisplay)" + unit[defaultUnit]!
             if(defaultUnit == 0) {
-                altText = discription + " for \(Int(distance))" + unitText[defaultUnit]!
+                altText = description + " for \(Int(distanceToDisplay))" + unitText[defaultUnit]!
             } else {
-                if(distance >= 10) {
-                    let integer = Int(distance)
-                    let decimal = Int((distance - Float(integer)) * 10)
-                    altText = discription + "\(integer) point \(decimal)" + unitText[defaultUnit]!
+                if(distanceToDisplay >= 10) {
+                    let integer = Int(distanceToDisplay)
+                    let decimal = Int((distanceToDisplay - Float(integer)) * 10)
+                    altText = description + "\(integer) point \(decimal)" + unitText[defaultUnit]!
                 } else {
-                    altText = discription + "\(distance)" + unitText[defaultUnit]!
+                    altText = description + "\(distanceToDisplay)" + unitText[defaultUnit]!
                 }
             }
         } else {
-            directionText.text = discription
-            altText = discription
+            directionText.text = description
+            altText = description
         }
         if(navigationMode) {
             speechData.append(altText)
@@ -628,7 +792,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         if (navigationMode && voiceFeedback) { UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification, altText) }
     }
     
-    // MARK! BreadCrumbs
+    // MARK: - BreadCrumbs
     
     // AR Session Configuration
     var configuration: ARWorldTrackingConfiguration!
@@ -659,6 +823,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     var followingCrumbs: Timer!
     var announcementTimer: Timer!
     var hapticTimer: Timer!
+    var updateHeadingOffsetTimer: Timer!
     
     // navigation class and state
     var nav = Navigation()                  // Navigation calculation class
@@ -672,8 +837,11 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     let FEEDBACKDELAY = 0.4
     
     // settings bundle configuration
+    // the bundle configuration has 0 as feet and 1 as meters
     let unit = [0: "ft", 1: "m"]
     let unitText = [0: " feet", 1: " meters"]
+    let unitConversionFactor = [0: Float(100.0/2.54/12.0), 1: Float(1.0)]
+
     var defaultUnit: Int!
     var defaultColor: Int!
     var soundFeedback: Bool!
@@ -686,7 +854,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         if (hapticFeedback) {
             return HapticDirections
         } else {
-            return CLockDirections
+            return ClockDirections
         }
     }
     
@@ -704,12 +872,18 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         showStopRecordingButton()
         droppingCrumbs = Timer.scheduledTimer(timeInterval: 0.3, target: self, selector: #selector(dropCrum), userInfo: nil, repeats: true)
+        // make sure there are no old values hanging around
+        nav.headingOffset = 0.0
+        headingRingBuffer.clear()
+        locationRingBuffer.clear()
+        updateHeadingOffsetTimer = Timer.scheduledTimer(timeInterval: 0.01, target: self, selector: (#selector(updateHeadingOffset)), userInfo: nil, repeats: true)
     }
     
     @objc func stopRecording(_ sender: UIButton) {
         // stop recording current path
         recordingMode = false
         droppingCrumbs.invalidate()
+        updateHeadingOffsetTimer.invalidate()
         showStartNavigationButton()
     }
     
@@ -723,7 +897,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         // generate path from PathFinder class
         // enabled hapticFeedback generates more keypoints
-        let path = PathFinder(crums: crumbs.reversed(), hapticFeedback: hapticFeedback, voiceFeedBack: voiceFeedback)
+        let path = PathFinder(crumbs: crumbs.reversed(), hapticFeedback: hapticFeedback, voiceFeedback: voiceFeedback)
         keypoints = path.keypoints
         
         // save keypoints data for debug log
@@ -739,7 +913,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         // set navigation state
         navigationMode = true
         turnWarning = false
-        prevKeypointPosition = getRealCoordinates(sceneView: sceneView, record: true).location
+        prevKeypointPosition = getRealCoordinates(record: true).location
         
         feedbackGenerator = UIImpactFeedbackGenerator(style: .light)
         waypointFeedbackGenerator = UINotificationFeedbackGenerator()
@@ -748,6 +922,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         followingCrumbs = Timer.scheduledTimer(timeInterval: 0.3, target: self, selector: (#selector(followCrum)), userInfo: nil, repeats: true)
         
         feedbackTimer = Date()
+        // make sure there are no old values hanging around
+        headingRingBuffer.clear()
+        locationRingBuffer.clear()
         hapticTimer = Timer.scheduledTimer(timeInterval: 0.01, target: self, selector: (#selector(getHapticFeedback)), userInfo: nil, repeats: true)
     }
     
@@ -783,6 +960,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         announcementTimer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: (#selector(playSound)), userInfo: nil, repeats: false)
     }
     
+    // MARK: - Logging
     @objc func sendLogData() {
         // send success log data to AWS
         compileLogData(false)
@@ -802,8 +980,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZZZZZ"
         let pathDate = dateFormatter.string(from: date)
-        let pathID = UIDevice.current.identifierForVendor!.uuidString + dateFormatter.string(from: date)
-        let userId = UIDevice.current.identifierForVendor!.uuidString
+        let pathID = deviceID!.uuidString + dateFormatter.string(from: date)
+        let userId = deviceID!.uuidString
+        print("USER ID", userId)
         
         sendMetaData(pathDate, pathID+"-0", userId, debug)
         sendPathData(pathID, userId)
@@ -812,7 +991,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     func sendMetaData(_ pathDate: String, _ pathID: String, _ userId: String, _ debug: Bool) {
         let pathType: String!
         if(debug) {
-            pathType = "bug"
+            pathType = "debug"
         } else {
             pathType = "success"
         }
@@ -825,145 +1004,65 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                                     "trackingErrorPhase": trackingErrorPhase,
                                     "trackingErrorTime": trackingErrorTime,
                                     "trackingErrorData": trackingErrorData]
-        
-        let bodyText: String!
         do {
             let jsonData = try JSONSerialization.data(withJSONObject: body, options: .prettyPrinted)
             // here "jsonData" is the dictionary encoded in JSON data
-            bodyText = String(data: jsonData, encoding: String.Encoding.utf8)
-            
-            // create http post request to AWS
-            var request = URLRequest(url: URL(string: "https://27bcct7nyg.execute-api.us-east-1.amazonaws.com/Test/pathid")!)
-            request.httpMethod = "POST"
-            request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = bodyText.data(using: .utf8)
-            
-            let task = URLSession.shared.dataTask(with: request) { data, response, error in
-                guard let data = data, error == nil else {                                                 // check for fundamental networking error
-                    print("error=\(String(describing: error))")
+            let storageRef = storageBaseRef.child(userId + "_" + pathID + "_metadata.json")
+            let fileType = StorageMetadata()
+            fileType.contentType = "application/json"
+            // upload the image to Firebase storage and setup auto snapshotting
+            storageRef.putData(jsonData, metadata: fileType) { (metadata, error) in
+                guard metadata != nil else {
+                    // Uh-oh, an error occurred!
+                    print("could not upload meta data to firebase", error!.localizedDescription)
                     return
                 }
-                
-                if let httpStatus = response as? HTTPURLResponse, httpStatus.statusCode != 200 {           // check for http errors
-                    print("statusCode should be 200, but is \(httpStatus.statusCode)")
-                    print("response = \(String(describing: response))")
-                }
-                
-                let responseString = String(data: data, encoding: .utf8)
-                print("responseString = \(String(describing: responseString))")
             }
-            task.resume()
         } catch {
             print(error.localizedDescription)
         }
     }
     
     func sendPathData(_ pathID: String, _ userId: String) {
-        var id = 1
-        var pd = [[Float]]()
-        var pdt = [Double]()
-        var nd = [[Float]]()
-        var ndt = [Double]()
-        var sd = [String]()
-        var sdt = [Double]()
+        let body: [String : Any] = ["userId": userId,
+                                    "PathID": pathID,
+                                    "PathDate": "0",
+                                    "PathType": "0",
+                                    "PathData": pathData,
+                                    "pathDataTime": pathDataTime,
+                                    "navigationData": navigationData,
+                                    "navigationDataTime": navigationDataTime,
+                                    "speechData": speechData,
+                                    "speechDataTime": speechDataTime]
         
-        while(!pathData.isEmpty || !navigationData.isEmpty || !speechData.isEmpty) {
-            print(id)
-            if(pathData.count >= 75) {
-                pd = Array(pathData[0..<75])
-                pdt = Array(pathDataTime[0..<75])
-                pathData = Array(pathData[75..<pathData.count])
-                pathDataTime = Array(pathDataTime[75..<pathDataTime.count])
-            } else {
-                pd = pathData
-                pdt = pathDataTime
-                if(pathData.count > 0) {
-                    pathData = []
-                    pathDataTime = []
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: body, options: .prettyPrinted)
+            // here "jsonData" is the dictionary encoded as a JSON
+            let storageRef = storageBaseRef.child(userId + "_" + pathID + "_pathdata.json")
+            let fileType = StorageMetadata()
+            fileType.contentType = "application/json"
+            // upload the image to Firebase storage and setup auto snapshotting
+            storageRef.putData(jsonData, metadata: fileType) { (metadata, error) in
+                guard metadata != nil else {
+                    // Uh-oh, an error occurred!
+                    print("could not upload path data to firebase", error!.localizedDescription)
+                    return
                 }
             }
-            if(navigationData.count >= 75) {
-                nd = Array(navigationData[0..<75])
-                ndt = Array(navigationDataTime[0..<75])
-                navigationData = Array(navigationData[75..<navigationData.count])
-                navigationDataTime = Array(navigationDataTime[75..<navigationDataTime.count])
-            } else {
-                nd = navigationData
-                ndt = navigationDataTime
-                if(navigationData.count > 0) {
-                    navigationData = []
-                    navigationDataTime = []
-                }
-            }
-            if(speechData.count >= 20) {
-                sd = Array(speechData[0..<20])
-                sdt = Array(speechDataTime[0..<20])
-                speechData = Array(speechData[20..<pathData.count])
-                speechDataTime = Array(speechDataTime[20..<pathDataTime.count])
-            } else {
-                sd = speechData
-                sdt = speechDataTime
-                if(speechData.count > 0) {
-                    speechData = []
-                    speechDataTime = []
-                }
-            }
-            
-            
-            let body: [String : Any] = ["userId": userId,
-                                        "PathID": pathID + "-\(id)",
-                                        "PathDate": "0",
-                                        "PathType": "0",
-                                        "PathData": pd,
-                                        "pathDataTime": pdt,
-                                        "navigationData": nd,
-                                        "navigationDataTime": ndt,
-                                        "speechData": sd,
-                                        "speechDataTime": sdt]
-            
-            let bodyText: String!
-            do {
-                let jsonData = try JSONSerialization.data(withJSONObject: body, options: .prettyPrinted)
-                // here "jsonData" is the dictionary encoded in JSON data
-                bodyText = String(data: jsonData, encoding: String.Encoding.utf8)
-                
-                // create http post request to AWS
-                var request = URLRequest(url: URL(string: "https://27bcct7nyg.execute-api.us-east-1.amazonaws.com/Test/pathid")!)
-                request.httpMethod = "POST"
-                request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-                request.httpBody = bodyText.data(using: .utf8)
-                //            print(request.httpBody)
-                let task = URLSession.shared.dataTask(with: request) { data, response, error in
-                    guard let data = data, error == nil else {                                                 // check for fundamental networking error
-                        print("error=\(String(describing: error))")
-                        return
-                    }
-                    
-                    if let httpStatus = response as? HTTPURLResponse, httpStatus.statusCode != 200 {           // check for http errors
-                        print("statusCode should be 200, but is \(httpStatus.statusCode)")
-                        print("response = \(String(describing: response))")
-                    }
-                    
-                    let responseString = String(data: data, encoding: .utf8)
-                    print("responseString = \(String(describing: responseString))")
-                }
-                task.resume()
-            } catch {
-                print(error.localizedDescription)
-            }
-            id += 1
+        } catch {
+            print(error.localizedDescription)
         }
     }
     
     @objc func dropCrum() {
         // drop waypoint markers to record path
-        let curLocation = getRealCoordinates(sceneView: sceneView, record: true).location
+        let curLocation = getRealCoordinates(record: true).location
         crumbs.append(curLocation)
     }
     
     @objc func followCrum() {
         // checks to see if user is on the right path during navigation
-        let curLocation = getRealCoordinates(sceneView: sceneView, record: true)
+        let curLocation = getRealCoordinates(record: true)
         var directionToNextKeypoint = getDirectionToNextKeypoint(currentLocation: curLocation)
         
         if (shouldAnnounceTurnWarning(directionToNextKeypoint)) {
@@ -1004,12 +1103,80 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
     }
     
+    /// Calculate the offset between the phone's heading (either its z-axis or y-axis projected into the floor plane) and the user's direction of travel.  This offset allows us to give directions based on the user's movement rather than the direction of the phone.
+    ///
+    /// - Returns: the offset
+    func getHeadingOffset() -> Float? {
+        guard let startHeading = headingRingBuffer.get(0), let endHeading = headingRingBuffer.get(-1), let startPosition = locationRingBuffer.get(0), let endPosition = locationRingBuffer.get(-1) else {
+            return nil
+        }
+        // make sure the path was far enough in the ground plane
+        if sqrt(pow(startPosition.x - endPosition.x, 2) + pow(startPosition.z - endPosition.z, 2)) < requiredDistance {
+            return nil
+        }
+        
+        // make sure that the headings are all close to the start and end headings
+        for i in 0..<headingRingBuffer.capacity {
+            guard let currAngle = headingRingBuffer.get(i) else {
+                return nil
+            }
+            if abs(nav.getAngleDiff(angle1: currAngle, angle2: startHeading)) > angleDeviationThreshold || abs(nav.getAngleDiff(angle1: currAngle, angle2: endHeading)) > angleDeviationThreshold {
+                // the phone turned too much during the last second
+                return nil
+            }
+        }
+        // make sure the path is straight
+        let u = (endPosition - startPosition).normalized()
+        
+        for i in 0..<locationRingBuffer.capacity {
+            let d = locationRingBuffer.get(i)! - startPosition
+            let orthogonalVector = d - u*Scalar(d.dot(u))
+            if orthogonalVector.length > linearDeviationThreshold {
+                // the phone didn't move in a straight path during the last second
+                return nil
+            }
+        }
+        let movementAngle = atan2f((startPosition.x - endPosition.x), (startPosition.z - endPosition.z))
+        
+        let potentialOffset = nav.getAngleDiff(angle1: movementAngle, angle2: nav.averageAngle(a: startHeading, b: endHeading))
+        // check if the user is potentially moving backwards.  We only try to correct for this if the potentialOffset is in the range [0.75 pi, 1.25 pi]
+        if cos(potentialOffset) < -sqrt(2)/2 {
+            return potentialOffset - Float.pi
+        }
+        return potentialOffset
+    }
+  
+    @objc func updateHeadingOffset() {
+        // send haptic feedback depending on correct device
+        let curLocation = getRealCoordinates(record: false)
+        // NOTE: currPhoneHeading is not the same as curLocation.location.yaw
+        let currPhoneHeading = nav.getPhoneHeadingYaw(currentLocation: curLocation)
+        headingRingBuffer.insert(currPhoneHeading)
+        locationRingBuffer.insert(Vector3(curLocation.location.x, curLocation.location.y, curLocation.location.z))
+        
+        if let newOffset = getHeadingOffset() {
+            if adjustOffset {
+                nav.headingOffset = newOffset
+                print("New offset", newOffset)
+            }
+        }
+    }
+    
+    // MARK: - Render directions
     @objc func getHapticFeedback() {
         // send haptic feedback depending on correct device
-        let curLocation = getRealCoordinates(sceneView: sceneView, record: false)
+        updateHeadingOffset()
+        let curLocation = getRealCoordinates(record: false)
         let directionToNextKeypoint = getDirectionToNextKeypoint(currentLocation: curLocation)
+        let coneWidth: Float!
+        if strictHaptic {
+            coneWidth = Float.pi/12
+        } else {
+            coneWidth = Float.pi/6
+        }
         
-        if(directionToNextKeypoint.clockDirection == 12) {
+        // use a stricter criteria than 12 o'clock for providing haptic feedback
+        if(fabs(directionToNextKeypoint.angleDiff) < coneWidth) {
             let timeInterval = feedbackTimer.timeIntervalSinceNow
             if(-timeInterval > FEEDBACKDELAY) {
                 // wait until desired time interval before sending another feedback
@@ -1030,7 +1197,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     func announceTurnWarning(_ currentLocation: CurrentCoordinateInfo) {
         // announce upcoming turn
-        var dir = nav.getTurnWarningDirections(currentLocation, curKeypoint: keypoints[0], nextKeypoint: keypoints[1])
+        var dir = nav.getTurnWarningDirections(currentLocation, nextKeypoint: keypoints[0], secondKeypoint: keypoints[1])
         if(defaultUnit == 0) {
             // convert to imperial units
             dir.distance *= 3.28084
@@ -1054,7 +1221,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     @objc func announceDirectionHelp() {
         // announce directions at any given point to the next keypoint
         if (navigationMode) {
-            let curLocation = getRealCoordinates(sceneView: sceneView, record: false)
+            let curLocation = getRealCoordinates(record: false)
             let directionToNextKeypoint = getDirectionToNextKeypoint(currentLocation: curLocation)
             setDirectionText(currentLocation: curLocation.location, direction: directionToNextKeypoint, displayDistance: true)
         }
@@ -1245,7 +1412,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                             yaw: coordinates.rotation.y)
     }
     
-    func getRealCoordinates(sceneView: ARSCNView, record: Bool) -> CurrentCoordinateInfo {
+    func getRealCoordinates(record: Bool) -> CurrentCoordinateInfo {
         // returns current location & orientation based on starting origin
         let x = SCNMatrix4((sceneView.session.currentFrame?.camera.transform)!).m41
         let y = SCNMatrix4((sceneView.session.currentFrame?.camera.transform)!).m42
