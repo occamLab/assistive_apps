@@ -20,6 +20,7 @@ class Analysis:
             print("Pose graph loaded")
         self.error_sd = dict()
         self.error_sd["odom"] = dict()
+        self.error_sd["odom_damping"] = dict()
         self.error_sd["tag"] = dict()
         self.error_sd["waypoint"] = dict()
 
@@ -64,7 +65,7 @@ class Analysis:
         if data != 0:
             return 1 / data
         else:
-            return 10e5
+            return 1e5
 
     def plot_kernal_density(self, data):
         data = np.array(data)[:, np.newaxis]
@@ -115,20 +116,44 @@ class Analysis:
                 importance = [x, 0, 0, 0, 0, 0, y, 0, 0, 0, 0, z, 0, 0, 0] + list(I[indeces])
                 edges[vstart][vend].importance_matrix = Edge.convert_uppertri_to_matrix(importance, 6)
 
-    def update_importance(self):
+    def update_importance(self, odom=True, damping=True, tag=True, waypoint=True):
+        """
+
+        :param odom: Flag to indicate whether to update odometry importance weights
+        :param damping:
+        :param tag:
+        :param waypoint:
+        :return:
+        """
         damping_edges, odom_edges = self.separate_odom_damping_edge()
+        # compute error standard deviation: example: self.error_sd["odom_damping"]["x_importance"] = 0.001
         self.error_sd["odom_damping"] = Analysis.extract_edges_error(damping_edges)
         self.error_sd["odom"] = Analysis.extract_edges_error(odom_edges)
         self.error_sd["tag"] = Analysis.extract_edges_error(self.posegraph.odometry_tag_edges)
         self.error_sd["waypoint"] = Analysis.extract_edges_error(self.posegraph.odometry_waypoints_edges)
-        Analysis.compute_importance_matrix(odom_edges, self.error_sd["odom"])
-        print("New importance weights computed for odometry")
-        Analysis.compute_importance_matrix(damping_edges, self.error_sd["odom_damping"])
-        print("New importance weights computed for damping edges")
-        Analysis.compute_importance_matrix(self.posegraph.odometry_tag_edges, self.error_sd["tag"])
-        print("New importance weights computed for tags")
-        Analysis.compute_importance_matrix(self.posegraph.odometry_waypoints_edges, self.error_sd["waypoint"])
-        print("New importance weights computed for waypoints")
+
+        self.error_sd["odom_damping"]["x_importance"] = 0
+        self.error_sd["odom_damping"]["y_importance"] = 0
+        self.error_sd["odom_damping"]["z_importance"] = 0
+        # self.error_sd["odom_damping"]["yaw_importance"] = 0.01
+        # self.error_sd["odom_damping"]["pitch_importance"] = 10000
+        # self.error_sd["odom_damping"]["roll_importance"] = 10000
+
+        # compute new importance weights based on data
+        if odom:
+            Analysis.compute_importance_matrix(odom_edges, self.error_sd["odom"])
+            print("New importance weights computed for odometry")
+        if damping:
+            Analysis.compute_importance_matrix(damping_edges, self.error_sd["odom_damping"])
+            print("New importance weights computed for damping edges")
+        if tag:
+            Analysis.compute_importance_matrix(self.posegraph.odometry_tag_edges, self.error_sd["tag"])
+            print("New importance weights computed for tags")
+        if waypoint:
+            Analysis.compute_importance_matrix(self.posegraph.odometry_waypoints_edges, self.error_sd["waypoint"])
+            print("New importance weights computed for waypoints")
+
+        # combine odometry and damping edges
         self.combine_odom_damping_edges(damping_edges, odom_edges)
 
     def combine_odom_damping_edges(self, odom, damping):
@@ -138,24 +163,14 @@ class Analysis:
                     importance_matrix = edge[vstart][vend].importance_matrix[:]
                     self.posegraph.odometry_edges[vstart][vend].importance_matrix = importance_matrix
 
-    def print_dummy_node(self, edges):
-        for vstart in edges.keys():
-            for vend in edges[vstart].keys():
-                if not edges[vstart][vend].damping_status:
-                    print "vstart, vend", vstart, vend
-                    print "trans computed:", edges[vstart][vend].translation_computed
-                    print "trans:", edges[vstart][vend].translation
-                    print "rot computed:", edges[vstart][vend].rotation_computed
-                    print "rot:", edges[vstart][vend].rotation
-                    print "trans diff", edges[vstart][vend].translation_diff
-                    print "rot diff", edges[vstart][vend].rotation_diff
-
-    def run(self, plot=False):
-        self.update_importance()
+    def run(self, plot=False, odom=True, damping=True, tag=True, waypoint=True):
+        self.update_importance(odom=odom, damping=damping, tag=tag, waypoint=waypoint)
         print "Finish updating importance"
         with open(path.join(self.analyzed_data_folder, "data_analyzed.pkl"), 'wb') as data:
             pickle.dump(self.posegraph, data)
             print("Analyzed pose graph saved")
+
+        # print new computed importance weights
         for edgetype in self.error_sd:
             print edgetype, self.error_sd[edgetype]["x_importance"]
             print edgetype, self.error_sd[edgetype]["y_importance"]
@@ -165,10 +180,15 @@ class Analysis:
             print edgetype, self.error_sd[edgetype]["roll_importance"]
 
         if plot:
-            data = self.error_sd["odom"]["roll"]
+            data = self.error_sd["odom_damping"]["roll"]
+            self.plot_kernal_density(data)
+            data = self.error_sd["odom_damping"]["yaw"]
+            self.plot_kernal_density(data)
+            data = self.error_sd["odom_damping"]["pitch"]
             self.plot_kernal_density(data)
 
 
 if __name__ == "__main__":
+    #distribution = Analysis("academic_center.pkl")
     distribution = Analysis("data_optimized.pkl")
-    distribution.run()
+    distribution.run(plot=False, odom=True, damping=True, tag=True, waypoint=False)

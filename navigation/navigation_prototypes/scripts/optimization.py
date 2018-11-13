@@ -49,18 +49,20 @@ class Optimization:
     the pose graph and parses the result
     """
 
-    def __init__(self, filename, analyze=False):
+    def __init__(self, filename, location, analyze=False):
         self.package = RosPack().get_path('navigation_prototypes')
         self.raw_data_folder = path.join(self.package, 'data/raw_data')
         self.analyzed_data_folder = path.join(self.package, 'data/analyzed_data')
         self.optimized_data_folder = path.join(self.package, 'data/optimized_data')
         self.g2o_result_path = path.join(self.package, 'data/data_g2o/result.g2o')
+        self.location = location
 
         if analyze:
             self.input_data = path.join(self.analyzed_data_folder, filename)
         else:
             self.input_data = path.join(self.raw_data_folder, filename)
 
+        self.posegraph_g2o = None
         self.posegraph = None
         self.unoptimzied_posegraph = None
 
@@ -80,12 +82,15 @@ class Optimization:
 
     def load_pose_graph(self):
         with open(self.input_data, 'rb') as data:
-            self.posegraph = pickle.load(data)  # pose graph that will be optimized
-        with open(self.input_data, 'rb') as data:
+            #self.posegraph_g2o = pickle.load(data)  # pose graph that will be optimized
+            #data.seek(0) # place the handler to the beginning of the pickle file
+            self.posegraph = pickle.load(data) # pose graph that will be updated
+
+        with open(path.join(self.raw_data_folder, self.location), 'rb') as data:
             data.seek(0)  # place the handler to the beginning of the pickle file
             self.unoptimzied_posegraph = pickle.load(data)
 
-    def g2o(self, debug_flag=False):
+    def g2o(self, dummy_flag=False, tag_flag=False, waypoint_flag=False):
         """
         Process pose graph with breath first search algorithm traversing from the first tag seen to delete disconnected
         portion.
@@ -94,15 +99,15 @@ class Optimization:
         :return: None
         """
         self.load_pose_graph()
-        if debug_flag:
-            self.posegraph.optimize_pose_without_landmarks_dummy_nodes(tags_flag=False, waypoint_flag=True,
-                                                                       dummy_nodes_flag=False)
+        self.posegraph.optimize_pose_without_landmarks_dummy_nodes(dummy_nodes_flag=dummy_flag, tag_flag=tag_flag,
+                                                                   waypoint_flag=waypoint_flag)
+        if tag_flag:
             source_node = self.posegraph.odometry_vertices[self.posegraph.num_tags + 1].id  # traverse from first pose
         else:
             source_node = self.posegraph.origin_tag  # traverse from first tag seen
         self.posegraph.process_graph(source_node)
         self.posegraph.optimize_pose()
-
+        #print self.posegraph.odometry_vertices.keys()
     @staticmethod
     def is_integer(num):
         try:
@@ -129,6 +134,8 @@ class Optimization:
         Update the vertices in pose graph from g2o optimization.
         :return: None
         """
+        # map string waypoint id to number
+        #self.posegraph.map_waypoint_name_to_number()
         with open(self.g2o_result_path, 'rb') as g2o_result:
             for line in g2o_result:
                 if line.startswith("VERTEX_SE3:QUAT "):
@@ -443,14 +450,14 @@ class Optimization:
         plt.grid(True)
         plt.show()
 
-    def run(self):
-        self.g2o()
+    def run(self, dummy_flag = False, tag_flag = False, waypoint_flag = False):
+        self.g2o(dummy_flag = dummy_flag, tag_flag = tag_flag, waypoint_flag=waypoint_flag)
         self.parse_g2o_result_transformer()
         # self.parse_g2o_result_math() # currently inaccurate
         self.plot_g2o_trajectory()
 
 
 if __name__ == "__main__":
-    #process = Optimization("academic_center.pkl")
-    process = Optimization("data_analyzed.pkl", analyze=True)
-    process.run()
+    process = Optimization("academic_center.pkl","academic_center.pkl")
+    #process = Optimization("data_analyzed.pkl", "academic_center.pkl", analyze=True)
+    process.run(dummy_flag = False, tag_flag = False, waypoint_flag = True) # False is do optimize

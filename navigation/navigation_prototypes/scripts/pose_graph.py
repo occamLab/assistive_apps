@@ -474,15 +474,15 @@ class PoseGraph(object):
                 if self.odometry_edges[start_id][end_id].damping_status is True:
                     del self.odometry_edges[start_id][end_id]
 
-    def optimize_pose_without_landmarks_dummy_nodes(self, tags_flag=False, waypoint_flag=False, dummy_nodes_flag=False):
+    def optimize_pose_without_landmarks_dummy_nodes(self, dummy_nodes_flag=False, tag_flag=False, waypoint_flag=False):
         """
         Help debug optimization result by choosing which nodes to optimize.
-        :param tags_flag: Flag to indicate whether
+        :param tags_flag: Flag to indicate whether to optimize tag nodes. True = no optimization of tag nodes
         :param waypoint_flag:
         :param dummy_nodes_flag:
         :return:
         """
-        if tags_flag:
+        if tag_flag:
             self.tag_vertices = {}
             self.odometry_tag_edges = {}
         if dummy_nodes_flag:
