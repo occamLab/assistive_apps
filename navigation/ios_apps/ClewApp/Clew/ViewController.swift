@@ -111,7 +111,17 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     // MARK: Properties and subview declarations
     
     // TODO: Define frame for all subview initializations (...AutoLayout?)
-//    let buttonContainerFrame: CGRect = ???
+    //    let buttonContainerFrame: CGRect = ???
+    
+    var worldMapURL: URL = {
+        // ARWorldMap object contains a snapshot of all the spatial mapping information that ARKit uses to locate the user’s device in real-world space.
+        do {
+            return try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+                .appendingPathComponent("worldMapURL")
+        } catch {
+            fatalError("Error getting world map URL from document directory.")
+        }
+    }()
     
     /// While recording, every 0.01s, check to see if we should reset the heading offset
     var angleOffsetTimer: Timer?
@@ -127,7 +137,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     var locationRingBuffer = RingBuffer<Vector3>(capacity: 50)
     /// a ring buffer used to keep the last 100 headings of the phone
     var headingRingBuffer = RingBuffer<Float>(capacity: 50)
-
+    
     /// Image, label, and target for start recording button.
     let recordPathButton = ActionButtonComponents(image: UIImage(named: "StartRecording")!, label: "Record path", targetSelector: Selector.recordPathButtonTapped)
     
@@ -136,7 +146,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     /// Image, label, and target for start navigation button.
     let startNavigationButton = ActionButtonComponents(image: UIImage(named: "StartNavigation")!, label: "Start navigation", targetSelector: Selector.startNavigationButtonTapped)
-
+    
     /// Image, label, and target for stop navigation button.
     let stopNavigationButton = ActionButtonComponents(image: UIImage(named: "StopNavigation")!, label: "Stop navigation", targetSelector: Selector.stopNavigationButtonTapped)
     
@@ -151,7 +161,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     /// True if we should use a cone of pi/12 and false if we should use a cone of pi/6 when deciding whether to issue haptic feedback
     var strictHaptic = true
-
+    
     /// A UUID for the current device (note: this can change in various circumstances, so we should be wary of using this, see: https://developer.apple.com/documentation/uikit/uidevice#//apple_ref/occ/instp/UIDevice/identifierForVendor)
     let deviceID = UIDevice.current.identifierForVendor
     
@@ -163,14 +173,14 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     /// Button view container for start navigation button
     var startNavigationView: UIView!
-
+    
     /// Button view container for stop navigation button
     var stopNavigationView: UIView!
     
     var sceneView = ARSCNView()
     
     // MARK: - UI Setup
-//    @IBOutlet weak var sceneView: ARSCNView!
+    //    @IBOutlet weak var sceneView: ARSCNView!
     
     /// Hide status bar
     override var prefersStatusBarHidden: Bool {
@@ -209,13 +219,13 @@ class ViewController: UIViewController, ARSCNViewDelegate {
      * UIViewss for all UI button containers
      */
     var getDirectionButton: UIButton!
-//    var recordPathView: UIView!
-//    var stopRecordingView: UIView!
-//    var startNavigationView: UIView!
+    //    var recordPathView: UIView!
+    //    var stopRecordingView: UIView!
+    //    var startNavigationView: UIView!
     var pauseTrackingView: UIView!
     var resumeTrackingView: UIView!
     var resumeTrackingConfirmView: UIView!
-//    var stopNavigationView: UIView!
+    //    var stopNavigationView: UIView!
     var directionText: UILabel!
     var routeRatingView: UIView!
     var routeRatingLabel: UILabel?
@@ -237,7 +247,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         // Scene view setup
         sceneView.frame = view.frame
         view.addSubview(sceneView)
-
+        
         createSettingsBundle()
         listenVolumeButton()
         createARSession()
@@ -254,7 +264,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         responsePathRef.observe(.childAdded) { (snapshot) -> Void in
             self.handleNewConfig(snapshot: snapshot)
         }
-
+        
     }
     
     func handleNewConfig(snapshot: DataSnapshot) {
@@ -320,7 +330,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         let appDefaults = ["crumbColor": 0, "hapticFeedback": true, "sendLogs": true, "voiceFeedback": true, "soundFeedback": true, "units": 0] as [String : Any]
         UserDefaults.standard.register(defaults: appDefaults)
     }
-
+    
     func updateDisplayFromDefaults(){
         let defaults = UserDefaults.standard
         
@@ -336,9 +346,33 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         updateDisplayFromDefaults()
     }
     
+    func addTapGestureToSceneView() {
+        let tapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(didReceiveTapGesture(_:)))
+        sceneView.addGestureRecognizer(tapGestureRecognizer)
+    }
+    
+    @objc func didReceiveTapGesture(_ sender: UITapGestureRecognizer) {
+        let location = sender.location(in: sceneView)
+        guard let hitTestResult = sceneView.hitTest(location, types: [.featurePoint, .estimatedHorizontalPlane]).first
+            else { return }
+        let anchor = ARAnchor(transform: hitTestResult.worldTransform)
+        sceneView.session.add(anchor: anchor)
+    }
+    
+    
+    func generateSphereNode() -> SCNNode {
+        // generate sphere
+        let sphere = SCNSphere(radius: 0.05)
+        let sphereNode = SCNNode()
+        sphereNode.position.y += Float(sphere.radius)
+        sphereNode.geometry = sphere
+        return sphereNode
+    }
+    
     /*
      * Create New ARSession
      */
+    
     func createARSession() {
         configuration = ARWorldTrackingConfiguration()
         configuration.planeDetection = .horizontal
@@ -365,6 +399,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             } else {
                 print("resume")
                 resumeTracking()
+                print("resume22")
                 paused = false
             }
         }
@@ -452,7 +487,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         // Start Navigation button container
         startNavigationView = UIView(frame: CGRect(x: 0, y: yOriginOfButtonFrame, width: buttonFrameWidth, height: buttonFrameHeight))
-//        startNavigationView.setupButtonContainer(withButton: startNavigationButton)
+        //        startNavigationView.setupButtonContainer(withButton: startNavigationButton)
         startNavigationView.backgroundColor = UIColor.black.withAlphaComponent(0.4)
         startNavigationView.isHidden = true
         addButtons(buttonView: startNavigationView)
@@ -461,15 +496,17 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         pauseTrackingView = UIView(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.size.width, height: UIScreen.main.bounds.size.height))
         pauseTrackingView.backgroundColor = UIColor.black.withAlphaComponent(0.4)
         pauseTrackingView.isHidden = true
+        addButtons(buttonView: startNavigationView)
         drawPauseTrackingView()
         
         
         resumeTrackingView = UIView(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.size.width, height: UIScreen.main.bounds.size.height))
         resumeTrackingView.backgroundColor = UIColor.black.withAlphaComponent(0.4)
         resumeTrackingView.isHidden = true
+        addButtons(buttonView: startNavigationView)
         drawResumeTrackingView()
         
-       resumeTrackingConfirmView = UIView(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.size.width, height: UIScreen.main.bounds.size.height))
+        resumeTrackingConfirmView = UIView(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.size.width, height: UIScreen.main.bounds.size.height))
         resumeTrackingConfirmView.backgroundColor = UIColor.black.withAlphaComponent(0.4)
         resumeTrackingConfirmView.isHidden = true
         drawResumeTrackingConfrimView()
@@ -537,7 +574,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         label.numberOfLines = 0
         label.lineBreakMode = .byWordWrapping
         
-        label.text = "Place the device against a flat vertical surface and press the volume button to pause. Do not move your phone until you feel a haptic confirmation. You will need to return to this surface to resume tracking. You can use other apps while in pause, but please keep the app running in the background."
+        label.text = "Paused"
+        
+        //"Place the device against a flat vertical surface and press the volume button to pause. Do not move your phone until you feel a haptic confirmation. You will need to return to this surface to resume tracking. You can use other apps while in pause, but please keep the app running in the background."
         
         pauseTrackingView.addSubview(label)
     }
@@ -549,24 +588,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         label.numberOfLines = 0
         label.lineBreakMode = .byWordWrapping
         
-        label.text = "Return to the last paused location and press Resume for further instructions."
+        // label.text = "Return to the last paused location and press Resume for further instructions."
         
-        let buttonWidth = resumeTrackingView.bounds.size.width / 4.5
-        
-        let resumeButton = UIButton(type: .custom)
-        resumeButton.frame = CGRect(x: 0, y: 0, width: buttonWidth, height: buttonWidth)
-        resumeButton.layer.cornerRadius = 0.5 * resumeButton.bounds.size.width
-        resumeButton.clipsToBounds = true
-        resumeButton.setTitle("Resume", for: .normal)
-        resumeButton.layer.borderWidth = 2
-        resumeButton.layer.borderColor = UIColor.white.cgColor
-        resumeButton.center.x = pauseTrackingView.center.x
-        resumeButton.center.y = pauseTrackingView.bounds.size.height * (4/5)
-        resumeButton.addTarget(self, action: #selector(showResumeTrackingConfirmButton), for: .touchUpInside)
-        
-        resumeTrackingView.addSubview(resumeButton)
-        resumeTrackingView.addSubview(label)
-    }
+}
     
     func drawResumeTrackingConfrimView() {
         let label = UILabel(frame: CGRect(x: 15, y: displayHeight/2.5, width: displayWidth-30, height: displayHeight/6))
@@ -587,6 +611,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     /// Largely vestigial. Should be refactored completely out of the code soon.
     ///
     /// - Parameter buttonView: `startNavigationView` button container
+    
     func addButtons(buttonView: UIView) {
         let buttonWidth = buttonView.bounds.size.width / 4.5
         
@@ -616,6 +641,21 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         buttonView.addSubview(pauseButton)
         buttonView.addSubview(button)
+        
+        
+        let loadButton = UIButton(type: .custom)
+        loadButton.frame = CGRect(x: 0, y: 0, width: buttonWidth , height: buttonWidth )
+        loadButton.layer.cornerRadius = 0.5 * button.bounds.size.width
+        loadButton.clipsToBounds = true
+        loadButton.center.x = buttonView.center.x - displayWidth/3
+        loadButton.center.y = buttonView.bounds.size.height * (6/10)
+        loadButton.addTarget(self, action: #selector(showResumeTrackingButton), for: .touchUpInside)
+        loadButton.setTitle("Load", for: .normal)
+        loadButton.layer.borderWidth = 2
+        loadButton.layer.borderColor = UIColor.white.cgColor
+        
+        buttonView.addSubview(loadButton)
+        buttonView.addSubview(button)
     }
     
     /*
@@ -625,7 +665,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         recordPathView.isHidden = false
         stopNavigationView.isHidden = true
         getDirectionButton.isHidden = true
-
+        
         directionText.isHidden = false
         routeRatingView.isHidden = true
         navigationMode = false
@@ -648,12 +688,14 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     }
     
     /*
-     * display STOP RECORDIN button/hide all other views
+     * display STOP RECORDING button/hide all other views
      */
+    
     @objc func showStopRecordingButton() {
         recordPathView.isHidden = true
         recordPathView.isAccessibilityElement = false
         stopRecordingView.isHidden = false
+        startNavigationView.isHidden = true
         currentButton = .stopRecording
         directionText.isAccessibilityElement = true
         updateDirectionText("Hold vertically with the rear camera facing forward.", distance: 0, size: 13, displayDistance: false)
@@ -682,38 +724,51 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     /*
      * display PAUSE TRACKING button/hide all other views
      */
+    
     @objc func showPauseTrackingButton() throws {
-        startNavigationView.isHidden = true
-        directionText.isHidden = true
-        pauseTrackingView.isHidden = false
-        currentButton = .resumeTracking
+        resumeTrackingConfirmView.isHidden = true
+        stopRecordingView.isHidden = true
+        startNavigationView.isHidden = false
+        directionText.isHidden = false
+        currentButton = .pauseTracking
+        directionText.isAccessibilityElement = true
+        updateDirectionText(" ", distance: 0, size: 14, displayDistance: false)
         do {
-            try audioSession.setActive(true)
+            try audioSession.setActive(false)
         } catch {
             print("some error")
         }
+        pauseTracking()
         delayTransition()
     }
     
     /*
      * display RESUME TRACKING button/hide all other views
      */
+    
     @objc func showResumeTrackingButton() {
-        pauseTrackingView.isHidden = true
-        resumeTrackingView.isHidden = false
+        resumeTrackingConfirmView.isHidden = true
+        stopRecordingView.isHidden = true
+        startNavigationView.isHidden = false
+        directionText.isHidden = false
         currentButton = .resumeTracking
+        directionText.isAccessibilityElement = true
+
+        updateDirectionText("Resume?", distance: 0, size: 14, displayDistance: false)
         do {
             try audioSession.setActive(false)
-            print("killed active")
         } catch {
             print("some error")
         }
+        resumeTracking()
         delayTransition()
     }
     
     @objc func showResumeTrackingConfirmButton() {
         resumeTrackingView.isHidden = true
         resumeTrackingConfirmView.isHidden = false
+        stopRecordingView.isHidden = false
+
         do {
             try audioSession.setActive(true)
         } catch {
@@ -841,7 +896,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     let unit = [0: "ft", 1: "m"]
     let unitText = [0: " feet", 1: " meters"]
     let unitConversionFactor = [0: Float(100.0/2.54/12.0), 1: Float(1.0)]
-
+    
     var defaultUnit: Int!
     var defaultColor: Int!
     var soundFeedback: Bool!
@@ -929,6 +984,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     }
     
     @objc func stopNavigation(_ sender: UIButton) {
+        print("stop Navigation")
         // stop navigation
         followingCrumbs.invalidate()
         hapticTimer.invalidate()
@@ -946,19 +1002,111 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         }
     }
     
+    @IBOutlet weak var label2: UILabel!
+    
+    func setLabel2(text: String) {
+        label2.text = text
+    }
+    
     @objc func pauseTracking() {
-        // pause AR pose tracking
-        sceneView.session.pause()
-        showResumeTrackingButton()
-        announcementTimer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: (#selector(playSound)), userInfo: nil, repeats: false)
+        print("pauseTracking")
+        if #available(iOS 12.0, *) {
+            // get current scanned AR map
+            sceneView.session.getCurrentWorldMap { (worldMap, error) in
+                guard let worldMap = worldMap else {
+                    print("Error getting current world map.")
+                    return
+                }
+                
+                do {
+                    // save AR worldmap
+                    try self.archive(worldMap: worldMap)
+                    DispatchQueue.main.async {
+                        print("Worldmap saved")
+                        //self.setLabel2(text: "World map is saved.")
+                    }
+                } catch {
+                    fatalError("Error saving world map: \(error.localizedDescription)")
+                }
+            }
+            
+        } else {
+            // pause AR pose tracking
+            sceneView.session.pause()
+            showResumeTrackingButton()
+            announcementTimer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: (#selector(playSound)), userInfo: nil, repeats: false)
+        }
     }
     
     @objc func resumeTracking() {
-        // resume pose tracking with existing ARSessionConfiguration
-        sceneView.session.run(configuration)
-        showStartNavigationButton()
-        announcementTimer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: (#selector(playSound)), userInfo: nil, repeats: false)
+        print("isresume")
+        if #available(iOS 12.0, *){
+            // call 'retrieveWorldMapData' to retrieve data from URL, unarchieve then load data to restore the AR world map
+            guard let worldMapData = retrieveWorldMapData(from: worldMapURL),
+                let worldMap = unarchive(worldMapData: worldMapData) else { return }
+            resetTrackingConfiguration(with: worldMap)
+            print("resumeavailable")
+            showStopRecordingButton()
+
+            
+        } else{
+            // resume pose tracking with existing ARSessionConfiguration
+            sceneView.session.run(configuration)
+            showStartNavigationButton()
+            announcementTimer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: (#selector(playSound)), userInfo: nil, repeats: false)
+        }
+        
     }
+    
+    @available(iOS 12.0, *)
+    func resetTrackingConfiguration(with worldMap: ARWorldMap? = nil) {
+        
+        let configuration = ARWorldTrackingConfiguration()
+        configuration.planeDetection = [.horizontal]
+        
+        let options: ARSession.RunOptions = [.resetTracking, .removeExistingAnchors]
+        // sets the scene view configureation's initial world map to the world map parameter and inform whether the matched world map is found
+        if let worldMap = worldMap {
+            configuration.initialWorldMap = worldMap
+            print("Found saved world map")
+            //setLabel2(text: "Found saved world map.")
+            
+        } else {
+            //setLabel2(text: "Move camera around to map your surrounding space.")
+            print("Move camera around to map your surrounding space.")
+        }
+        
+        sceneView.debugOptions = [.showFeaturePoints]
+        sceneView.session.run(configuration, options: options)
+    }
+    
+    @available(iOS 12.0, *)
+    func archive(worldMap: ARWorldMap) throws {
+        // create an archiver method to save ARWorldMap object
+        let data = try NSKeyedArchiver.archivedData(withRootObject: worldMap, requiringSecureCoding: true)
+        try data.write(to: self.worldMapURL, options: [.atomic])
+        // "atomic" guarantees the file to either complete writing onto your device or not.
+    }
+    
+    func retrieveWorldMapData(from url: URL) -> Data? {
+        // get the world map data from previously saved document directory
+        do {
+            return try Data(contentsOf: self.worldMapURL)
+            // retrieve data object from worldmapURL
+        } catch {
+            self.setLabel2(text: "Error retrieving world map data.")
+            return nil
+        }
+    }
+    
+    @available(iOS 12.0, *)
+    func unarchive(worldMapData data: Data) -> ARWorldMap? {
+        // unwrap ARWorldMap Object
+        guard let unarchievedObject = try? NSKeyedUnarchiver.unarchivedObject(ofClass: ARWorldMap.self, from: data),
+            let worldMap = unarchievedObject else { return nil }
+        return worldMap
+    }
+    
     
     // MARK: - Logging
     @objc func sendLogData() {
@@ -1145,7 +1293,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         }
         return potentialOffset
     }
-  
+    
     @objc func updateHeadingOffset() {
         // send haptic feedback depending on correct device
         let curLocation = getRealCoordinates(record: false)

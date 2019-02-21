@@ -1,4 +1,4 @@
-# clew
+https://guides.cocoapods.org/syntax/podfile.html#platform# clew
 breadcrumbs app for path retracing
 
 ## Contents
