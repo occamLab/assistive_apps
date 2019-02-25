@@ -59,6 +59,29 @@ public struct KeypointInfo {
     public var orientation: Vector3
 }
 
+/// SavedRoutes class to store the routes that were saved by the user
+class SavedRoute: NSObject {
+    public var name: String
+    public var crumbs: [LocationInfo]
+    public var dateCreated: Date
+    
+    public init(name: String, crumbs: [LocationInfo]) {
+        self.name = name
+        self.crumbs = crumbs
+        self.dateCreated = Date()
+    }
+    
+//    func encode(with aCoder: NSCoder) {
+//        aCoder.encode(name, forKey: "name")
+//        aCoder.encode(crumbs, forKey: "crumbs")
+//        aCoder.encode(dateCreated, forKey: "dateCreated")
+//    }
+//
+//    required convenience init?(coder aDecoder: NSCoder) {
+//
+//    }
+}
+
 /// Pathfinder class calculates turns or "keypoints" given a path array of LocationInfo
 class PathFinder {
     
