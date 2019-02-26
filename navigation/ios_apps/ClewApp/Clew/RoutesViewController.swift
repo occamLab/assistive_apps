@@ -12,23 +12,26 @@ import WebKit
 class RoutesViewController : UIViewController, UITableViewDataSource, UITableViewDelegate {
     
     @IBOutlet weak var tableView: UITableView!
-    
+    var rootViewController: ViewController?
     var routes = [SavedRoute]()
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        tableView.dataSource = self
+        self.tableView.delegate = self
+        self.tableView.dataSource = self
     }
     
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-//        tableView.deselectRow(at: indexPath, animated: true)
+        self.tableView.deselectRow(at: indexPath, animated: true)
+        self.rootViewController?.onRouteTableViewCellClicked(routeId: self.routes[indexPath.row].id)
+        self.dismiss(animated: true, completion: nil)
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "clew.RouteTableViewCell", for: indexPath) as! RouteTableViewCell
-        cell.nameLabel.text = routes[indexPath.row].name
         let df = DateFormatter()
         df.dateFormat = "MM/DD/YYYY"
+        let cell = tableView.dequeueReusableCell(withIdentifier: "clew.RouteTableViewCell", for: indexPath) as! RouteTableViewCell
+        cell.nameLabel.text = routes[indexPath.row].name
         cell.dateCreatedLabel.text = df.string(from: routes[indexPath.row].dateCreated)
         return cell
     }

@@ -61,11 +61,13 @@ public struct KeypointInfo {
 
 /// SavedRoutes class to store the routes that were saved by the user
 class SavedRoute: NSObject {
+    public var id: String
     public var name: String
     public var crumbs: [LocationInfo]
     public var dateCreated: Date
     
-    public init(name: String, crumbs: [LocationInfo]) {
+    public init(id: String, name: String, crumbs: [LocationInfo]) {
+        self.id = id
         self.name = name
         self.crumbs = crumbs
         self.dateCreated = Date()

@@ -800,7 +800,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             }
             let id = name! + String(Int64(NSDate().timeIntervalSince1970 * 1000))
             // Save the route to dictionary
-            self.routes[id] = SavedRoute(name: name!, crumbs: self.crumbs)
+            self.routes[id] = SavedRoute(id: id, name: name!, crumbs: self.crumbs)
         }
         
         // The cancel action doing nothing
@@ -1348,8 +1348,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     @objc func routesButtonPressed() {
         let storyBoard: UIStoryboard = UIStoryboard(name: "SettingsAndHelp", bundle: nil)
         let popoverContent = storyBoard.instantiateViewController(withIdentifier: "Routes") as! RoutesViewController
-        let nav = UINavigationController(rootViewController: popoverContent)
+        popoverContent.rootViewController = self
         popoverContent.updateRoutes(routes: self.routes)
+        let nav = UINavigationController(rootViewController: popoverContent)
         nav.modalPresentationStyle = .popover
         let popover = nav.popoverPresentationController
         popover?.delegate = self
@@ -1357,6 +1358,11 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         popover?.sourceRect = CGRect(x: 0, y: settingsAndHelpFrameHeight/2, width: 0,height: 0)
         
         self.present(nav, animated: true, completion: nil)
+    }
+    
+    func onRouteTableViewCellClicked(routeId: String) {
+        // TODO: handle onClick event when loading/resuming the route
+        print(routeId)
     }
     
     @objc func announceDirectionHelp() {
