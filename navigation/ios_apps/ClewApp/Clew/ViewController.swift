@@ -226,7 +226,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     var getDirectionButton: UIButton!
     var settingsButton: UIButton!
     var helpButton: UIButton!
-    var routesButton: UIButton!
+    var menuButton: UIButton!
 
 //    var recordPathView: UIView!
 //    var stopRecordingView: UIView!
@@ -465,14 +465,14 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         helpButton.backgroundColor = UIColor.black.withAlphaComponent(0.4)
         helpButton.addTarget(self, action: #selector(helpButtonPressed), for: .touchUpInside)
         
-        // button that shows the list of saved routes
-        routesButton = UIButton(frame: CGRect(x: buttonFrameWidth/2, y: 0, width: buttonFrameWidth/2, height: settingsAndHelpFrameHeight))
-        routesButton.isAccessibilityElement = true
-        routesButton.setTitle("ROUTES", for: .normal)
-        routesButton.titleLabel?.font = UIFont.systemFont(ofSize: 28.0)
-        routesButton.accessibilityLabel = "Saved Routes List"
-        routesButton.backgroundColor = UIColor.black.withAlphaComponent(0.4)
-        routesButton.addTarget(self, action: #selector(routesButtonPressed), for: .touchUpInside)
+        // button that opens menu
+        menuButton = UIButton(frame: CGRect(x: buttonFrameWidth/2, y: 0, width: buttonFrameWidth/2, height: settingsAndHelpFrameHeight))
+        menuButton.isAccessibilityElement = true
+        menuButton.setTitle("MENU", for: .normal)
+        menuButton.titleLabel?.font = UIFont.systemFont(ofSize: 28.0)
+        menuButton.accessibilityLabel = "Open Menu"
+        menuButton.backgroundColor = UIColor.black.withAlphaComponent(0.4)
+        menuButton.addTarget(self, action: #selector(menuButtonPressed), for: .touchUpInside)
         
         // button that gives direction to the nearist keypoint
         getDirectionButton = UIButton(frame: CGRect(x: 0, y: 0, width: buttonFrameWidth, height: yOriginOfButtonFrame))
@@ -538,7 +538,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         self.view.addSubview(getDirectionButton)
         self.view.addSubview(settingsButton)
         self.view.addSubview(helpButton)
-        self.view.addSubview(routesButton)
+        self.view.addSubview(menuButton)
         self.view.addSubview(routeRatingView)
         showRecordPathButton(announceArrival: false)
     }
@@ -1345,11 +1345,11 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         self.present(nav, animated: true, completion: nil)
     }
     
-    @objc func routesButtonPressed() {
+    @objc func menuButtonPressed() {
         let storyBoard: UIStoryboard = UIStoryboard(name: "SettingsAndHelp", bundle: nil)
-        let popoverContent = storyBoard.instantiateViewController(withIdentifier: "Routes") as! RoutesViewController
+        let popoverContent = storyBoard.instantiateViewController(withIdentifier: "Menu") as! MenuViewController
         popoverContent.rootViewController = self
-        popoverContent.updateRoutes(routes: self.routes)
+        popoverContent.loadRoutes(routes: self.routes)
         let nav = UINavigationController(rootViewController: popoverContent)
         nav.modalPresentationStyle = .popover
         let popover = nav.popoverPresentationController
@@ -1360,9 +1360,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         self.present(nav, animated: true, completion: nil)
     }
     
-    func onRouteTableViewCellClicked(routeId: String) {
+    func onRouteTableViewCellClicked(routeId: String, vcType: ViewControllerType) {
         // TODO: handle onClick event when loading/resuming the route
-        print(routeId)
+        print(routeId + vcType.rawValue)
     }
     
     @objc func announceDirectionHelp() {

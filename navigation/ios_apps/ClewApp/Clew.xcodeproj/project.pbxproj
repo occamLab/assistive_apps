@@ -12,6 +12,8 @@
 		230D17B02220F2FA00555922 /* RoutesViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 230D17AE2220F2FA00555922 /* RoutesViewController.swift */; };
 		2328870D22249439004ACB4B /* RouteTableViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2328870C22249439004ACB4B /* RouteTableViewCell.swift */; };
 		2328870E22249439004ACB4B /* RouteTableViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2328870C22249439004ACB4B /* RouteTableViewCell.swift */; };
+		237F4DCE22271C5E00F3E763 /* MenuViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 237F4DCD22271C5E00F3E763 /* MenuViewController.swift */; };
+		237F4DCF22271C5E00F3E763 /* MenuViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 237F4DCD22271C5E00F3E763 /* MenuViewController.swift */; };
 		4B12F4A545BC26EAA16F6633 /* Pods_Clew.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1977F3CD0CF608888A7E2B5C /* Pods_Clew.framework */; };
 		4D6B00C41F33C1C400952242 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6B00C31F33C1C400952242 /* AppDelegate.swift */; };
 		4D6B00C61F33C1C400952242 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6B00C51F33C1C400952242 /* ViewController.swift */; };
@@ -52,6 +54,7 @@
 		1977F3CD0CF608888A7E2B5C /* Pods_Clew.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Clew.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		230D17AE2220F2FA00555922 /* RoutesViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutesViewController.swift; sourceTree = "<group>"; };
 		2328870C22249439004ACB4B /* RouteTableViewCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteTableViewCell.swift; sourceTree = "<group>"; };
+		237F4DCD22271C5E00F3E763 /* MenuViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuViewController.swift; sourceTree = "<group>"; };
 		4315F457247AC66574B86A26 /* Pods_Clew_Dev.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Clew_Dev.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		4D6B00C01F33C1C400952242 /* Clew.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Clew.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4D6B00C31F33C1C400952242 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -145,6 +148,7 @@
 				82473B072217641D00E98CFC /* Clew Dev-Bridging-Header.h */,
 				230D17AE2220F2FA00555922 /* RoutesViewController.swift */,
 				2328870C22249439004ACB4B /* RouteTableViewCell.swift */,
+				237F4DCD22271C5E00F3E763 /* MenuViewController.swift */,
 			);
 			path = Clew;
 			sourceTree = "<group>";
@@ -383,6 +387,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				82569F4722187AE700448B45 /* HelpViewController.swift in Sources */,
+				237F4DCE22271C5E00F3E763 /* MenuViewController.swift in Sources */,
 				2328870D22249439004ACB4B /* RouteTableViewCell.swift in Sources */,
 				4D6B00D81F33C21A00952242 /* PathFinder.swift in Sources */,
 				4D6B00D61F33C1FE00952242 /* Navigation.swift in Sources */,
@@ -399,6 +404,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				82569F4822187AE700448B45 /* HelpViewController.swift in Sources */,
+				237F4DCF22271C5E00F3E763 /* MenuViewController.swift in Sources */,
 				2328870E22249439004ACB4B /* RouteTableViewCell.swift in Sources */,
 				B7EB59DA20F693EB00FBBC6A /* PathFinder.swift in Sources */,
 				B7EB59DB20F693EB00FBBC6A /* Navigation.swift in Sources */,

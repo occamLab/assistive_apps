@@ -9,11 +9,22 @@
 import Foundation
 import WebKit
 
+
+/**
+ViewControllerType to determine whether we want to use RoutesViewController to
+Load saved routes (to navigate) or to Resume the route recording.
+**/
+public enum ViewControllerType: String {
+    case loadSavedRoutes = "LoadSavedRoutes"
+    case resumeRecording = "ResumeRecording"
+}
+
 class RoutesViewController : UIViewController, UITableViewDataSource, UITableViewDelegate {
     
     @IBOutlet weak var tableView: UITableView!
     var rootViewController: ViewController?
     var routes = [SavedRoute]()
+    var vcType = ViewControllerType.loadSavedRoutes
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -23,7 +34,7 @@ class RoutesViewController : UIViewController, UITableViewDataSource, UITableVie
     
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         self.tableView.deselectRow(at: indexPath, animated: true)
-        self.rootViewController?.onRouteTableViewCellClicked(routeId: self.routes[indexPath.row].id)
+        self.rootViewController?.onRouteTableViewCellClicked(routeId: self.routes[indexPath.row].id, vcType: vcType)
         self.dismiss(animated: true, completion: nil)
     }
     
@@ -38,13 +49,5 @@ class RoutesViewController : UIViewController, UITableViewDataSource, UITableVie
     
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return routes.count
-    }
-    
-    func updateRoutes(routes: [String : SavedRoute]) {
-        var tempRoutes = [SavedRoute]()
-        for (_, savedRoute) in routes {
-            tempRoutes.append(savedRoute)
-        }
-        self.routes = tempRoutes.sorted(by: { $0.dateCreated > $1.dateCreated })
     }
 }
