@@ -346,28 +346,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         updateDisplayFromDefaults()
     }
     
-    func addTapGestureToSceneView() {
-        let tapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(didReceiveTapGesture(_:)))
-        sceneView.addGestureRecognizer(tapGestureRecognizer)
-    }
-    
-    @objc func didReceiveTapGesture(_ sender: UITapGestureRecognizer) {
-        let location = sender.location(in: sceneView)
-        guard let hitTestResult = sceneView.hitTest(location, types: [.featurePoint, .estimatedHorizontalPlane]).first
-            else { return }
-        let anchor = ARAnchor(transform: hitTestResult.worldTransform)
-        sceneView.session.add(anchor: anchor)
-    }
-    
-    
-    func generateSphereNode() -> SCNNode {
-        // generate sphere
-        let sphere = SCNSphere(radius: 0.05)
-        let sphereNode = SCNNode()
-        sphereNode.position.y += Float(sphere.radius)
-        sphereNode.geometry = sphere
-        return sphereNode
-    }
+   
     
     /*
      * Create New ARSession
@@ -383,6 +362,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     /*
      * Setup volume listener
      */
+    
     let audioSession = AVAudioSession.sharedInstance()
     func listenVolumeButton() {
         let volumeView: MPVolumeView = MPVolumeView(frame: CGRect(x: 0, y: 0, width: 0, height: 0))
@@ -435,6 +415,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         tapGestureRecognizer.numberOfTapsRequired = 2
         self.view.addGestureRecognizer(tapGestureRecognizer)
     }
+    
+    
     // MARK: - drawUI() temp mark for navigation
     
     /// Initializes, configures, and adds all subviews defined programmatically.
@@ -661,6 +643,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     /*
      * display RECORD PATH button/hide all other views
      */
+    
     @objc func showRecordPathButton(announceArrival: Bool) {
         recordPathView.isHidden = false
         stopNavigationView.isHidden = true
@@ -705,6 +688,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     /*
      * display START NAVIGATION button/hide all other views
      */
+    
     @objc func showStartNavigationButton() {
         resumeTrackingConfirmView.isHidden = true
         stopRecordingView.isHidden = true
@@ -725,14 +709,14 @@ class ViewController: UIViewController, ARSCNViewDelegate {
      * display PAUSE TRACKING button/hide all other views
      */
     
-    @objc func showPauseTrackingButton() throws {
+    @objc func showPauseTrackingButton() {
         resumeTrackingConfirmView.isHidden = true
         stopRecordingView.isHidden = true
         startNavigationView.isHidden = false
         directionText.isHidden = false
         currentButton = .pauseTracking
         directionText.isAccessibilityElement = true
-        updateDirectionText(" ", distance: 0, size: 14, displayDistance: false)
+        updateDirectionText("", distance: 0, size: 14, displayDistance: false)
         do {
             try audioSession.setActive(false)
         } catch {
@@ -741,6 +725,27 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         pauseTracking()
         delayTransition()
     }
+    
+    @objc func showPauseFoundWorldmap() {
+        resumeTrackingConfirmView.isHidden = true
+        stopRecordingView.isHidden = true
+        startNavigationView.isHidden = false
+        directionText.isHidden = false
+        currentButton = .pauseTracking
+        directionText.isAccessibilityElement = true
+        updateDirectionText("Slowly move your phone horizontally", distance: 0, size: 14, displayDistance: false)
+    }
+    
+    @objc func showPauseNotFoundWM () {
+        resumeTrackingConfirmView.isHidden = true
+        stopRecordingView.isHidden = true
+        startNavigationView.isHidden = false
+        directionText.isHidden = false
+        currentButton = .pauseTracking
+        directionText.isAccessibilityElement = true
+        updateDirectionText("Error Saving World Map", distance: 0, size: 14, displayDistance: false)
+    }
+
     
     /*
      * display RESUME TRACKING button/hide all other views
@@ -754,7 +759,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         currentButton = .resumeTracking
         directionText.isAccessibilityElement = true
 
-        updateDirectionText("Resume?", distance: 0, size: 14, displayDistance: false)
+        updateDirectionText("Resumed", distance: 0, size: 14, displayDistance: false) //aa
         do {
             try audioSession.setActive(false)
         } catch {
@@ -816,6 +821,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
      * update directionText UILabel given text string and font size
      * distance Bool used to determine whether to add string "meters" to direction text
      */
+    
     func updateDirectionText(_ description: String, distance: Float, size: CGFloat, displayDistance: Bool) {
         directionText.fadeTransition(0.4)
         directionText.font = directionText.font.withSize(size)
@@ -848,6 +854,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     }
     
     // MARK: - BreadCrumbs
+    
+    
+    
     
     // AR Session Configuration
     var configuration: ARWorldTrackingConfiguration!
@@ -1002,28 +1011,21 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         }
     }
     
-    @IBOutlet weak var label2: UILabel!
-    
-    func setLabel2(text: String) {
-        label2.text = text
-    }
-    
     @objc func pauseTracking() {
         print("pauseTracking")
         if #available(iOS 12.0, *) {
             // get current scanned AR map
             sceneView.session.getCurrentWorldMap { (worldMap, error) in
                 guard let worldMap = worldMap else {
-                    print("Error getting current world map.")
+                    self.showPauseNotFoundWM()
                     return
                 }
-                
                 do {
                     // save AR worldmap
                     try self.archive(worldMap: worldMap)
                     DispatchQueue.main.async {
-                        print("Worldmap saved")
-                        //self.setLabel2(text: "World map is saved.")
+                        //self.showPauseFoundWorldmap()
+                        //self.sceneView.session.pause()
                     }
                 } catch {
                     fatalError("Error saving world map: \(error.localizedDescription)")
@@ -1039,16 +1041,20 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     }
     
     @objc func resumeTracking() {
-        print("isresume")
+        let label = UILabel(frame: CGRect(x: 15, y: displayHeight/2.5, width: displayWidth-30, height: displayHeight/6))
+        label.textColor = UIColor.white
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.lineBreakMode = .byWordWrapping
+
         if #available(iOS 12.0, *){
             // call 'retrieveWorldMapData' to retrieve data from URL, unarchieve then load data to restore the AR world map
             guard let worldMapData = retrieveWorldMapData(from: worldMapURL),
                 let worldMap = unarchive(worldMapData: worldMapData) else { return }
             resetTrackingConfiguration(with: worldMap)
-            print("resumeavailable")
+    
             showStopRecordingButton()
-
-            
+        
         } else{
             // resume pose tracking with existing ARSessionConfiguration
             sceneView.session.run(configuration)
@@ -1060,6 +1066,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     @available(iOS 12.0, *)
     func resetTrackingConfiguration(with worldMap: ARWorldMap? = nil) {
+        let label = UILabel(frame: CGRect(x: 15, y: displayHeight/2.5, width: displayWidth-30, height: displayHeight/6))
         
         let configuration = ARWorldTrackingConfiguration()
         configuration.planeDetection = [.horizontal]
@@ -1068,11 +1075,10 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         // sets the scene view configureation's initial world map to the world map parameter and inform whether the matched world map is found
         if let worldMap = worldMap {
             configuration.initialWorldMap = worldMap
-            print("Found saved world map")
-            //setLabel2(text: "Found saved world map.")
+            label.text = "Found saved world map "
             
         } else {
-            //setLabel2(text: "Move camera around to map your surrounding space.")
+            //self.setLabel2(text: "Move camera around to map your surrounding space.")
             print("Move camera around to map your surrounding space.")
         }
         
@@ -1094,7 +1100,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             return try Data(contentsOf: self.worldMapURL)
             // retrieve data object from worldmapURL
         } catch {
-            self.setLabel2(text: "Error retrieving world map data.")
+            print("Error retrieving world map data.")
             return nil
         }
     }
@@ -1590,7 +1596,11 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         }
         
         return CurrentCoordinateInfo(LocationInfo(x: x, y: y, z: z, yaw: yaw!), transMatrix: transMatrix)
+        
+
     }
+    
+    
     
     /*
      * Called when there is a change in tracking state
