@@ -19,6 +19,7 @@ public enum ViewControllerType: String {
     case resumeRecording = "ResumeRecording"
 }
 
+@available(iOS 12.0, *)
 class RoutesViewController : UIViewController, UITableViewDataSource, UITableViewDelegate {
     
     @IBOutlet weak var tableView: UITableView!
@@ -34,7 +35,7 @@ class RoutesViewController : UIViewController, UITableViewDataSource, UITableVie
     
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         self.tableView.deselectRow(at: indexPath, animated: true)
-        self.rootViewController?.onRouteTableViewCellClicked(routeId: self.routes[indexPath.row].id, vcType: vcType)
+        self.rootViewController?.onRouteTableViewCellClicked(routeId: self.routes[indexPath.row].id as String, vcType: vcType)
         self.dismiss(animated: true, completion: nil)
     }
     
@@ -42,8 +43,8 @@ class RoutesViewController : UIViewController, UITableViewDataSource, UITableVie
         let df = DateFormatter()
         df.dateFormat = "MM/DD/YYYY"
         let cell = tableView.dequeueReusableCell(withIdentifier: "clew.RouteTableViewCell", for: indexPath) as! RouteTableViewCell
-        cell.nameLabel.text = routes[indexPath.row].name
-        cell.dateCreatedLabel.text = df.string(from: routes[indexPath.row].dateCreated)
+        cell.nameLabel.text = routes[indexPath.row].name as String
+        cell.dateCreatedLabel.text = df.string(from: routes[indexPath.row].dateCreated as Date)
         return cell
     }
     

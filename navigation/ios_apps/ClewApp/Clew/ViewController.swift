@@ -80,6 +80,7 @@ extension UIButton {
 
 // Neat way of storing the selectors for all the targets we use.
 // Source: https://medium.com/swift-programming/swift-selector-syntax-sugar-81c8a8b10df3
+@available(iOS 12.0, *)
 fileprivate extension Selector {
     static let recordPathButtonTapped = #selector(ViewController.recordPath)
     static let stopRecordingButtonTapped = #selector(ViewController.stopRecording)
@@ -104,6 +105,7 @@ public struct ActionButtonComponents {
     var targetSelector: Selector
 }
 
+@available(iOS 12.0, *)
 class ViewController: UIViewController, ARSCNViewDelegate {
     
     // MARK: - Refactoring UI definition
@@ -263,6 +265,13 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         drawUI()
         addGestures()
         setupFirebaseObservers()
+        
+        trackingErrorData = []
+        trackingErrorTime = []
+        trackingErrorPhase = []
+        
+        guard let newRoutes = NSKeyedUnarchiver.unarchiveObject(withFile: self.worldMapURL(id: "", isInfo: true).path) as? [String: SavedRoute] else {return}
+        self.routes = newRoutes
     }
     
     func setupFirebaseObservers() {
@@ -299,6 +308,20 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         if (firstTimeLoggingIn == nil) {
             userDefaults.set(true, forKey: "firstTimeLogin")
             showLogAlert()
+        }
+    }
+    
+    /// Ensures that all popover segues are popovers (note: I don't quite understand when this would *not* be the case)
+    ///
+    /// - Parameters:
+    ///   - segue: the segue
+    ///   - sender: the sender who generated this prepare call
+    override public func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+        
+        // All popover segues should be popovers even on iPhone.
+        if let popoverController = segue.destination.popoverPresentationController, let button = sender as? UIButton {
+            popoverController.delegate = self
+            popoverController.sourceRect = button.bounds
         }
     }
     
@@ -733,7 +756,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         directionText.isHidden = false
         currentButton = .startNavigation
         directionText.isAccessibilityElement = true
-        updateDirectionText("Press to start navigation or pause tracking", distance: 0, size: 14, displayDistance: false)
+        updateDirectionText("Found anchor points " + String(self.crumbs.count) + " " + String(self.crumbs[1].x) + " " + String(self.crumbs[1].z) + " " + String(self.crumbs[1].yaw), distance: 0, size: 16, displayDistance: false)
         do {
             try audioSession.setActive(false)
         } catch {
@@ -798,9 +821,23 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             if (name ?? "").isEmpty {
                 return
             }
-            let id = name! + String(Int64(NSDate().timeIntervalSince1970 * 1000))
+            let id = String(Int64(NSDate().timeIntervalSince1970 * 1000))
             // Save the route to dictionary
-            self.routes[id] = SavedRoute(id: id, name: name!, crumbs: self.crumbs)
+            self.sceneView.session.getCurrentWorldMap { (worldMap, error) in
+                guard let worldMap = worldMap else {
+                    return print("Cannot get current world map!")
+                }
+                let route = SavedRoute(id: id as NSString, name: name! as NSString, crumbs: self.crumbs)
+               
+                do {
+                    try self.archive(route: route, worldMap: worldMap)
+                    DispatchQueue.main.async {
+                        print("World map is saved")
+                    }
+                } catch {
+                    fatalError("Error saving world map: \(error.localizedDescription)")
+                }
+            }
         }
         
         // The cancel action doing nothing
@@ -857,6 +894,55 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         delayTransition()
     }
     
+    // MARK: - Saving/Loading routes
+    func resetTrackingConfiguration(with worldMap: ARWorldMap? = nil) {
+        let configuration = ARWorldTrackingConfiguration()
+        configuration.planeDetection = [.horizontal]
+        
+        let options: ARSession.RunOptions = [.resetTracking, .removeExistingAnchors]
+        if let worldMap = worldMap {
+            configuration.initialWorldMap = worldMap
+            loadingMode = true
+            print("n crumbs", self.crumbs.count)
+            print("Found saved world map.")
+        } else {
+            print("Move camera around to map your surrounding space.")
+        }
+        
+        sceneView.debugOptions = [.showFeaturePoints]
+        sceneView.session.run(configuration, options: options)
+    }
+    
+    func archive(route: SavedRoute, worldMap: ARWorldMap) throws {
+        self.routes[route.id as String] = route
+        NSKeyedArchiver.archiveRootObject(self.routes, toFile: self.worldMapURL(id: route.id as String, isInfo: true).path)
+        let data = try NSKeyedArchiver.archivedData(withRootObject: worldMap, requiringSecureCoding: true)
+        try data.write(to: self.worldMapURL(id: route.id as String, isInfo: false), options: [.atomic])
+    }
+    
+    func retrieveWorldMapData(id: String) -> Data? {
+        do {
+            return try Data(contentsOf: worldMapURL(id: id, isInfo: false))
+        } catch {
+            print("Error retrieving world map data.")
+            return nil
+        }
+    }
+    
+    func unarchive(worldMapData data: Data) -> ARWorldMap? {
+        guard let unarchievedObject = try? NSKeyedUnarchiver.unarchivedObject(ofClass: ARWorldMap.self, from: data),
+            let worldMap = unarchievedObject else { return nil }
+        return worldMap
+    }
+    
+    func worldMapURL(id: String, isInfo: Bool) -> URL {
+        let fileName = isInfo ? "Info" : id
+        return FileManager().urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent(fileName)
+    }
+    
+//    func sessionInterruptionEnded(_ session: ARSession) {
+//
+//    }
     /*
      * update directionText UILabel given text string and font size
      * distance Bool used to determine whether to add string "meters" to direction text
@@ -899,7 +985,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     // Clew internal datastructures
     var crumbs: [LocationInfo]!                 // list of crumbs dropped when recording path
-    var routes = [String: SavedRoute]()     // list of routes, each route is a list of crumbs
+    var routes = [String: SavedRoute]()         // list of routes, each route is a list of crumbs
     var keypoints: [KeypointInfo]!              // list of keypoints calculated after path completion
     var keypointNode: SCNNode!                  // SCNNode of the next keypoint
     var prevKeypointPosition: LocationInfo!     // previous keypoint location - originally set to current location
@@ -930,6 +1016,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     var nav = Navigation()                  // Navigation calculation class
     var navigationMode: Bool = false        // navigation flag
     var recordingMode: Bool = false         // recording flag
+    var loadingMode: Bool = false
     
     // haptic generators
     var feedbackGenerator : UIImpactFeedbackGenerator? = nil
@@ -966,9 +1053,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         pathDataTime = []
         dataTimer = Date()
         
-        trackingErrorData = []
-        trackingErrorTime = []
-        trackingErrorPhase = []
+//        trackingErrorData = []
+//        trackingErrorTime = []
+//        trackingErrorPhase = []
         recordingMode = true
         
         showStopRecordingButton()
@@ -998,6 +1085,16 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         // generate path from PathFinder class
         // enabled hapticFeedback generates more keypoints
+//        print("DEBUG =========")
+//        self.crumbs = []
+//        for anchor in sceneView.session.currentFrame!.anchors {
+//            if let a = anchor as? LocationInfo {
+//                self.crumbs.append(a)
+//                print(a.describe())
+//            }
+//        }
+//        print("----------------")
+
         let path = PathFinder(crumbs: crumbs.reversed(), hapticFeedback: hapticFeedback, voiceFeedback: voiceFeedback)
         keypoints = path.keypoints
         
@@ -1159,6 +1256,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         // drop waypoint markers to record path
         let curLocation = getRealCoordinates(record: true).location
         crumbs.append(curLocation)
+        updateDirectionText("New crumb " + String(curLocation.x) + " " + String(curLocation.z) + " " + String(curLocation.yaw), distance: 0, size: 14, displayDistance: false)
     }
     
     @objc func followCrum() {
@@ -1201,7 +1299,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                 followingCrumbs.invalidate()
             }
         }
-        
+        updateDirectionText("Press to start navigation or pause tracking " + String(self.keypoints.count), distance: 0, size: 14, displayDistance: false)
     }
     
     /// Calculate the offset between the phone's heading (either its z-axis or y-axis projected into the floor plane) and the user's direction of travel.  This offset allows us to give directions based on the user's movement rather than the direction of the phone.
@@ -1362,7 +1460,16 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     func onRouteTableViewCellClicked(routeId: String, vcType: ViewControllerType) {
         // TODO: handle onClick event when loading/resuming the route
-        print(routeId + vcType.rawValue)
+        print(routeId)
+        if vcType == ViewControllerType.loadSavedRoutes {
+            
+            print("success")
+            guard let worldMapData = retrieveWorldMapData(id: routeId),
+                let worldMap = unarchive(worldMapData: worldMapData) else { return }
+            let route = self.routes[routeId]
+            self.crumbs = route?.crumbs
+            resetTrackingConfiguration(with: worldMap)
+        }
     }
     
     @objc func announceDirectionHelp() {
@@ -1551,12 +1658,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     func getCameraCoordinates(sceneView: ARSCNView) -> LocationInfo {
         // returns coordinate frame of the camera
         let cameraTransform = sceneView.session.currentFrame?.camera.transform
-        let coordinates = MDLTransform(matrix: cameraTransform!)
+//        let coordinates = MDLTransform(matrix: cameraTransform!)
         
-        return LocationInfo(x: coordinates.translation.x,
-                            y: coordinates.translation.y,
-                            z: coordinates.translation.z,
-                            yaw: coordinates.rotation.y)
+        return LocationInfo(transform: cameraTransform!)
     }
     
     func getRealCoordinates(record: Bool) -> CurrentCoordinateInfo {
@@ -1564,7 +1668,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         let x = SCNMatrix4((sceneView.session.currentFrame?.camera.transform)!).m41
         let y = SCNMatrix4((sceneView.session.currentFrame?.camera.transform)!).m42
         let z = SCNMatrix4((sceneView.session.currentFrame?.camera.transform)!).m43
-        
+
         let yaw = sceneView.session.currentFrame?.camera.eulerAngles.y
         let scn = SCNMatrix4((sceneView.session.currentFrame?.camera.transform)!)
         let transMatrix = Matrix3([scn.m11, scn.m12, scn.m13,
@@ -1587,8 +1691,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                 pathDataTime.append(roundToThousandths(-dataTimer.timeIntervalSinceNow))
             }
         }
-        
-        return CurrentCoordinateInfo(LocationInfo(x: x, y: y, z: z, yaw: yaw!), transMatrix: transMatrix)
+        let transform = sceneView.session.currentFrame?.camera.transform
+        return CurrentCoordinateInfo(LocationInfo(transform: transform!), transMatrix: transMatrix)
     }
     
     /*
@@ -1601,7 +1705,10 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             trackingErrorPhase.append(false)
         }
         
-        if(recordingMode || navigationMode) {
+        if(recordingMode || navigationMode || loadingMode) {
+            if dataTimer == nil {
+                dataTimer = Date()
+            }
             trackingErrorTime.append(roundToThousandths(-dataTimer.timeIntervalSinceNow))
             switch camera.trackingState {
             case .limited(let reason):
@@ -1620,6 +1727,10 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                 }
             case .normal:
                 trackingErrorData.append("Normal")
+//                if (loadingMode) {
+//                    loadingMode = false
+//                    showStartNavigationButton()
+//                }
                 print("normal")
             case .notAvailable:
                 trackingErrorData.append("NotAvailable")
@@ -1629,6 +1740,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     }
 }
 
+@available(iOS 12.0, *)
 extension ViewController: UIPopoverPresentationControllerDelegate {
     // MARK: - UIPopoverPresentationControllerDelegate
     
@@ -1638,20 +1750,6 @@ extension ViewController: UIPopoverPresentationControllerDelegate {
     /// - Returns: whether or not to use modal style
     func adaptivePresentationStyle(for controller: UIPresentationController) -> UIModalPresentationStyle {
         return .none
-    }
-    
-    /// Ensures that all popover segues are popovers (note: I don't quite understand when this would *not* be the case)
-    ///
-    /// - Parameters:
-    ///   - segue: the segue
-    ///   - sender: the sender who generated this prepare call
-    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-        
-        // All popover segues should be popovers even on iPhone.
-        if let popoverController = segue.destination.popoverPresentationController, let button = sender as? UIButton {
-            popoverController.delegate = self
-            popoverController.sourceRect = button.bounds
-        }
     }
     
 }

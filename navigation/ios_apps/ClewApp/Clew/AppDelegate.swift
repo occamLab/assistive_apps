@@ -9,6 +9,7 @@
 import UIKit
 import Firebase
 
+@available(iOS 12.0, *)
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 

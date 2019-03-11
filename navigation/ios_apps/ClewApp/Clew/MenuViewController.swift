@@ -8,6 +8,7 @@
 
 import UIKit
 
+@available(iOS 12.0, *)
 class MenuViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
     
     @IBOutlet weak var menuTable: UITableView!
@@ -55,6 +56,6 @@ class MenuViewController: UIViewController, UITableViewDataSource, UITableViewDe
         for (_, savedRoute) in routes {
             tempRoutes.append(savedRoute)
         }
-        self.routes = tempRoutes.sorted(by: { $0.dateCreated > $1.dateCreated })
+        self.routes = tempRoutes.sorted(by: { $0.dateCreated as Date > $1.dateCreated as Date})
     }
 }

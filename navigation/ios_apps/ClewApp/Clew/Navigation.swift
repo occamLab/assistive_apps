@@ -138,8 +138,8 @@ class Navigation {
         let nextKeypointDisplacementZ = nextKeypoint.location.z - currentLocation.location.z
         // Create adjusted second keypoint object, which will be used to get turn warnings ahead of time
         var adjustedSecondKeypoint = secondKeypoint
-        adjustedSecondKeypoint.location.x = secondKeypoint.location.x - nextKeypointDisplacementX
-        adjustedSecondKeypoint.location.z = secondKeypoint.location.z - nextKeypointDisplacementZ
+        let x = secondKeypoint.location.x - nextKeypointDisplacementX
+        let z = secondKeypoint.location.z - nextKeypointDisplacementZ
         
         return getDirections(currentLocation: currentLocation, nextKeypoint: adjustedSecondKeypoint)
     }
@@ -253,8 +253,9 @@ class Navigation {
         //  where 0 radians is 12 o'clock.
         let a = (angle * (6/Float.pi)) + 12.5
         
-        let clockDir = Int(a) % 12
-        return clockDir == 0 ? 12 : clockDir
+//        let clockDir = Int(a) % 12
+//        return clockDir == 0 ? 12 : clockDir
+        return 0
     }
     
     /// Determines the difference between two angles, in radians
