@@ -8,7 +8,9 @@
 
 import Foundation
 import WebKit
+import ARKit
 
+@available(iOS 12.0, *)
 class RoutesViewController : UIViewController, UITableViewDataSource, UITableViewDelegate {
     
     @IBOutlet weak var tableView: UITableView!
@@ -23,28 +25,58 @@ class RoutesViewController : UIViewController, UITableViewDataSource, UITableVie
     
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         self.tableView.deselectRow(at: indexPath, animated: true)
-        self.rootViewController?.onRouteTableViewCellClicked(routeId: self.routes[indexPath.row].id)
-        self.dismiss(animated: true, completion: nil)
+        // Set title and message for the alert dialog
+        let alertController = UIAlertController(title: "Route direction", message: "", preferredStyle: .alert)
+        // The confirm action taking the inputs
+        let startToEndAction = UIAlertAction(title: "Start to End", style: .default) { (_) in
+            self.routes[indexPath.row].crumbs = self.routes[indexPath.row].crumbs.reversed()
+            self.rootViewController?.onRouteTableViewCellClicked(route: self.routes[indexPath.row])
+            self.dismiss(animated: true, completion: nil)
+        }
+        
+        let endToStartAction = UIAlertAction(title: "End to Start", style: .default) { (_) in
+            self.rootViewController?.onRouteTableViewCellClicked(route: self.routes[indexPath.row])
+            self.dismiss(animated: true, completion: nil)
+        }
+        
+        // Add the action to dialogbox
+        alertController.addAction(startToEndAction)
+        alertController.addAction(endToStartAction)
+        
+        // Finally, present the dialog box
+        self.present(alertController, animated: true, completion: nil)
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let df = DateFormatter()
-        df.dateFormat = "MM/DD/YYYY"
+        df.dateFormat = "yyyy-MM-dd HH:mm:ss"
         let cell = tableView.dequeueReusableCell(withIdentifier: "clew.RouteTableViewCell", for: indexPath) as! RouteTableViewCell
-        cell.nameLabel.text = routes[indexPath.row].name
+        cell.nameLabel.text = routes[indexPath.row].name as String
         cell.dateCreatedLabel.text = df.string(from: routes[indexPath.row].dateCreated)
         return cell
+    }
+    
+    func tableView(_ tableView: UITableView, editActionsForRowAt indexPath: IndexPath) -> [UITableViewRowAction]? {
+        
+        let delete = UITableViewRowAction(style: .destructive, title: "Delete") { (action, indexPath) in
+            // delete item at indexPath
+            do {
+                try DataPersistance().delete(route: self.routes[indexPath.row])
+                self.routes.remove(at: indexPath.row)
+                self.tableView.deleteRows(at: [indexPath], with: .fade)
+            } catch {
+                print("Cannot delete route")
+            }
+        }
+        return [delete]
+        
     }
     
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return routes.count
     }
     
-    func updateRoutes(routes: [String : SavedRoute]) {
-        var tempRoutes = [SavedRoute]()
-        for (_, savedRoute) in routes {
-            tempRoutes.append(savedRoute)
-        }
-        self.routes = tempRoutes.sorted(by: { $0.dateCreated > $1.dateCreated })
+    func updateRoutes(routes: [SavedRoute]) {
+        self.routes = routes.sorted(by: { $0.dateCreated as Date > $1.dateCreated as Date})
     }
 }

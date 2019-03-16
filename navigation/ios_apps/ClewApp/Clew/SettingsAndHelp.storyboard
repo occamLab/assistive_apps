@@ -60,26 +60,25 @@
                         <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <tableView clipsSubviews="YES" contentMode="scaleToFill" fixedFrame="YES" alwaysBounceVertical="YES" dataMode="prototypes" style="plain" separatorStyle="default" rowHeight="-1" estimatedRowHeight="-1" sectionHeaderHeight="28" sectionFooterHeight="28" translatesAutoresizingMaskIntoConstraints="NO" id="7Sy-G8-dId">
-                                <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
-                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                            <tableView clipsSubviews="YES" contentMode="scaleToFill" alwaysBounceVertical="YES" dataMode="prototypes" style="plain" separatorStyle="default" rowHeight="-1" estimatedRowHeight="-1" sectionHeaderHeight="28" sectionFooterHeight="28" translatesAutoresizingMaskIntoConstraints="NO" id="7Sy-G8-dId">
+                                <rect key="frame" x="0.0" y="20" width="375" height="647"/>
                                 <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                                 <prototypes>
-                                    <tableViewCell clipsSubviews="YES" contentMode="scaleToFill" preservesSuperviewLayoutMargins="YES" selectionStyle="default" indentationWidth="10" reuseIdentifier="clew.RouteTableViewCell" rowHeight="80" id="iXA-GW-uFv" customClass="RouteTableViewCell" customModule="Clew" customModuleProvider="target">
-                                        <rect key="frame" x="0.0" y="28" width="375" height="80"/>
+                                    <tableViewCell clipsSubviews="YES" contentMode="scaleToFill" preservesSuperviewLayoutMargins="YES" selectionStyle="default" indentationWidth="10" reuseIdentifier="clew.RouteTableViewCell" rowHeight="85" id="iXA-GW-uFv" customClass="RouteTableViewCell" customModule="Clew" customModuleProvider="target">
+                                        <rect key="frame" x="0.0" y="28" width="375" height="85"/>
                                         <autoresizingMask key="autoresizingMask"/>
                                         <tableViewCellContentView key="contentView" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="center" preservesSuperviewLayoutMargins="YES" insetsLayoutMarginsFromSafeArea="NO" tableViewCell="iXA-GW-uFv" id="7Co-mf-fXg">
-                                            <rect key="frame" x="0.0" y="0.0" width="375" height="79.5"/>
+                                            <rect key="frame" x="0.0" y="0.0" width="375" height="84.5"/>
                                             <autoresizingMask key="autoresizingMask"/>
                                             <subviews>
-                                                <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Name" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="vYC-bl-BYf">
-                                                    <rect key="frame" x="15" y="11" width="345" height="24"/>
+                                                <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Title" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="vYC-bl-BYf">
+                                                    <rect key="frame" x="15" y="11" width="345" height="29"/>
                                                     <fontDescription key="fontDescription" type="system" pointSize="20"/>
                                                     <nil key="textColor"/>
                                                     <nil key="highlightedColor"/>
                                                 </label>
-                                                <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" misplaced="YES" text="Date created:" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="J7T-l8-fc1">
-                                                    <rect key="frame" x="14" y="43" width="346" height="18"/>
+                                                <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Date created:" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="J7T-l8-fc1">
+                                                    <rect key="frame" x="15" y="48" width="345" height="18"/>
                                                     <constraints>
                                                         <constraint firstAttribute="height" constant="18" id="QPu-wV-a5p"/>
                                                     </constraints>
@@ -90,6 +89,7 @@
                                             </subviews>
                                             <constraints>
                                                 <constraint firstItem="J7T-l8-fc1" firstAttribute="trailing" secondItem="vYC-bl-BYf" secondAttribute="trailing" id="93N-hS-ZwD"/>
+                                                <constraint firstItem="J7T-l8-fc1" firstAttribute="leading" secondItem="7Co-mf-fXg" secondAttribute="leadingMargin" id="F08-iA-Hos"/>
                                                 <constraint firstItem="J7T-l8-fc1" firstAttribute="centerX" secondItem="vYC-bl-BYf" secondAttribute="centerX" id="Vcd-sV-St1"/>
                                                 <constraint firstItem="vYC-bl-BYf" firstAttribute="leading" secondItem="7Co-mf-fXg" secondAttribute="leadingMargin" id="Xwq-lS-Put"/>
                                                 <constraint firstItem="J7T-l8-fc1" firstAttribute="top" secondItem="vYC-bl-BYf" secondAttribute="bottom" constant="8" symbolic="YES" id="aoN-6s-Vic"/>
@@ -107,6 +107,12 @@
                             </tableView>
                         </subviews>
                         <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                        <constraints>
+                            <constraint firstItem="7Sy-G8-dId" firstAttribute="trailing" secondItem="6ob-Hr-yIz" secondAttribute="trailing" id="E6p-mk-kwB"/>
+                            <constraint firstItem="7Sy-G8-dId" firstAttribute="bottom" secondItem="6ob-Hr-yIz" secondAttribute="bottom" id="QHB-FN-PbH"/>
+                            <constraint firstItem="7Sy-G8-dId" firstAttribute="top" secondItem="cbq-xx-H7A" secondAttribute="topMargin" id="Sz6-r7-WuV"/>
+                            <constraint firstItem="7Sy-G8-dId" firstAttribute="leading" secondItem="6ob-Hr-yIz" secondAttribute="leading" id="ZVv-d1-2Vr"/>
+                        </constraints>
                         <viewLayoutGuide key="safeArea" id="6ob-Hr-yIz"/>
                     </view>
                     <connections>

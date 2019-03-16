@@ -35,7 +35,7 @@ public struct CurrentCoordinateInfo {
 /// * `y` (`Float`)
 /// * `z` (`Float`)
 /// * `yaw` (`Float`)
-public struct LocationInfo {
+public class LocationInfo: NSObject, NSCoding {
     public var x: Float
     public var y: Float
     public var z: Float
@@ -46,6 +46,29 @@ public struct LocationInfo {
         self.y = y
         self.z = z
         self.yaw = yaw
+    }
+    
+    public func encode(with aCoder: NSCoder) {
+        aCoder.encode(x as NSNumber, forKey: "x")
+        aCoder.encode(y as NSNumber, forKey: "y")
+        aCoder.encode(z as NSNumber, forKey: "z")
+        aCoder.encode(yaw as NSNumber, forKey: "yaw")
+    }
+    
+    required convenience public init?(coder aDecoder: NSCoder) {
+        guard let x = aDecoder.decodeObject(forKey: "x") as? Float else {
+            return nil
+        }
+        guard let y = aDecoder.decodeObject(forKey: "y") as? Float else {
+            return nil
+        }
+        guard let z = aDecoder.decodeObject(forKey: "z") as? Float else {
+            return nil
+        }
+        guard let yaw = aDecoder.decodeObject(forKey: "yaw") as? Float else {
+            return nil
+        }
+        self.init(x: x, y: y, z: z, yaw: yaw)
     }
 }
 
@@ -60,28 +83,41 @@ public struct KeypointInfo {
 }
 
 /// SavedRoutes class to store the routes that were saved by the user
-class SavedRoute: NSObject {
-    public var id: String
-    public var name: String
+class SavedRoute: NSObject, NSCoding {
+    public var id: NSString
+    public var name: NSString
     public var crumbs: [LocationInfo]
     public var dateCreated: Date
     
-    public init(id: String, name: String, crumbs: [LocationInfo]) {
+    public init(id: NSString, name: NSString, crumbs: [LocationInfo], dateCreated: Date = Date()) {
         self.id = id
         self.name = name
         self.crumbs = crumbs
-        self.dateCreated = Date()
+        self.dateCreated = dateCreated
     }
     
-//    func encode(with aCoder: NSCoder) {
-//        aCoder.encode(name, forKey: "name")
-//        aCoder.encode(crumbs, forKey: "crumbs")
-//        aCoder.encode(dateCreated, forKey: "dateCreated")
-//    }
-//
-//    required convenience init?(coder aDecoder: NSCoder) {
-//
-//    }
+    func encode(with aCoder: NSCoder) {
+        aCoder.encode(id, forKey: "id")
+        aCoder.encode(name, forKey: "name")
+        aCoder.encode(crumbs, forKey: "crumbs")
+        aCoder.encode(dateCreated, forKey: "dateCreated")
+    }
+    
+    required convenience init?(coder aDecoder: NSCoder) {
+        guard let id = aDecoder.decodeObject(forKey: "id") as? NSString else {
+            return nil
+        }
+        guard let name = aDecoder.decodeObject(forKey: "name") as? NSString else {
+            return nil
+        }
+        guard let crumbs = aDecoder.decodeObject(forKey: "crumbs") as? [LocationInfo] else {
+            return nil
+        }
+        guard let dateCreated = aDecoder.decodeObject(forKey: "dateCreated") as? Date else {
+            return nil
+        }
+        self.init(id: id, name: name, crumbs: crumbs, dateCreated: dateCreated)
+    }
 }
 
 /// Pathfinder class calculates turns or "keypoints" given a path array of LocationInfo

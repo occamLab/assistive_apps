@@ -466,13 +466,15 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         helpButton.addTarget(self, action: #selector(helpButtonPressed), for: .touchUpInside)
         
         // button that shows the list of saved routes
-        routesButton = UIButton(frame: CGRect(x: buttonFrameWidth/2, y: 0, width: buttonFrameWidth/2, height: settingsAndHelpFrameHeight))
-        routesButton.isAccessibilityElement = true
-        routesButton.setTitle("ROUTES", for: .normal)
-        routesButton.titleLabel?.font = UIFont.systemFont(ofSize: 28.0)
-        routesButton.accessibilityLabel = "Saved Routes List"
-        routesButton.backgroundColor = UIColor.black.withAlphaComponent(0.4)
-        routesButton.addTarget(self, action: #selector(routesButtonPressed), for: .touchUpInside)
+        if #available(iOS 12.0, *) {
+            routesButton = UIButton(frame: CGRect(x: buttonFrameWidth/2, y: 0, width: buttonFrameWidth/2, height: settingsAndHelpFrameHeight))
+            routesButton.isAccessibilityElement = true
+            routesButton.setTitle("ROUTES", for: .normal)
+            routesButton.titleLabel?.font = UIFont.systemFont(ofSize: 28.0)
+            routesButton.accessibilityLabel = "Saved Routes List"
+            routesButton.backgroundColor = UIColor.black.withAlphaComponent(0.4)
+            routesButton.addTarget(self, action: #selector(routesButtonPressed), for: .touchUpInside)
+        }
         
         // button that gives direction to the nearist keypoint
         getDirectionButton = UIButton(frame: CGRect(x: 0, y: 0, width: buttonFrameWidth, height: yOriginOfButtonFrame))
@@ -662,19 +664,21 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         pauseButton.layer.borderWidth = 2
         pauseButton.layer.borderColor = UIColor.white.cgColor
         
-        let saveButton = UIButton(type: .custom)
-        saveButton.frame = CGRect(x: 0, y: 0, width: buttonWidth , height: buttonWidth )
-        saveButton.layer.cornerRadius = 0.5 * button.bounds.size.width
-        saveButton.clipsToBounds = true
-        saveButton.center.x = buttonView.center.x - displayWidth/3
-        saveButton.center.y = buttonView.bounds.size.height * (6/10)
-        saveButton.addTarget(self, action: #selector(showSaveInputeDialog), for: .touchUpInside)
-        saveButton.setTitle("Save", for: .normal)
-        saveButton.layer.borderWidth = 2
-        saveButton.layer.borderColor = UIColor.white.cgColor
+        if #available(iOS 12.0, *) {
+            let saveButton = UIButton(type: .custom)
+            saveButton.frame = CGRect(x: 0, y: 0, width: buttonWidth , height: buttonWidth )
+            saveButton.layer.cornerRadius = 0.5 * button.bounds.size.width
+            saveButton.clipsToBounds = true
+            saveButton.center.x = buttonView.center.x - displayWidth/3
+            saveButton.center.y = buttonView.bounds.size.height * (6/10)
+            saveButton.addTarget(self, action: #selector(showSaveInputeDialog), for: .touchUpInside)
+            saveButton.setTitle("Save", for: .normal)
+            saveButton.layer.borderWidth = 2
+            saveButton.layer.borderColor = UIColor.white.cgColor
+            buttonView.addSubview(saveButton)
+        }
         
         buttonView.addSubview(pauseButton)
-        buttonView.addSubview(saveButton)
         buttonView.addSubview(button)
     }
     
@@ -788,35 +792,62 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     /*
      * display SAVE ROUTE input dialog
      */
+    @available(iOS 12.0, *)
     @objc func showSaveInputeDialog() {
-        // Set title and message for the alert dialog
-        let alertController = UIAlertController(title: "Save route", message: "Enter the name of the route", preferredStyle: .alert)
-        // The confirm action taking the inputs
-        let saveAction = UIAlertAction(title: "Save", style: .default) { (_) in
-            // Get the input values from user
-            let name = alertController.textFields?[0].text
-            if (name ?? "").isEmpty {
-                return
+        self.sceneView.session.getCurrentWorldMap { (worldMap, error) in
+            guard let worldMap = worldMap else {
+                // If cannot get current world map, show error and ask the user to try again
+                self.showMessageAlert(title: "Error occurred", msg: "Cannot save your route. Please try again!")
+                return print("Cannot get current world map!")
             }
-            let id = name! + String(Int64(NSDate().timeIntervalSince1970 * 1000))
-            // Save the route to dictionary
-            self.routes[id] = SavedRoute(id: id, name: name!, crumbs: self.crumbs)
+            
+            // Set title and message for the alert dialog
+            let alertController = UIAlertController(title: "Save route", message: "Enter the name of the route", preferredStyle: .alert)
+            // The confirm action taking the inputs
+            let saveAction = UIAlertAction(title: "Save", style: .default) { (_) in
+                let id = String(Int64(NSDate().timeIntervalSince1970 * 1000)) as NSString
+                // Get the input values from user, if it's nil then use timestamp
+                let name = alertController.textFields?[0].text as NSString? ?? id
+                // Save the route to dictionary
+                let savedRoute = SavedRoute(id: id, name: name, crumbs: self.crumbs)
+                
+                do {
+                    try DataPersistance().archive(route: savedRoute, worldMap: worldMap)
+                    self.showMessageAlert(title: "Route Saved", msg: "Your route has been saved successfully.")
+                    DispatchQueue.main.async {
+                        print("Route is saved")
+                    }
+                } catch {
+                    self.showMessageAlert(title: "Error occurred", msg: "Cannot save your route. Please try again!")
+                    fatalError("Error saving the route: \(error.localizedDescription)")
+                }
+            }
+            
+            // The cancel action doing nothing
+            let cancelAction = UIAlertAction(title: "Cancel", style: .cancel) { (_) in }
+            
+            // Add textfield to our dialog box
+            alertController.addTextField { (textField) in
+                textField.becomeFirstResponder()
+                textField.placeholder = "Enter route title"
+            }
+            
+            // Add the action to dialogbox
+            alertController.addAction(saveAction)
+            alertController.addAction(cancelAction)
+            
+            // Finally, present the dialog box
+            self.present(alertController, animated: true, completion: nil)
         }
-        
-        // The cancel action doing nothing
-        let cancelAction = UIAlertAction(title: "Cancel", style: .cancel) { (_) in }
-        
-        // Add textfield to our dialog box
-        alertController.addTextField { (textField) in
-            textField.becomeFirstResponder()
-        }
-        
-        //adding the action to dialogbox
-        alertController.addAction(saveAction)
-        alertController.addAction(cancelAction)
-        
-        //finally presenting the dialog box
-        self.present(alertController, animated: true, completion: nil)
+    }
+    
+    /*
+     * display alert with custom message
+     */
+    @objc func showMessageAlert(title: String, msg: String, btnText: String = "Okay") {
+        let alert = UIAlertController(title: title, message: msg, preferredStyle: UIAlertControllerStyle.alert)
+        alert.addAction(UIAlertAction(title: btnText, style: UIAlertActionStyle.default, handler: nil))
+        self.present(alert, animated: true, completion: nil)
     }
     
     /*
@@ -899,7 +930,6 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     
     // Clew internal datastructures
     var crumbs: [LocationInfo]!                 // list of crumbs dropped when recording path
-    var routes = [String: SavedRoute]()     // list of routes, each route is a list of crumbs
     var keypoints: [KeypointInfo]!              // list of keypoints calculated after path completion
     var keypointNode: SCNNode!                  // SCNNode of the next keypoint
     var prevKeypointPosition: LocationInfo!     // previous keypoint location - originally set to current location
@@ -907,7 +937,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     var paused: Bool = false
     
     // internal debug logging datastructure
-    var dataTimer: Date!                        // timer to sync data
+    var dataTimer = Date()                        // timer to sync data
     var pathData: [[Float]] = []                // path data taken during RECORDPATH - [[1x16 transform matrix]]
     var pathDataTime: [Double] = []               // time stamps for pathData
     var navigationData: [[Float]] = []          // path data taken during NAVIGATION - [[1x16 transform matrix]]
@@ -915,9 +945,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     var speechData: [String]!                   // description data during NAVIGATION
     var speechDataTime: [Double]!               // time stamp for speechData
     var keypointData: [Array<Any>]!             // list of keypoints - [[(LocationInfo)x, y, z, yaw]]
-    var trackingErrorData: [String]!            // list of tracking errors ["InsufficientFeatures", "EcessiveMotion"]
-    var trackingErrorTime: [Double]!            // time stamp of tracking error
-    var trackingErrorPhase: [Bool]!             // tracking phase - true: recording, false: navigation
+    var trackingErrorData = [String]()            // list of tracking errors ["InsufficientFeatures", "EcessiveMotion"]
+    var trackingErrorTime = [Double]()            // time stamp of tracking error
+    var trackingErrorPhase = [Bool]()             // tracking phase - true: recording, false: navigation
     
     // Timers for background functions
     var droppingCrumbs: Timer!
@@ -930,6 +960,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
     var nav = Navigation()                  // Navigation calculation class
     var navigationMode: Bool = false        // navigation flag
     var recordingMode: Bool = false         // recording flag
+    var loadingMode: Bool = false           // loading route flag
     
     // haptic generators
     var feedbackGenerator : UIImpactFeedbackGenerator? = nil
@@ -970,6 +1001,8 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         trackingErrorTime = []
         trackingErrorPhase = []
         recordingMode = true
+        loadingMode = false
+        navigationMode = false
         
         showStopRecordingButton()
         droppingCrumbs = Timer.scheduledTimer(timeInterval: 0.3, target: self, selector: #selector(dropCrum), userInfo: nil, repeats: true)
@@ -1013,6 +1046,9 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         
         // set navigation state
         navigationMode = true
+        recordingMode = false
+        loadingMode = false
+        
         turnWarning = false
         prevKeypointPosition = getRealCoordinates(record: true).location
         
@@ -1199,6 +1235,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
                 // update text and stop navigation
                 announceArrival()
                 followingCrumbs.invalidate()
+                hapticTimer.invalidate()
             }
         }
         
@@ -1345,11 +1382,12 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         self.present(nav, animated: true, completion: nil)
     }
     
+    @available(iOS 12.0, *)
     @objc func routesButtonPressed() {
         let storyBoard: UIStoryboard = UIStoryboard(name: "SettingsAndHelp", bundle: nil)
         let popoverContent = storyBoard.instantiateViewController(withIdentifier: "Routes") as! RoutesViewController
         popoverContent.rootViewController = self
-        popoverContent.updateRoutes(routes: self.routes)
+        popoverContent.updateRoutes(routes: DataPersistance().routes)
         let nav = UINavigationController(rootViewController: popoverContent)
         nav.modalPresentationStyle = .popover
         let popover = nav.popoverPresentationController
@@ -1360,9 +1398,32 @@ class ViewController: UIViewController, ARSCNViewDelegate {
         self.present(nav, animated: true, completion: nil)
     }
     
-    func onRouteTableViewCellClicked(routeId: String) {
-        // TODO: handle onClick event when loading/resuming the route
-        print(routeId)
+    @available(iOS 12.0, *)
+    func onRouteTableViewCellClicked(route: SavedRoute) {
+        updateDirectionText("Please swipe left and right to relocalize your position.", distance: 0, size: 14, displayDistance: false)
+        let worldMap = DataPersistance().unarchive(routeId: route.id as String)
+        self.crumbs = route.crumbs
+        self.resetTrackingConfiguration(with: worldMap)
+    }
+    
+    @available(iOS 12.0, *)
+    func resetTrackingConfiguration(with worldMap: ARWorldMap? = nil) {
+        let configuration = ARWorldTrackingConfiguration()
+        configuration.planeDetection = [.horizontal]
+        
+        let options: ARSession.RunOptions = [.resetTracking, .removeExistingAnchors]
+        if let worldMap = worldMap {
+            configuration.initialWorldMap = worldMap
+            loadingMode = true
+            recordingMode = false
+            navigationMode = false
+            print("Found saved world map.")
+        } else {
+            print("Move camera around to map your surrounding space.")
+        }
+        
+        sceneView.debugOptions = [.showFeaturePoints]
+        sceneView.session.run(configuration, options: options)
     }
     
     @objc func announceDirectionHelp() {
@@ -1601,7 +1662,7 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             trackingErrorPhase.append(false)
         }
         
-        if(recordingMode || navigationMode) {
+        if(recordingMode || navigationMode || loadingMode) {
             trackingErrorTime.append(roundToThousandths(-dataTimer.timeIntervalSinceNow))
             switch camera.trackingState {
             case .limited(let reason):
@@ -1621,6 +1682,10 @@ class ViewController: UIViewController, ARSCNViewDelegate {
             case .normal:
                 trackingErrorData.append("Normal")
                 print("normal")
+                if (loadingMode) {
+                    loadingMode = false
+                    showStartNavigationButton()
+                }
             case .notAvailable:
                 trackingErrorData.append("NotAvailable")
                 print("notAvailable")
@@ -1655,3 +1720,4 @@ extension ViewController: UIPopoverPresentationControllerDelegate {
     }
     
 }
+    
