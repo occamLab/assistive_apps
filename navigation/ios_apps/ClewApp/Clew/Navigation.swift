@@ -123,6 +123,8 @@ class Navigation {
     /// The offset between the user's direction of travel (assumed to be aligned with the front of their body and the phone's orientation)
     var headingOffset: Float?
 
+    
+    /*
     /// Determines direction of the next turn, relative to the iPhone's current position and the next two keypoints ahead.
     ///
     /// - Parameters:
@@ -138,11 +140,12 @@ class Navigation {
         let nextKeypointDisplacementZ = nextKeypoint.location.z - currentLocation.location.z
         // Create adjusted second keypoint object, which will be used to get turn warnings ahead of time
         var adjustedSecondKeypoint = secondKeypoint
-        adjustedSecondKeypoint.location.x = secondKeypoint.location.x - nextKeypointDisplacementX
-        adjustedSecondKeypoint.location.z = secondKeypoint.location.z - nextKeypointDisplacementZ
+        //TODO: adjustedSecondKeypoint.location.x = secondKeypoint.location.x - nextKeypointDisplacementX
+        //TODO: adjustedSecondKeypoint.location.z = secondKeypoint.location.z - nextKeypointDisplacementZ
         
         return getDirections(currentLocation: currentLocation, nextKeypoint: adjustedSecondKeypoint)
     }
+ */
     
     /// Get the heading for the phone suitable for computing directions to the next waypoint.
     ///

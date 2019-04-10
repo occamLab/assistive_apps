@@ -8,6 +8,7 @@
 //
 import Foundation
 import VectorMath
+import ARKit
 
 /// Struct to store location and transform information
 ///
@@ -35,19 +36,93 @@ public struct CurrentCoordinateInfo {
 /// * `y` (`Float`)
 /// * `z` (`Float`)
 /// * `yaw` (`Float`)
-public struct LocationInfo {
-    public var x: Float
-    public var y: Float
-    public var z: Float
-    public var yaw: Float
+public class LocationInfo : ARAnchor {
     
-    public init(x: Float, y: Float, z: Float, yaw: Float) {
-        self.x = x
-        self.y = y
-        self.z = z
-        self.yaw = yaw
+    required init(anchor: ARAnchor) {
+        super.init(anchor: anchor)
+    }
+    
+    override init(transform: simd_float4x4) {
+        super.init(transform: transform)
+    }
+    
+    override public class var supportsSecureCoding: Bool {
+        return true
+    }
+    
+    required init?(coder aDecoder: NSCoder) {
+        super.init(coder: aDecoder)
+    }
+    
+    override public func encode(with aCoder: NSCoder) {
+        super.encode(with: aCoder)
+    }
+    
+    public var translation: SCNVector3 {
+        let translation = self.transform.columns.3
+        return SCNVector3(translation.x, translation.y, translation.z)
+    }
+    
+    public var rotation: SCNVector3 {
+        let rotation = self.transform.columns.1
+        return SCNVector3(rotation.x, rotation.y, rotation.z)
+    }
+    
+    public var eulerAngles: SCNVector3 {
+        get {
+            // first we get the quaternion from m00...m22
+            // see http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/index.htm
+            let qw = sqrt(1 + self.transform.columns.0.x + self.transform.columns.1.y + self.transform.columns.2.z) / 2.0
+            let qx = (self.transform.columns.2.y - self.transform.columns.1.z) / (qw * 4.0)
+            let qy = (self.transform.columns.0.z - self.transform.columns.2.x) / (qw * 4.0)
+            let qz = (self.transform.columns.1.x - self.transform.columns.0.y) / (qw * 4.0)
+            
+            // then we deduce euler angles with some cosines
+            // see https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+            // roll (x-axis rotation)
+            let sinr = +2.0 * (qw * qx + qy * qz)
+            let cosr = +1.0 - 2.0 * (qx * qx + qy * qy)
+            let roll = atan2(sinr, cosr)
+            
+            // pitch (y-axis rotation)
+            let sinp = +2.0 * (qw * qy - qz * qx)
+            var pitch: Float
+            if abs(sinp) >= 1 {
+                pitch = copysign(Float.pi / 2, sinp)
+            } else {
+                pitch = asin(sinp)
+            }
+            
+            // yaw (z-axis rotation)
+            let siny = +2.0 * (qw * qz + qx * qy)
+            let cosy = +1.0 - 2.0 * (qy * qy + qz * qz)
+            let yaw = atan2(siny, cosy)
+            
+            return SCNVector3(pitch, yaw, roll)
+        }
+    }
+    
+    public var x: Float {
+        return translation.x
+    }
+    
+    public var y: Float {
+        return translation.y
+    }
+    
+    public var z: Float {
+        return translation.z
+    }
+    
+    public var yaw: Float {
+        return eulerAngles.y
+    }
+    
+    func describe() -> String {
+        return " " + String(x) + " " + String(y) + " " + String(z) + " " + String(yaw)
     }
 }
+
 
 /// Struct to store position and orientation of a keypoint
 ///
@@ -57,6 +132,78 @@ public struct LocationInfo {
 public struct KeypointInfo {
     public var location: LocationInfo
     public var orientation: Vector3
+}
+
+class SavedRoute: NSObject, NSSecureCoding {
+    static var supportsSecureCoding = true
+    
+    public var id: NSString
+    public var name: NSString
+    public var dateCreated: NSDate
+    public var crumbs: [LocationInfo]
+    public var beginRouteLandmarkTransform: simd_float4x4?
+    public var beginRouteLandmarkInformation: NSString?
+    public var endRouteLandmarkTransform: simd_float4x4?
+    public var endRouteLandmarkInformation: NSString?
+
+    public init(id: NSString, name: NSString, crumbs: [LocationInfo], dateCreated: NSDate = NSDate(), beginRouteLandmarkTransform: simd_float4x4?, beginRouteLandmarkInformation: NSString?, endRouteLandmarkTransform: simd_float4x4?, endRouteLandmarkInformation: NSString?) {
+        self.id = id
+        self.name = name
+        self.crumbs = crumbs
+        self.dateCreated = dateCreated
+        self.beginRouteLandmarkTransform = beginRouteLandmarkTransform
+        self.beginRouteLandmarkInformation = beginRouteLandmarkInformation
+        self.endRouteLandmarkTransform = endRouteLandmarkTransform
+        self.endRouteLandmarkInformation = endRouteLandmarkInformation
+    }
+    
+    func encode(with aCoder: NSCoder) {
+        aCoder.encode(id, forKey: "id")
+        aCoder.encode(name, forKey: "name")
+        aCoder.encode(crumbs, forKey: "crumbs")
+        aCoder.encode(dateCreated, forKey: "dateCreated")
+        if beginRouteLandmarkTransform != nil {
+            aCoder.encode(ARAnchor(transform: beginRouteLandmarkTransform!), forKey: "beginRouteLandmarkTransformAsARAnchor")
+        }
+        aCoder.encode(beginRouteLandmarkInformation, forKey: "beginRouteLandmarkInformation")
+
+        if endRouteLandmarkTransform != nil {
+            aCoder.encode(ARAnchor(transform: endRouteLandmarkTransform!), forKey: "endRouteLandmarkTransformAsARAnchor")
+        }
+        aCoder.encode(endRouteLandmarkInformation, forKey: "endRouteLandmarkInformation")
+    }
+    
+    required convenience init?(coder aDecoder: NSCoder) {
+        guard let id = aDecoder.decodeObject(of: NSString.self, forKey: "id") else {
+            return nil
+        }
+        guard let name = aDecoder.decodeObject(of: NSString.self, forKey: "name") else {
+            return nil
+        }
+        guard let crumbs = aDecoder.decodeObject(of: [].self, forKey: "crumbs") as? [LocationInfo] else {
+            return nil
+        }
+        guard let dateCreated = aDecoder.decodeObject(of: NSDate.self, forKey: "dateCreated") else {
+            return nil
+        }
+        var beginRouteLandmarkTransform : simd_float4x4? = nil
+        var beginRouteLandmarkInformation : NSString? = nil
+
+        var endRouteLandmarkTransform : simd_float4x4? = nil
+        var endRouteLandmarkInformation : NSString? = nil
+
+        if let beginRouteLandmarkTransformAsARAnchor = aDecoder.decodeObject(of: ARAnchor.self, forKey: "beginRouteLandmarkTransformAsARAnchor") {
+            beginRouteLandmarkTransform = beginRouteLandmarkTransformAsARAnchor.transform
+        }
+        beginRouteLandmarkInformation = aDecoder.decodeObject(of: NSString.self, forKey: "beginRouteLandmarkInformation")
+
+        if let endRouteLandmarkTransformAsARAnchor = aDecoder.decodeObject(of: ARAnchor.self, forKey: "endRouteLandmarkTransformAsARAnchor") {
+            endRouteLandmarkTransform = endRouteLandmarkTransformAsARAnchor.transform
+        }
+        endRouteLandmarkInformation = aDecoder.decodeObject(of: NSString.self, forKey: "endRouteLandmarkInformation")
+
+        self.init(id: id, name: name, crumbs: crumbs, dateCreated: dateCreated, beginRouteLandmarkTransform: beginRouteLandmarkTransform, beginRouteLandmarkInformation: beginRouteLandmarkInformation, endRouteLandmarkTransform: endRouteLandmarkTransform, endRouteLandmarkInformation: endRouteLandmarkInformation)
+    }
 }
 
 /// Pathfinder class calculates turns or "keypoints" given a path array of LocationInfo
@@ -154,7 +301,7 @@ class PathFinder {
         }
         
         let maxDistance = listOfDistances.max()
-        let maxIndex = listOfDistances.index(of: maxDistance!)
+        let maxIndex = listOfDistances.firstIndex(of: maxDistance!)
         
         //  If a point is farther from path center than parameter pathWidth,
         //  there must be another keypoint within that stretch.
