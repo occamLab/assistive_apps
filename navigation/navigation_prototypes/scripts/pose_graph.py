@@ -74,6 +74,7 @@ class Edge(object):
         self.roll_importance = 1000
         self.eigenvalue_PSD = False
 
+
     @staticmethod
     def null(matrix, rtol=1e-5):
         u, s, v = np.linalg.svd(matrix)
@@ -133,6 +134,7 @@ class Edge(object):
             w_o = self.odometry_importance
             importance = [w_o, 0, 0, 0, 0, 0, w_o, 0, 0, 0, 0, w_o, 0, 0, 0, w_o, 0, 0, w_o, 0, w_o]
             self.importance_matrix = Edge.convert_uppertri_to_matrix(importance, 6)
+
 
     def check_importance_matrix_PSD(self):
         value = np.linalg.eigvals(self.importance_matrix)

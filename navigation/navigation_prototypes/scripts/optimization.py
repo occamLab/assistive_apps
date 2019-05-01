@@ -460,4 +460,4 @@ class Optimization:
 if __name__ == "__main__":
     process = Optimization("academic_center.pkl","academic_center.pkl")
     #process = Optimization("data_analyzed.pkl", "academic_center.pkl", analyze=True)
-    process.run(dummy_flag = False, tag_flag = False, waypoint_flag = True) # False is do optimize
+    process.run(dummy_flag = False, tag_flag = False, waypoint_flag = False) # False is do optimize
