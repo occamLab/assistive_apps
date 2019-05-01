@@ -265,7 +265,7 @@ class ViewController: UIViewController, ARSCNViewDelegate, SRCountdownTimerDeleg
     // MARK: Properties and subview declarations
     
     /// How long to wait (in seconds) between the alignment request and grabbing the transform
-    static let alignmentWaitingPeriod = 5
+    static let alignmentWaitingPeriod = 2
     
     /// The state of the ARKit tracking session as last communicated to us through the delgate protocol.  This is useful if you want to do something different in the delegate method depending on the previous state
     var trackingSessionState : ARCamera.TrackingState?
@@ -367,7 +367,7 @@ class ViewController: UIViewController, ARSCNViewDelegate, SRCountdownTimerDeleg
         // records a new path
         
         // make sure to never record a path with a transform set
-        sceneView.session.setWorldOrigin(relativeTransform: simd_float4x4.makeTranslation(0, 0, 0))
+//        sceneView.session.setWorldOrigin(relativeTransform: simd_float4x4.makeTranslation(0, 0, 0))
         attemptingRelocalization = false
         
         // reset all logging related variables
@@ -481,7 +481,7 @@ class ViewController: UIViewController, ARSCNViewDelegate, SRCountdownTimerDeleg
             pausedTransform = route.endRouteLandmark.transform
         }
         // make sure to clear out any relative transform that was saved before so we accurately align
-        sceneView.session.setWorldOrigin(relativeTransform: simd_float4x4.makeTranslation(0, 0, 0))
+//        sceneView.session.setWorldOrigin(relativeTransform: simd_float4x4.makeTranslation(0, 0, 0))
         sceneView.session.run(configuration, options: [.removeExistingAnchors])
 
         if isTrackingPerformanceNormal, isSameMap {
@@ -527,13 +527,29 @@ class ViewController: UIViewController, ARSCNViewDelegate, SRCountdownTimerDeleg
                 return
             }
             beginRouteLandmark.transform = currentTransform
+            let alignYaw = self.getYawHelper(currentTransform)
+            var leveledAlignPose =  simd_float4x4.makeRotate(radians: alignYaw, 0, 1, 0)
+            leveledAlignPose.columns.3 = currentTransform.columns.3
+
+            sceneView.session.setWorldOrigin(relativeTransform: leveledAlignPose)
+//            var a = LocationInfo(transform: beginRouteLandmark.transform!)
+//            print("LM-begin " + a.describe())
             Timer.scheduledTimer(timeInterval: 1, target: self, selector: (#selector(playSound)), userInfo: nil, repeats: false)
             pauseTrackingView.isHidden = true
             state = .mainScreen(announceArrival: false)
             return
         } else if let currentTransform = sceneView.session.currentFrame?.camera.transform {
             endRouteLandmark.transform = currentTransform
-
+            let a = LocationInfo(transform: endRouteLandmark.transform!)
+            var totalD = Float(0)
+            for i in 0..<crumbs.count - 1 {
+                let ca = crumbs[i]
+                let cb = crumbs[i+1]
+                let d = (pow(ca.x - cb.x,2) + pow(ca.y - cb.y,2) + pow(ca.z - cb.z,2)).squareRoot()
+                totalD += d
+            }
+            print("LM-end " + a.describe())
+            print("Total Distance " + String(totalD))
             if #available(iOS 12.0, *) {
                 sceneView.session.getCurrentWorldMap { worldMap, error in
                     self.getRouteNameAndSaveRouteHelper(mapAsAny: worldMap)
@@ -1566,7 +1582,7 @@ class ViewController: UIViewController, ARSCNViewDelegate, SRCountdownTimerDeleg
     @objc func startCreateLandmarkProcedure() {
         creatingRouteLandmark = true
         // make sure to clear out any relative transform and paused transform so the alignment is accurate
-        sceneView.session.setWorldOrigin(relativeTransform: simd_float4x4.makeTranslation(0, 0, 0))
+//        sceneView.session.setWorldOrigin(relativeTransform: simd_float4x4.makeTranslation(0, 0, 0))
         state = .startingPauseProcedure
     }
     
@@ -1596,7 +1612,7 @@ class ViewController: UIViewController, ARSCNViewDelegate, SRCountdownTimerDeleg
                 leveledAlignPose.columns.3 = alignTransform.columns.3
                 
                 let relativeTransform = leveledCameraPose * leveledAlignPose.inverse
-                self.sceneView.session.setWorldOrigin(relativeTransform: relativeTransform)
+//                self.sceneView.session.setWorldOrigin(relativeTransform: relativeTransform)
                 
                 Timer.scheduledTimer(timeInterval: 1, target: self, selector: (#selector(self.playSound)), userInfo: nil, repeats: false)
                 self.state = .readyToNavigateOrPause(allowPause: false)
@@ -2251,7 +2267,7 @@ class ViewController: UIViewController, ARSCNViewDelegate, SRCountdownTimerDeleg
                 }
             }
             // resetting the origin is needed in the case when we realigned to a saved route
-            session.setWorldOrigin(relativeTransform: simd_float4x4.makeTranslation(0,0,0))
+//            session.setWorldOrigin(relativeTransform: simd_float4x4.makeTranslation(0,0,0))
             if case .readyForFinalResumeAlignment = state {
                 // this will cancel any realignment if it hasn't happened yet and go straight to route navigation mode
                 countdownTimer.isHidden = true

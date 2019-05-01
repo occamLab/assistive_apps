@@ -119,7 +119,7 @@ public class LocationInfo : ARAnchor {
     }
     
     func describe() -> String {
-        return " " + String(x) + " " + String(y) + " " + String(z) + " " + String(yaw)
+        return "[" + String(x) + ", " + String(y) + ", " + String(z) + "] yaw: " + String(yaw)
     }
 }
 
