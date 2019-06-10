@@ -151,7 +151,7 @@ class Analysis:
 
 
     @staticmethod
-    def compute_importance_class(errors):
+    def compute_importance_class(errors,dummy=False):
         importance = dict()
         for i in range(errors.count):
             start = errors.start[i]
@@ -159,14 +159,19 @@ class Analysis:
                 importance[start] = dict()
             end = errors.end[i]
 
-            x_sd = errors.x_sd[i]
-            x_w = Analysis.compute_importance(x_sd)
+            if dummy:
+                x_w = 0
+                y_w = 0
+                z_w = 0
+            else:
+                x_sd = errors.x_sd[i]
+                x_w = Analysis.compute_importance(x_sd)
 
-            y_sd = errors.y_sd[i]
-            y_w = Analysis.compute_importance(y_sd)
+                y_sd = errors.y_sd[i]
+                y_w = Analysis.compute_importance(y_sd)
 
-            z_sd = errors.z_sd[i]
-            z_w = Analysis.compute_importance(z_sd)
+                z_sd = errors.z_sd[i]
+                z_w = Analysis.compute_importance(z_sd)
 
             yaw_sd = errors.yaw_sd[i]
             yaw_w = Analysis.compute_importance(yaw_sd)
@@ -183,17 +188,17 @@ class Analysis:
 
 
     def compute_importance_graph(self):
-        self.odom_damping_importance = Analysis.compute_importance_class(self.odom_damping_error)
+        self.odom_damping_importance = Analysis.compute_importance_class(self.odom_damping_error,dummy=True)
         self.odom_importance = Analysis.compute_importance_class(self.odom_error)
         self.tag_importance = Analysis.compute_importance_class(self.tag_error)
         self.waypoint_importance = Analysis.compute_importance_class(self.waypoint_error)
 
     def sd_based_analysis(self,damping_edges,odom_edges):
         # extract error
-        self.odom_damping_error = Analysis.extract_edges_error_class(damping_edges)
-        self.odom_error = Analysis.extract_edges_error_class(odom_edges)
-        self.tag_error = Analysis.extract_edges_error_class(self.posegraph.odometry_tag_edges)
-        self.waypoint_error = Analysis.extract_edges_error_class(self.posegraph.odometry_waypoints_edges)
+        self.odom_damping_error = self.extract_edges_error_class(damping_edges)
+        self.odom_error = self.extract_edges_error_class(odom_edges)
+        self.tag_error = self.extract_edges_error_class(self.posegraph.odometry_tag_edges)
+        self.waypoint_error = self.extract_edges_error_class(self.posegraph.odometry_waypoints_edges)
 
         self.compute_importance_graph()
 
@@ -258,8 +263,9 @@ class Analysis:
             for vend in edges[vstart].keys():
                 Analysis.compute_importance_matrix_one_edge(edges[vstart][vend], edges_importance[vstart][vend])
 
-    def update_importance(self, odom=True, damping=True, tag=True, waypoint=True):
+    def update_importance(self, mode = 1,odom=True, damping=True, tag=True, waypoint=True):
         """
+        :param mode: analysis method
         :param odom: Flag to indicate whether to update odometry importance weights
         :param damping:
         :param tag:
@@ -267,6 +273,10 @@ class Analysis:
         :return:
         """
         damping_edges, odom_edges = self.separate_odom_damping_edge()
+        if mode == 1:
+            self.sd_based_analysis(damping_edges,odom_edges)
+        elif mode == 2:
+            self.regression_based_analysis(damping_edges,odom_edges)
 
         # compute new importance weights based on data
         if odom:
@@ -300,8 +310,8 @@ class Analysis:
         print "pitch", edge_error.pitch_sd
         print "roll", edge_error.roll_sd
 
-    def run(self, plot=False, odom=True, damping=True, tag=True, waypoint=True):
-        self.update_importance(odom=odom, damping=damping, tag=tag, waypoint=waypoint)
+    def run(self, mode = 1, plot=False, odom=True, damping=True, tag=True, waypoint=True):
+        self.update_importance(mode = mode, odom=odom, damping=damping, tag=tag, waypoint=waypoint)
         print "Finish updating importance"
         with open(path.join(self.analyzed_data_folder, "data_analyzed.pkl"), 'wb') as data:
             pickle.dump(self.posegraph, data)
@@ -332,4 +342,4 @@ class Analysis:
 if __name__ == "__main__":
     #distribution = Analysis("academic_center.pkl")
     distribution = Analysis("data_optimized.pkl")
-    distribution.run(plot=False, odom=True, damping=True, tag=True, waypoint=False)
+    distribution.run(mode = 1,plot=False, odom=True, damping=True, tag=True, waypoint=False)
