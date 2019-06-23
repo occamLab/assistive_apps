@@ -100,7 +100,7 @@ class DataCollection(object):
         self.data_saved = False  # Boolean for indicating data saved
 
         """ Pose Graph """
-        self.pose_graph = PoseGraph(self.num_tags)
+        pose_graph = PoseGraph(self.num_tags)
 
         """ ROS Service & Subscribers """
         self.phone = None  # Type of phone used

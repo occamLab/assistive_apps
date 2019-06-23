@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm
@@ -8,8 +9,9 @@ from rospkg import RosPack
 from optimize_weights import Heteroskedastic
 from pose_graph import Edge
 
+
 class Edge_Importance:
-    def __init__(self,start = None,end = None,x = None,y = None,z = None,yaw = None,pitch = None,roll = None):
+    def __init__(self, start=None, end=None, x=None, y=None, z=None, yaw=None, pitch=None, roll=None):
         self.start = start
         self.end = end
         self.x = x
@@ -19,8 +21,9 @@ class Edge_Importance:
         self.pitch = pitch
         self.roll = roll
 
+
 class Error:
-    def __init__(self,x,y,z,yaw,pitch,roll,start,end):
+    def __init__(self, x, y, z, yaw, pitch, roll, start, end):
         self.x = x
         self.y = y
         self.z = z
@@ -74,10 +77,11 @@ class Error:
         for startid in edges:
             for endid in edges[startid]:
                 trans = edges[startid][endid]
-                distance.append(np.sqrt((trans[0]) ** 2 + (trans[1]) ** 2 + (trans[2]) ** 2))
+                distance.append(
+                    np.sqrt((trans[0]) ** 2 + (trans[1]) ** 2 + (trans[2]) ** 2))
         return distance
 
-    def compute_variance_regression_based(self,tag_edge_data, w):
+    def compute_variance_regression_based(self, tag_edge_data, w):
         """
         Given tag edge data, compute the Euclidean distance
         :param edge_data:
@@ -87,33 +91,42 @@ class Error:
         """
         x_i = np.array(Error.euclidean_distance_to_tag(tag_edge_data))
         for i in range(self.count):
-            self.x_sd.append(Error.compute_variance_regression_based_one_feature(x_i, w, np.array(self.x)))
-            self.y_sd.append(Error.compute_variance_regression_based_one_feature(x_i,w,np.array(self.y)))
-            self.z_sd.append(Error.compute_variance_regression_based_one_feature(x_i,w,np.array(self.z)))
-            self.yaw_sd.append(Error.compute_variance_regression_based_one_feature(x_i,w,np.array(self.yaw_sd)))
-            self.pitch_sd.append(Error.compute_variance_regression_based_one_feature(x_i,w,np.array(self.pitch_sd)))
-            self.roll_sd.append(Error.compute_variance_regression_based_one_feature(x_i,w,np.array(self.roll_sd)))
+            self.x_sd.append(Error.compute_variance_regression_based_one_feature(
+                x_i, w, np.array(self.x)))
+            self.y_sd.append(Error.compute_variance_regression_based_one_feature(
+                x_i, w, np.array(self.y)))
+            self.z_sd.append(Error.compute_variance_regression_based_one_feature(
+                x_i, w, np.array(self.z)))
+            self.yaw_sd.append(Error.compute_variance_regression_based_one_feature(
+                x_i, w, np.array(self.yaw_sd)))
+            self.pitch_sd.append(Error.compute_variance_regression_based_one_feature(
+                x_i, w, np.array(self.pitch_sd)))
+            self.roll_sd.append(Error.compute_variance_regression_based_one_feature(
+                x_i, w, np.array(self.roll_sd)))
+
 
 class Analysis:
 
     def __init__(self, filename):
         self.package = RosPack().get_path('navigation_prototypes')
-        self.optimized_data_folder = path.join(self.package, 'data/optimized_data')
-        self.analyzed_data_folder = path.join(self.package, 'data/analyzed_data')
+        self.optimized_data_folder = path.join(
+            self.package, 'data/optimized_data')
+        self.analyzed_data_folder = path.join(
+            self.package, 'data/analyzed_data')
         with open(path.join(self.optimized_data_folder, filename), 'rb') as data:
             self.posegraph = pickle.load(data)  # pose graph optimized
             print("Pose graph loaded")
-        self.w_initial = np.asarray([0,1])
+        self.w_initial = np.asarray([0, 1])
 
         self.odom_error = None
         self.tag_error = None
         self.waypoint_error = None
-        self.odom_damping_error = None # dummy nodes
+        self.odom_damping_error = None  # dummy nodes
 
         self.odom_importance = dict()
         self.tag_importance = dict()
         self.waypoint_importance = dict()
-        self.odom_damping_importance = dict() # dummy nodes
+        self.odom_damping_importance = dict()  # dummy nodes
 
     @staticmethod
     def compute_importance(sd):
@@ -122,7 +135,7 @@ class Analysis:
         else:
             return 1e5
 
-    def extract_edges_error_class(self,edge,regression_based = False):
+    def extract_edges_error_class(self, edge, regression_based=False):
         x_error = []
         y_error = []
         z_error = []
@@ -142,16 +155,17 @@ class Analysis:
                 start_id.append(start_id)
                 end_id.append(end_id)
 
-        errors = Error(x_error,y_error,z_error,yaw_error,pitch_error,roll_error,start_id,end_id)
+        errors = Error(x_error, y_error, z_error, yaw_error,
+                       pitch_error, roll_error, start_id, end_id)
         if regression_based:
-            errors.compute_variance_regression_based(self.posegraph.odometry_tag_edges,self.w_initial)
+            errors.compute_variance_regression_based(
+                self.posegraph.odometry_tag_edges, self.w_initial)
         else:
             errors.standard_deviation_no_feature()
         return errors
 
-
     @staticmethod
-    def compute_importance_class(errors,dummy=False):
+    def compute_importance_class(errors, dummy=False):
         importance = dict()
         for i in range(errors.count):
             start = errors.start[i]
@@ -182,23 +196,28 @@ class Analysis:
             roll_sd = errors.roll_sd[i]
             roll_w = Analysis.compute_importance(roll_sd)
 
-            importance[start][end] = Edge_Importance(start,end,x_w,y_w,z_w,yaw_w,pitch_w,roll_w)
+            importance[start][end] = Edge_Importance(
+                start, end, x_w, y_w, z_w, yaw_w, pitch_w, roll_w)
 
         return importance
 
-
     def compute_importance_graph(self):
-        self.odom_damping_importance = Analysis.compute_importance_class(self.odom_damping_error,dummy=True)
-        self.odom_importance = Analysis.compute_importance_class(self.odom_error)
+        self.odom_damping_importance = Analysis.compute_importance_class(
+            self.odom_damping_error, dummy=True)
+        self.odom_importance = Analysis.compute_importance_class(
+            self.odom_error)
         self.tag_importance = Analysis.compute_importance_class(self.tag_error)
-        self.waypoint_importance = Analysis.compute_importance_class(self.waypoint_error)
+        self.waypoint_importance = Analysis.compute_importance_class(
+            self.waypoint_error)
 
-    def sd_based_analysis(self,damping_edges,odom_edges):
+    def sd_based_analysis(self, damping_edges, odom_edges):
         # extract error
         self.odom_damping_error = self.extract_edges_error_class(damping_edges)
         self.odom_error = self.extract_edges_error_class(odom_edges)
-        self.tag_error = self.extract_edges_error_class(self.posegraph.odometry_tag_edges)
-        self.waypoint_error = self.extract_edges_error_class(self.posegraph.odometry_waypoints_edges)
+        self.tag_error = self.extract_edges_error_class(
+            self.posegraph.odometry_tag_edges)
+        self.waypoint_error = self.extract_edges_error_class(
+            self.posegraph.odometry_waypoints_edges)
 
         self.compute_importance_graph()
 
@@ -206,8 +225,10 @@ class Analysis:
         # extract error
         self.odom_error = self.extract_edges_error_class(odom_edges)
         self.odom_damping_error = self.extract_edges_error_class(damping_edges)
-        self.tag_error = self.extract_edges_error_class(self.posegraph.odometry_tag_edges,True)
-        self.waypoint_error = self.extract_edges_error_class(self.posegraph.odometry_waypoints_edges)
+        self.tag_error = self.extract_edges_error_class(
+            self.posegraph.odometry_tag_edges, True)
+        self.waypoint_error = self.extract_edges_error_class(
+            self.posegraph.odometry_waypoints_edges)
 
         # compute importance
         self.compute_importance_graph()
@@ -231,7 +252,8 @@ class Analysis:
         ax.text(6, 0.38, "N={0} points".format(N))
 
         ax.legend(loc='upper left')
-        ax.plot(data[:, 0], -0.005 - 0.01 * np.random.random(data.shape[0]), '+k')
+        ax.plot(data[:, 0], -0.005 - 0.01 *
+                np.random.random(data.shape[0]), '+k')
 
         plt.show()
 
@@ -250,20 +272,23 @@ class Analysis:
 
     @staticmethod
     def compute_importance_matrix_one_edge(edge, edge_importance):
-        x, y, z = edge_importance.x,edge_importance.y, edge_importance.z
-        yaw, pitch, roll = edge_importance.yaw,edge_importance.pitch,edge_importance.roll
+        x, y, z = edge_importance.x, edge_importance.y, edge_importance.z
+        yaw, pitch, roll = edge_importance.yaw, edge_importance.pitch, edge_importance.roll
         I = Edge.compute_basis_vector(edge.start.rotation, yaw, pitch, roll)
-        indeces = np.triu_indices(3)  # get indices of upper triangular entry of a 3x3 matrix
-        importance = [x, 0, 0, 0, 0, 0, y, 0, 0, 0, 0, z, 0, 0, 0] + list(I[indeces])
+        # get indices of upper triangular entry of a 3x3 matrix
+        indeces = np.triu_indices(3)
+        importance = [x, 0, 0, 0, 0, 0, y, 0, 0,
+                      0, 0, z, 0, 0, 0] + list(I[indeces])
         edge.importance_matrix = Edge.convert_uppertri_to_matrix(importance, 6)
 
     @staticmethod
     def compute_importance_matrix(edges, edges_importance):
         for vstart in edges.keys():
             for vend in edges[vstart].keys():
-                Analysis.compute_importance_matrix_one_edge(edges[vstart][vend], edges_importance[vstart][vend])
+                Analysis.compute_importance_matrix_one_edge(
+                    edges[vstart][vend], edges_importance[vstart][vend])
 
-    def update_importance(self, mode = 1,odom=True, damping=True, tag=True, waypoint=True):
+    def update_importance(self, mode=1, odom=True, damping=True, tag=True, waypoint=True):
         """
         :param mode: analysis method
         :param odom: Flag to indicate whether to update odometry importance weights
@@ -274,22 +299,26 @@ class Analysis:
         """
         damping_edges, odom_edges = self.separate_odom_damping_edge()
         if mode == 1:
-            self.sd_based_analysis(damping_edges,odom_edges)
+            self.sd_based_analysis(damping_edges, odom_edges)
         elif mode == 2:
-            self.regression_based_analysis(damping_edges,odom_edges)
+            self.regression_based_analysis(damping_edges, odom_edges)
 
         # compute new importance weights based on data
         if odom:
-            Analysis.compute_importance_matrix(odom_edges, self.odom_importance)
+            Analysis.compute_importance_matrix(
+                odom_edges, self.odom_importance)
             print("New importance weights computed for odometry")
         if damping:
-            Analysis.compute_importance_matrix(damping_edges, self.odom_damping_importance)
+            Analysis.compute_importance_matrix(
+                damping_edges, self.odom_damping_importance)
             print("New importance weights computed for damping edges")
         if tag:
-            Analysis.compute_importance_matrix(self.posegraph.odometry_tag_edges, self.tag_importance)
+            Analysis.compute_importance_matrix(
+                self.posegraph.odometry_tag_edges, self.tag_importance)
             print("New importance weights computed for tags")
         if waypoint:
-            Analysis.compute_importance_matrix(self.posegraph.odometry_waypoints_edges, self.waypoint_importance)
+            Analysis.compute_importance_matrix(
+                self.posegraph.odometry_waypoints_edges, self.waypoint_importance)
             print("New importance weights computed for waypoints")
 
         # combine odometry and damping edges
@@ -302,7 +331,7 @@ class Analysis:
                     importance_matrix = edge[vstart][vend].importance_matrix[:]
                     self.posegraph.odometry_edges[vstart][vend].importance_matrix = importance_matrix
 
-    def print_result(self,edge_error):
+    def print_result(self, edge_error):
         print "x:", edge_error.x_sd
         print "y:", edge_error.y_sd
         print "z:", edge_error.z_sd
@@ -310,8 +339,9 @@ class Analysis:
         print "pitch", edge_error.pitch_sd
         print "roll", edge_error.roll_sd
 
-    def run(self, mode = 1, plot=False, odom=True, damping=True, tag=True, waypoint=True):
-        self.update_importance(mode = mode, odom=odom, damping=damping, tag=tag, waypoint=waypoint)
+    def run(self, mode=1, plot=False, odom=True, damping=True, tag=True, waypoint=True):
+        self.update_importance(mode=mode, odom=odom,
+                               damping=damping, tag=tag, waypoint=waypoint)
         print "Finish updating importance"
         with open(path.join(self.analyzed_data_folder, "data_analyzed.pkl"), 'wb') as data:
             pickle.dump(self.posegraph, data)
@@ -340,6 +370,7 @@ class Analysis:
 
 
 if __name__ == "__main__":
-    #distribution = Analysis("academic_center.pkl")
+    # distribution = Analysis("academic_center.pkl")
     distribution = Analysis("data_optimized.pkl")
-    distribution.run(mode = 1,plot=False, odom=True, damping=True, tag=True, waypoint=False)
+    distribution.run(mode=1, plot=False, odom=True,
+                     damping=True, tag=True, waypoint=False)

@@ -43,7 +43,9 @@ class Vertex(object):
         """
         Write to g2o for recorded vertices
         """
-        content = datatype + "%i %f %f %f %f %f %f %f\n" % tuple([self.id] + self.translation + self.rotation)
+        content = datatype + \
+            "%i %f %f %f %f %f %f %f\n" % tuple(
+                [self.id] + self.translation + self.rotation)
         if self.fix_status:
             return content + "FIX %i\n" % self.id
         else:
@@ -73,7 +75,6 @@ class Edge(object):
         self.pitch_importance = 1000
         self.roll_importance = 1000
         self.eigenvalue_PSD = False
-
 
     @staticmethod
     def null(matrix, rtol=1e-5):
@@ -114,32 +115,41 @@ class Edge(object):
 
     def compute_importance_matrix(self):
         if self.damping_status:  # if the edge is for damping correction
-            I = Edge.compute_basis_vector(self.end.rotaton, self.yaw_importance, self.pitch_importance,
+            I = Edge.compute_basis_vector(self.end.rotation, self.yaw_importance, self.pitch_importance,
                                           self.roll_importance)
-            indeces = np.triu_indices(3)  # get indices of upper triangular entry of a 3x3 matrix
-            importance = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] + list(I[indeces])
-            for ind in np.cumsum([0] + range(6, 1, -1))[3:6]:  # increase eigenvalue of rotation importance
+            # get indices of upper triangular entry of a 3x3 matrix
+            indeces = np.triu_indices(3)
+            importance = [0, 0, 0, 0, 0, 0, 0, 0, 0,
+                          0, 0, 0, 0, 0, 0] + list(I[indeces])
+            # increase eigenvalue of rotation importance
+            for ind in np.cumsum([0] + range(6, 1, -1))[3:6]:
                 importance[ind] += self.eigenvalue_offset
-            self.importance_matrix = Edge.convert_uppertri_to_matrix(importance, 6)
+            self.importance_matrix = Edge.convert_uppertri_to_matrix(
+                importance, 6)
         elif self.end.type == "tag":  # if the edge is between current position and a tag detected
             w_t = self.tag_importance
-            importance = [w_t, 0, 0, 0, 0, 0, w_t, 0, 0, 0, 0, w_t, 0, 0, 0, w_t, 0, 0, w_t, 0, w_t]
-            self.importance_matrix = Edge.convert_uppertri_to_matrix(importance, 6)
+            importance = [w_t, 0, 0, 0, 0, 0, w_t, 0, 0,
+                          0, 0, w_t, 0, 0, 0, w_t, 0, 0, w_t, 0, w_t]
+            self.importance_matrix = Edge.convert_uppertri_to_matrix(
+                importance, 6)
 
         elif self.end.type == "waypoint":  # if the edge is between current position and a waypoint
             w_w = self.waypoint_importance
-            importance = [w_w, 0, 0, 0, 0, 0, w_w, 0, 0, 0, 0, w_w, 0, 0, 0, w_w, 0, 0, w_w, 0, w_w]
-            self.importance_matrix = Edge.convert_uppertri_to_matrix(importance, 6)
+            importance = [w_w, 0, 0, 0, 0, 0, w_w, 0, 0,
+                          0, 0, w_w, 0, 0, 0, w_w, 0, 0, w_w, 0, w_w]
+            self.importance_matrix = Edge.convert_uppertri_to_matrix(
+                importance, 6)
         else:  # if the edge is between past pose to current pose
             w_o = self.odometry_importance
-            importance = [w_o, 0, 0, 0, 0, 0, w_o, 0, 0, 0, 0, w_o, 0, 0, 0, w_o, 0, 0, w_o, 0, w_o]
-            self.importance_matrix = Edge.convert_uppertri_to_matrix(importance, 6)
-
+            importance = [w_o, 0, 0, 0, 0, 0, w_o, 0, 0,
+                          0, 0, w_o, 0, 0, 0, w_o, 0, 0, w_o, 0, w_o]
+            self.importance_matrix = Edge.convert_uppertri_to_matrix(
+                importance, 6)
 
     def check_importance_matrix_PSD(self):
         value = np.linalg.eigvals(self.importance_matrix)
         if min(value) < self.eigenvalue_offset and min(value) != 0:
-            print "Found an unexpectedly low Eigenvalue", min(value)
+            print("Found an unexpectedly low Eigenvalue", min(value))
             return False
         else:
             return True
@@ -152,12 +162,14 @@ class Edge(object):
             [self.start.id, self.end.id] + self.translation + self.rotation)
 
     def write_to_g2o_importance(self):
-        importance_uppertri = Edge.convert_matrix_uppertri_list(self.importance_matrix, 6)
+        importance_uppertri = Edge.convert_matrix_uppertri_list(
+            self.importance_matrix, 6)
         return "%f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f\n" % tuple(importance_uppertri)
 
     def compute_optimization_cost(self):
         transformation = np.array(self.translation_diff + self.rotation_diff)
-        self.optimization_cost = np.matmul(np.matmul(transformation, self.importance_matrix), transformation.T)
+        self.optimization_cost = np.matmul(
+            np.matmul(transformation, self.importance_matrix), transformation.T)
 
 
 class PoseGraph(object):
@@ -188,13 +200,15 @@ class PoseGraph(object):
         self.optimization_cost = None
 
     def add_odometry_vertices(self, id, trans, rot, fix_status):
-        self.odometry_vertices[id] = Vertex(id, trans, rot, "odometry", fix_status)
+        self.odometry_vertices[id] = Vertex(
+            id, trans, rot, "odometry", fix_status)
         return self.odometry_vertices[id]
 
     def add_odometry_edges(self, v_start, v_end, trans, rot, damping_status):
         if v_start.id not in self.odometry_edges.keys():
             self.odometry_edges[v_start.id] = {}
-        self.odometry_edges[v_start.id][v_end.id] = Edge(v_start, v_end, trans, rot, damping_status)
+        self.odometry_edges[v_start.id][v_end.id] = Edge(
+            v_start, v_end, trans, rot, damping_status)
         return self.odometry_edges[v_start.id][v_end.id]
 
     def add_tag_vertices(self, id, trans, rot, transformed_pose):
@@ -203,32 +217,34 @@ class PoseGraph(object):
             self.origin_tag = id
             self.origin_tag_pose = transformed_pose  # make this tag the origin tag
             self.tag_vertices[id] = Vertex(id, trans, rot, "tag", True)
-            print "AR_CALIBRATION: Origin Tag Found: " + str(id)
+            print("AR_CALIBRATION: Origin Tag Found: " + str(id))
         elif not (id == self.origin_tag or id in self.supplement_tags):
             self.supplement_tags.append(id)  # set new supplemental AR Tag
             self.tag_vertices[id] = Vertex(id, trans, rot, "tag", False)
-            print "AR_CALIBRATION: Supplementary Tag Found: " + str(id)
+            print("AR_CALIBRATION: Supplementary Tag Found: " + str(id))
             print(self.supplement_tags)
         elif id == self.origin_tag:
             self.origin_tag_pose = transformed_pose  # Reset the origin tag
-            print "AR_CALIBRATION: Origin Tag Refound: " + str(id)
+            print("AR_CALIBRATION: Origin Tag Refound: " + str(id))
         else:
-            print "AR_CALIBRATION: Found Old Tag: " + str(id)
+            print("AR_CALIBRATION: Found Old Tag: " + str(id))
 
     def add_odometry_tag_edges(self, v_odom, v_tag, trans, rot):
         if v_tag.id not in self.odometry_tag_edges.keys():
             self.odometry_tag_edges[v_tag.id] = {}
-        self.odometry_tag_edges[v_tag.id][v_odom.id] = Edge(v_odom, v_tag, trans, rot)
+        self.odometry_tag_edges[v_tag.id][v_odom.id] = Edge(
+            v_odom, v_tag, trans, rot)
         return self.odometry_tag_edges[v_tag.id][v_odom.id]
 
     def add_waypoint_vertices(self, id, curr_pose):
         if id not in self.waypoints_vertices.keys():
-            self.waypoints_vertices[id] = Vertex(id, list(curr_pose.translation), list(curr_pose.rotation), "waypoint")
-            print "AR_CALIBRATION: Waypoint Found: " + str(id)
-            print self.waypoints_vertices.keys()
+            self.waypoints_vertices[id] = Vertex(
+                id, list(curr_pose.translation), list(curr_pose.rotation), "waypoint")
+            print("AR_CALIBRATION: Waypoint Found: " + str(id))
+            print(self.waypoints_vertices.keys())
             return self.waypoints_vertices[id]
         else:
-            print "AR_CALIBRATION: Found Old Waypoint: " + str(id)
+            print("AR_CALIBRATION: Found Old Waypoint: " + str(id))
 
     def map_waypoint_name_to_number(self):
         self.waypoint_id_to_name = {}
@@ -244,7 +260,8 @@ class PoseGraph(object):
         for waypoint in self.waypoints_vertices.keys():
             new_trans = list(self.waypoints_vertices[waypoint].translation)
             new_trans[0] += self.waypoint_x_offset
-            self.waypoints_vertices[waypoint].translation = list(new_trans)  # add 1cm offset o waypoint position
+            self.waypoints_vertices[waypoint].translation = list(
+                new_trans)  # add 1cm offset o waypoint position
 
     def add_odometry_waypoint_edges(self, v_odom, v_waypoints):
         if v_waypoints not in self.odometry_waypoints_edges.keys():
@@ -258,8 +275,10 @@ class PoseGraph(object):
         Add a vertex and edge for correcting damping
         :param curr_pose: Vertex object for current pose
         """
-        damping_vertex = self.add_odometry_vertices(curr_pose.id + 1, [0, 0, 0], curr_pose.rotation, True)
-        damping_edge = self.add_odometry_edges(curr_pose, damping_vertex, [0, 0, 0], [0, 0, 0, 1], True)
+        damping_vertex = self.add_odometry_vertices(
+            curr_pose.id + 1, [0, 0, 0], curr_pose.rotation, True)
+        damping_edge = self.add_odometry_edges(curr_pose, damping_vertex, [
+                                               0, 0, 0], [0, 0, 0, 1], True)
         # compute importance matrix
         damping_edge.compute_importance_matrix()
         if damping_edge.check_importance_matrix_PSD():
@@ -273,7 +292,8 @@ class PoseGraph(object):
         :param rot: rotation
         :param importance: Importance of this new edge
         """
-        pose_edge = self.add_odometry_edges(self.odometry_vertices[curr_pose.id - 2], curr_pose, trans, rot, False)
+        pose_edge = self.add_odometry_edges(
+            self.odometry_vertices[curr_pose.id - 2], curr_pose, trans, rot, False)
         pose_edge.odometry_importance = importance
         # compute importance matrix
         pose_edge.compute_importance_matrix()
@@ -290,7 +310,8 @@ class PoseGraph(object):
         """
         if tag_id in self.tag_vertices.keys():
             tag = self.tag_vertices[tag_id]
-            pose_tag_edge = self.add_odometry_tag_edges(curr_pose, tag, trans, rot)
+            pose_tag_edge = self.add_odometry_tag_edges(
+                curr_pose, tag, trans, rot)
             # compute importance matrix
             pose_tag_edge.compute_importance_matrix()
             if pose_tag_edge.check_importance_matrix_PSD():
@@ -302,7 +323,8 @@ class PoseGraph(object):
     def add_pose_to_waypoint(self, curr_pose, waypoint_id):
         if waypoint_id in self.waypoints_vertices.keys():
             waypoint = self.waypoints_vertices[waypoint_id]
-            pose_waypoint_edge = self.add_odometry_waypoint_edges(curr_pose, waypoint)
+            pose_waypoint_edge = self.add_odometry_waypoint_edges(
+                curr_pose, waypoint)
             pose_waypoint_edge.compute_importance_matrix()
             if pose_waypoint_edge.check_importance_matrix_PSD():
                 pose_waypoint_edge.eigenvalue_PSD = True
@@ -323,28 +345,33 @@ class PoseGraph(object):
         self.graph = {}
         for vertices in [self.odometry_vertices, self.tag_vertices, self.waypoints_vertices]:
             self.initialize_nodes(vertices)
-        # print self.graph
+        # print(self.graph)
         for odom_id in self.odometry_edges.keys():
-            start_node, neighbour_nodes = odom_id, self.odometry_edges[odom_id].keys()
+            start_node, neighbour_nodes = odom_id, self.odometry_edges[odom_id].keys(
+            )
             for neighbour in neighbour_nodes:
                 edge = self.odometry_edges[start_node][neighbour]
-                if np.sum(edge.importance_matrix.diagonal()) != 0:  # check if the importance value is zero
+                # check if the importance value is zero
+                if np.sum(edge.importance_matrix.diagonal()) != 0:
                     self.add_nodes_to_graph(start_node, [neighbour])
                 else:
                     del self.odometry_edges[start_node][neighbour]
-                    print "Discard Unconnected Edge: %d to %d" % (start_node, neighbour)
-        print "Odometry Nodes Added"
+                    print("Discard Unconnected Edge: %d to %d" %
+                          (start_node, neighbour))
+        print("Odometry Nodes Added")
 
         for tag in self.odometry_tag_edges.keys():
-            start_node, neighbour_node = tag, self.odometry_tag_edges[tag].keys()
+            start_node, neighbour_node = tag, self.odometry_tag_edges[tag].keys(
+            )
             # start_node, neighbour_node = tag, []
             # for odom in self.odometry_tag_edges[tag].keys():
             #     neighbour_node.append(odom.id)
             self.add_nodes_to_graph(start_node, neighbour_node)
-        print "Tag Nodes Added"
+        print("Tag Nodes Added")
 
         for waypoint in self.odometry_waypoints_edges.keys():
-            start_node, neighbour_node = waypoint, self.odometry_waypoints_edges[waypoint].keys()
+            start_node, neighbour_node = waypoint, self.odometry_waypoints_edges[waypoint].keys(
+            )
             # start_node, neighbour_node = waypoint, []
             # for odom in self.odometry_waypoints_edges[waypoint].keys():
             #     neighbour_node.append(odom.id)
@@ -384,7 +411,7 @@ class PoseGraph(object):
         """
         for vertex_id in vertices.keys():
             if vertex_id not in self.visited_nodes:
-                print "DELETE VERTEX:", vertex_id
+                print("DELETE VERTEX:", vertex_id)
                 del vertices[vertex_id]
                 if vertex_id in edges.keys():
                     del edges[vertex_id]
@@ -396,9 +423,12 @@ class PoseGraph(object):
 
         :return:
         """
-        self.remove_unconnected_portion(self.odometry_vertices, self.odometry_edges)
-        self.remove_unconnected_portion(self.tag_vertices, self.odometry_tag_edges)
-        self.remove_unconnected_portion(self.waypoints_vertices, self.odometry_waypoints_edges)
+        self.remove_unconnected_portion(
+            self.odometry_vertices, self.odometry_edges)
+        self.remove_unconnected_portion(
+            self.tag_vertices, self.odometry_tag_edges)
+        self.remove_unconnected_portion(
+            self.waypoints_vertices, self.odometry_waypoints_edges)
 
     def process_graph(self, source_node):
         """
@@ -439,20 +469,29 @@ class PoseGraph(object):
             for start_id in edges.keys():
                 for end_id in edges[start_id].keys():
                     data = edges[start_id][end_id].write_to_g2o()
-                    importance = edges[start_id][end_id].write_to_g2o_importance()
+                    importance = edges[start_id][end_id].write_to_g2o_importance(
+                    )
                     data_file.write(data + " " + importance)
 
-    def write_g2o_data(self):
+    def write_g2o_data(self, *args):
         """
         Write to g2o data file
         """
-        package = RosPack().get_path('navigation_prototypes')
-        g2o_data_path = path.join(package, 'data/data_g2o/data.g2o')  # path to compiled g2o file
+        if args:
+            fname = args[0]
+        else:
+            package = RosPack().get_path('navigation_prototypes')
+            fname = path.join(package, 'data/data_g2o/data.g2o')
+
+        print(fname)
+        # path to compiled g2o file
+        g2o_data_path = fname
         with open(g2o_data_path, 'wb') as g2o_data:
-            PoseGraph.write_g2o_vertices(g2o_data, self.odometry_vertices, self.tag_vertices, self.waypoints_vertices)
+            PoseGraph.write_g2o_vertices(
+                g2o_data, self.odometry_vertices, self.tag_vertices, self.waypoints_vertices)
             PoseGraph.write_g2o_edges(g2o_data, self.odometry_edges, self.odometry_tag_edges,
                                       self.odometry_waypoints_edges)
-        print "g2o data has wrote to file"
+        print("g2o data has wrote to file")
 
     def optimize_pose(self):
         """
@@ -460,12 +499,15 @@ class PoseGraph(object):
         """
         self.write_g2o_data()
         package = RosPack().get_path('navigation_prototypes')
-        g2o_data_path = path.join(package, 'data/data_g2o/data.g2o')  # path to compiled g2o file
-        g2o_data_copy_path = path.join(package, 'data/data_g2o/data_cp.g2o')  # copy of the unedit data
+        # path to compiled g2o file
+        g2o_data_path = path.join(package, 'data/data_g2o/data.g2o')
+        g2o_data_copy_path = path.join(
+            package, 'data/data_g2o/data_cp.g2o')  # copy of the unedit data
         g2o_result_path = path.join(package, 'data/data_g2o/result.g2o')
         system("g2o -o %s %s" % (g2o_result_path, g2o_data_path))  # Run G2o
-        system("cp %s %s" % (g2o_data_path, g2o_data_copy_path))  # Copy Original Data
-        print "OPTIMIZATION COMPLETED"
+        # Copy Original Data
+        system("cp %s %s" % (g2o_data_path, g2o_data_copy_path))
+        print("OPTIMIZATION COMPLETED")
 
     def remove_dummy_nodes_edges(self):
         for odom_id in self.odometry_vertices.keys():
