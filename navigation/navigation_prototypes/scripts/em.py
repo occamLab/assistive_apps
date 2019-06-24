@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 import pickle
+from pose_graph import Edge
 from os import path
 from rospkg import RosPack
 import numpy as np
-from regmodel import EMModel
+from maximization import maxweights
 
 
 def edge2vectors(edge, mode):
@@ -54,7 +55,7 @@ class Analysis:
         self.errors = np.array(errors)
 
     def getvariance(self):
-        res = EMModel(self.observations, self.w, self.errors).run()
+        res = maxweights(self.observations, self.errors, self.w)
         success = res.success
 
         self.success = success
@@ -63,19 +64,35 @@ class Analysis:
 
     def updateEdges(self):
         importance = 1 / np.sqrt(self.variance)
+        indices = ([3, 3, 3, 4, 4, 5], [3, 4, 5, 4, 5, 5])
+
         for startid in self.posegraph.odometry_edges:
             for endid in self.posegraph.odometry_edges[startid]:
+                edge = self.posegraph.odometry_edges[startid][endid]
+
                 if self.posegraph.odometry_edges[startid][endid].damping_status:
-                    self.posegraph.odometry_edges[startid][endid].importance_matrix = np.diag(
-                        importance[12:18])
+                    basis = Edge.compute_basis_vector(
+                        edge.start.rotation, importance[15], importance[16], importance[17])
+                    importanceMatrix = np.diag(importance[12:18])
+                    importanceMatrix[[3, 3, 3, 4, 4, 5], [
+                        3, 4, 5, 4, 5, 5]] = basis[np.triu_indices(3)]
+                    lower = importanceMatrix.T
+                    importanceMatrix[np.tril_indices(
+                        6, 1)] = lower[np.tril_indices(6, 1)]
+                    self.posegraph.odometry_edges[startid][endid].importance_matrix = importanceMatrix
                 else:
-                    self.posegraph.odometry_edges[startid][endid].importance_matrix = np.diag(
-                        importance[0:6])
+                    importanceMatrix = np.diag(importance[:6])
+                    importanceMatrix[[3, 3, 3, 4, 4, 5], [
+                        3, 4, 5, 4, 5, 5]] = basis[np.triu_indices(3)]
+                    self.posegraph.odometry_edges[startid][endid].importance_matrix = importanceMatrix
 
         for startid in self.posegraph.odometry_tag_edges:
             for endid in self.posegraph.odometry_tag_edges[startid]:
-                self.posegraph.odometry_tag_edges[startid][endid].importance_matrix = np.diag(
-                    importance[6:12])
+                importanceMatrix = np.diag(importance[6:12])
+                lower = importanceMatrix.T
+                importanceMatrix[np.tril_indices(
+                    6, 1)] = lower[np.tril_indices(6, 1)]
+                self.posegraph.odometry_tag_edges[startid][endid].importance_matrix = importanceMatrix
 
     def writePosegraph(self):
         self.posegraph.write_g2o_data()
