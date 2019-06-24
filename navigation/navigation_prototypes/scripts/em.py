@@ -74,11 +74,6 @@ class Analysis:
                     basis = Edge.compute_basis_vector(
                         edge.start.rotation, importance[15], importance[16], importance[17])
                     importanceMatrix = np.diag(importance[12:18])
-                    importanceMatrix[[3, 3, 3, 4, 4, 5], [
-                        3, 4, 5, 4, 5, 5]] = basis[np.triu_indices(3)]
-                    lower = importanceMatrix.T
-                    importanceMatrix[np.tril_indices(
-                        6, 1)] = lower[np.tril_indices(6, 1)]
                     self.posegraph.odometry_edges[startid][endid].importance_matrix = importanceMatrix
                 else:
                     importanceMatrix = np.diag(importance[:6])
