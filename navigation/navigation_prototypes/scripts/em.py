@@ -74,7 +74,7 @@ class Analysis:
                     basis = Edge.compute_basis_vector(
                         edge.start.rotation, importance[15], importance[16], importance[17])
                     importanceMatrix = np.diag(importance[12:18])
-                    self.posegraph.odometry_edges[startid][endid].importance_matrix = importanceMatrix
+                    # self.posegraph.odometry_edges[startid][endid].importance_matrix = importanceMatrix
                 else:
                     importanceMatrix = np.diag(importance[:6])
                     importanceMatrix[[3, 3, 3, 4, 4, 5], [
@@ -101,6 +101,7 @@ def main():
     analysis.getvariance()
     analysis.updateEdges()
     analysis.writePosegraph()
+    print(analysis.posegraph.odometry_edges.values()[0].values()[0].end.rotation)
     return analysis
 
 

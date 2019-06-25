@@ -498,12 +498,13 @@ class Optimization:
         plt.grid(True)
         plt.show()
 
-    def run(self, dummy_flag=False, tag_flag=False, waypoint_flag=False):
+    def run(self, dummy_flag=False, tag_flag=False, waypoint_flag=False, plot=True):
         self.g2o(dummy_flag=dummy_flag, tag_flag=tag_flag,
                  waypoint_flag=waypoint_flag)
         self.parse_g2o_result_transformer()
         # self.parse_g2o_result_math() # currently inaccurate
-        self.plot_g2o_trajectory()
+        if plot:
+            self.plot_g2o_trajectory()
 
 
 if __name__ == "__main__":

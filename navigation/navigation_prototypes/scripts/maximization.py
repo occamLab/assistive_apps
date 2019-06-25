@@ -6,12 +6,12 @@ from scipy.optimize import minimize
 
 def objfun(w, *args):
     x, e = args
-    return -norm.logpdf(e, scale=np.sqrt(np.exp(np.dot(x, w)))).sum()
+    return -norm.logpdf(e, scale=np.sqrt(np.exp(x.dot(w)))).sum()
 
 
 def gradfun(w, *args):
     x, e = args
-    return -np.dot(e**2 * np.exp(-np.dot(x, w)) - 1, x) / 2
+    return -(e**2 * np.exp(-x.dot(w)) - 1).dot(x) / 2
 
 
 def maxweights(x, e, w):
