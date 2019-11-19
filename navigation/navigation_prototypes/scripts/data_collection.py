@@ -335,6 +335,23 @@ class DataCollection(object):
             self.pose_failure = True
             return False
 
+    def record_pose_at_tag_frame(self, wait_time, record_time):
+        if self.gather_transformation(self.origin_frame, record_time, "real_device", record_time,
+                                      wait_time):
+            (trans, rot) = self.listener.lookupTransformFull(self.origin_frame, record_time, "real_device",record_time, self.origin_frame)
+            # incremnet pose vertex id
+            self.pose_vertex_id += 2
+            # add vertex to pose graph for current position
+            pose = self.pose_graph.add_odometry_vertices(self.pose_vertex_id, trans, rot, False)
+            # print("RECORDED VERTEX: current pose")
+            # add vertex, edge, importance for reducing damping
+            self.pose_graph.add_damping(pose)
+            # print("RECORDED VERTEX & EDGE: damping")
+            return pose
+        else:
+            "RECORD FAILURE: Pose at tag frame transformation"
+            return None
+
     def record_tag_vertex(self, tag, transformed_pose, wait_time):
         """
         Record vertex for new tag seen to pose graph
@@ -384,20 +401,38 @@ class DataCollection(object):
             self.pose_failure = True
             return False
 
+    def record_curr_pose_to_pose_at_tag_frame_edge(self, wait_time, pose_at_tag_frame, tag_stamp):
+        """
+        Record edge between past odometry and current odometry to pose graph
+        """
+        if self.gather_transformation("real_device", self.curr_record_time, "real_device", tag_stamp,
+                                      wait_time):
+            (trans, rot) = self.listener.lookupTransformFull("real_device", self.curr_record_time, "real_device",
+                                                             tag_stamp, self.origin_frame)
+            self.pose_graph.add_cur_pose_to_pose_at_tag_frame(self.curr_pose, pose_at_tag_frame, trans, rot, 1)
+            print "RECORDED EDGE: Current pose to pose at tag frame transformation"
+            return True
+        else:
+            return False
+
     def record_pose_to_tag_edge(self, tag, wait_time):
         """
         Record edge between current odometry and one of the tag detected to pose graph
         """
+        if tag.id not in self.pose_graph.tag_vertices.keys():
+            print "RECORD FAILURE: Tag vertex does not exist"
+            return
         tag_stamp = tag.pose.header.stamp
-        if self.gather_transformation("real_device", tag_stamp, "tag_" + str(tag.id), tag_stamp, wait_time):
+
+        if self.gather_transformation("real_device", self.curr_record_time, "tag_" + str(tag.id), tag_stamp, wait_time):
             (trans, rot) = self.listener.lookupTransformFull("real_device", tag_stamp, "tag_" + str(tag.id),
                                                              tag_stamp, self.origin_frame)
+            #pose_at_tag_frame = self.record_pose_at_tag_frame(wait_time, tag_stamp)
+            #state = self.record_curr_pose_to_pose_at_tag_frame_edge(wait_time, pose_at_tag_frame, tag_stamp)
             if self.pose_graph.add_pose_to_tag(self.curr_pose, tag.id, trans, rot):
                 # print "RECORDED EDGE: Pose to tag transformation"
                 # update last record time for this tag
                 self.tagtimes[tag.id] = tag.pose.header.stamp
-            else:
-                print "RECORD FAILURE: Tag vertex does not exist"
         else:
             print "RECORD FAILURE: Pose to tag transformation"
 

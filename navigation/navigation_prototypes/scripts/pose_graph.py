@@ -114,7 +114,7 @@ class Edge(object):
 
     def compute_importance_matrix(self):
         if self.damping_status:  # if the edge is for damping correction
-            I = Edge.compute_basis_vector(self.end.rotaton, self.yaw_importance, self.pitch_importance,
+            I = Edge.compute_basis_vector(self.end.rotation, self.yaw_importance, self.pitch_importance,
                                           self.roll_importance)
             indeces = np.triu_indices(3)  # get indices of upper triangular entry of a 3x3 matrix
             importance = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] + list(I[indeces])
@@ -274,6 +274,21 @@ class PoseGraph(object):
         :param importance: Importance of this new edge
         """
         pose_edge = self.add_odometry_edges(self.odometry_vertices[curr_pose.id - 2], curr_pose, trans, rot, False)
+        pose_edge.odometry_importance = importance
+        # compute importance matrix
+        pose_edge.compute_importance_matrix()
+        if pose_edge.check_importance_matrix_PSD():
+            pose_edge.eigenvalue_PSD = True
+
+    def add_cur_pose_to_pose_at_tag_frame(self, curr_pose, pose_at_tag_frame, trans, rot, importance):
+        """
+        Add an edge between vertices of current pose and last pose
+        :param curr_pose: Vertex object of current pose
+        :param trans: translation
+        :param rot: rotation
+        :param importance: Importance of this new edge
+        """
+        pose_edge = self.add_odometry_edges(curr_pose, pose_at_tag_frame, trans, rot, False)
         pose_edge.odometry_importance = importance
         # compute importance matrix
         pose_edge.compute_importance_matrix()
