@@ -43,7 +43,7 @@ from navigation_prototypes.srv import TagSeen
 from navigation_prototypes.srv import phone
 import tf
 from os import path, system
-from scipy.spacial.transform import Rotation
+from scipy.spacial.transform import Rotation as R
 
 import pickle
 from pose_graph import PoseGraph, Vertex, Edge
@@ -456,19 +456,27 @@ class DataCollection(object):
             device_to_origin_trans, device_to_origin_rot = self.listener.lookupTransformFull(
                 'real_device', self.curr_record_time, self.origin_frame, self.curr_record_time, wait_time)
 
+            print("Origin Transform:\n", origin_to_tag_trans, origin_to_tag_rot)
+            print("Device Transform:\n",
+                  device_to_origin_trans, device_to_origin_rot)
+
             origin_to_tag_matrix = np.eye(4)
-            origin_to_tag_matrix[:3, :3] = Rotation.from_quat(
+            origin_to_tag_matrix[:3, :3] = R.from_quat(
                 origin_to_tag_rot).as_dcm()
             origin_to_tag_matrix[:3, 3] = origin_to_tag_trans
+            print("Origin to Tag Matrix:\n", origin_to_tag_matrix)
 
             device_to_origin_matrix = np.eye(4)
-            device_to_origin_matrix[:3, :3] = Rotation.from_quat(
+            device_to_origin_matrix[:3, :3] = R.from_quat(
                 device_to_origin_rot).as_dcm()
             device_to_origin_matrix[:3, 3] = device_to_origin_trans
+            print("Device to Origin Matrix:\n", device_to_origin_matrix)
 
             transform = origin_to_tag_matrix.dot(device_to_origin_matrix)
             trans = transform[:3, 3]
-            rot = Rotation.from_dcm(transform[:3, :3]).as_quat()
+            rot = R.from_dcm(transform[:3, :3]).as_quat()
+
+            print("Device to Tag Matrix:\n", transform)
 
             if self.pose_graph.add_pose_to_tag(self.curr_pose, tag.id, trans, rot):
                 # print "RECORDED EDGE: Pose to tag transformation"
