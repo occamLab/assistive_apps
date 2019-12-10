@@ -43,7 +43,7 @@ from navigation_prototypes.srv import TagSeen
 from navigation_prototypes.srv import phone
 import tf
 from os import path, system
-from scipy.spacial.transform import Rotation as R
+from scipy.spatial.transform import Rotation as R
 
 import pickle
 from pose_graph import PoseGraph, Vertex, Edge
