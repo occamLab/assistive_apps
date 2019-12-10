@@ -452,9 +452,9 @@ class DataCollection(object):
             # (trans, rot) = self.listener.lookupTransformFull("real_device", tag_stamp, "tag_" + str(tag.id),
             #                                                  tag_stamp, self.origin_frame)
             origin_to_tag_trans, origin_to_tag_rot = self.listener.lookupTransformFull(
-                self.origin_frame, tag_stamp, "tag_" + str(tag.id), tag_stamp, wait_time)
+                self.origin_frame, tag_stamp, "tag_" + str(tag.id), tag_stamp, self.origin_frame)
             device_to_origin_trans, device_to_origin_rot = self.listener.lookupTransformFull(
-                'real_device', self.curr_record_time, self.origin_frame, self.curr_record_time, wait_time)
+                'real_device', self.curr_record_time, self.origin_frame, self.curr_record_time, self.origin_frame)
 
             print("Origin Transform:\n", origin_to_tag_trans, origin_to_tag_rot)
             print("Device Transform:\n",
