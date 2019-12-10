@@ -43,6 +43,7 @@ from navigation_prototypes.srv import TagSeen
 from navigation_prototypes.srv import phone
 import tf
 from os import path, system
+from scipy.spacial.transform import Rotation
 
 import pickle
 from pose_graph import PoseGraph, Vertex, Edge
@@ -56,25 +57,33 @@ class DataCollection(object):
 
     def __init__(self, filename, num_tags=587):
         rospy.init_node('data_collection')  # Initialization of another node.
-        self.package = RosPack().get_path('navigation_prototypes')  # Directory of ros package for this script
-        self.data_folder = path.join(self.package, 'data/raw_data')  # Folder where the result will be stored.
-        self.filename = filename  # Name of the file to start/continue recording and store the recorded data.
+        # Directory of ros package for this script
+        self.package = RosPack().get_path('navigation_prototypes')
+        # Folder where the result will be stored.
+        self.data_folder = path.join(self.package, 'data/raw_data')
+        # Name of the file to start/continue recording and store the recorded data.
+        self.filename = filename
         # set filename as a parameter such that the Frames class would load the same file
-        rospy.set_param('posegraph_filename', path.join(self.data_folder, self.filename))
+        rospy.set_param('posegraph_filename', path.join(
+            self.data_folder, self.filename))
 
         """ Transformation Parameters """
         self.listener = tf.TransformListener()  # The transform listener
         self.broadcaster = tf.TransformBroadcaster()  # The transform broadcaster
         self.odom_frame = "odom"
         self.map_frame = "map"
-        self.origin_frame = self.odom_frame  # Default origin frame is the odom frame assuming new data collection
+        # Default origin frame is the odom frame assuming new data collection
+        self.origin_frame = self.odom_frame
 
         """Data Collection Parameters"""
-        self.record_interval = rospy.Duration(.1)  # Interval of time between recording
+        self.record_interval = rospy.Duration(
+            .1)  # Interval of time between recording
         self.tag_record_duration = rospy.Duration(
             0.025)  # Interval of time between recording the transformation between phone postion and tag position
-        self.transform_wait_time = rospy.Duration(0.5)  # Time duration to wait for an available transform.
-        self.pose_failure_wait_time = rospy.Duration(1)  # Time duration threshold to signify a pose failure
+        # Time duration to wait for an available transform.
+        self.transform_wait_time = rospy.Duration(0.5)
+        # Time duration threshold to signify a pose failure
+        self.pose_failure_wait_time = rospy.Duration(1)
         self.curr_record_time = None
         self.last_record_time = None
         self.pose_failure = False
@@ -93,7 +102,8 @@ class DataCollection(object):
 
         """ Data Collection Mode """
         self.AR_calibration = False  # Boolean for starting data collection
-        self.origin_frame_presence = False  # Boolean to check whether the origin frame is available on tf tree
+        # Boolean to check whether the origin frame is available on tf tree
+        self.origin_frame_presence = False
         self.AR_Find_Try = False  # Boolean for recording a tag vertex
         self.Waypoint_Find_Try = False  # Boolean for recording a waypoint vertex
         self.recording = False  # Boolean for recording
@@ -107,8 +117,10 @@ class DataCollection(object):
         self.get_phone_type_client()  # Determine the type of used for data collection
         self.determine_subscribed_topics_from_phone_type()
         rospy.Subscriber('/keyboard/keydown', Key, self.key_pressed)
-        rospy.Service('tag_seen', TagSeen, self.tag_seen_service)  # Current tag in frame
-        rospy.Service('check_map_frame', CheckMapFrame, self.check_map_frame_service)  # Name of origin frame
+        # Current tag in frame
+        rospy.Service('tag_seen', TagSeen, self.tag_seen_service)
+        rospy.Service('check_map_frame', CheckMapFrame,
+                      self.check_map_frame_service)  # Name of origin frame
 
     def determine_subscribed_topics_from_phone_type(self):
         """
@@ -124,7 +136,8 @@ class DataCollection(object):
                              self.tag_callback)
         elif self.phone == "tango":
             ''' For use with the tango: '''
-            rospy.Subscriber('/tango_pose', PoseStamped, self.process_pose)  # Subscriber for the tango pose.
+            rospy.Subscriber('/tango_pose', PoseStamped,
+                             self.process_pose)  # Subscriber for the tango pose.
             rospy.Subscriber('/fisheye_undistorted/tag_detections',  # SUBSCRIBER FOR THE TAG_DETECTION TRANSFORMS.
                              AprilTagDetectionArray,
                              self.tag_callback)
@@ -169,7 +182,8 @@ class DataCollection(object):
         """
         rospy.wait_for_service('map_frame_published')
         try:
-            map_frame_published = rospy.ServiceProxy('map_frame_published', CheckMapFrame)
+            map_frame_published = rospy.ServiceProxy(
+                'map_frame_published', CheckMapFrame)
             response = map_frame_published()
             if response.exist:
                 self.origin_frame_presence = True
@@ -193,7 +207,8 @@ class DataCollection(object):
         if self.AR_calibration:
             if self.last_pose:
                 new_pose = msg.pose.position
-                delta = [new_pose.x - self.last_pose.x, new_pose.y - self.last_pose.y, new_pose.z - self.last_pose.z]
+                delta = [new_pose.x - self.last_pose.x, new_pose.y -
+                         self.last_pose.y, new_pose.z - self.last_pose.z]
                 for i in range(3):
                     self.pose_graph.distance_traveled[i] += delta[i]
                 self.last_pose = new_pose
@@ -275,7 +290,8 @@ class DataCollection(object):
                                       curr_tag.pose.header.stamp,
                                       self.transform_wait_time):
             # Transform the pose from the camera frame to the origin frame.
-            curr_tag_transformed_pose = self.listener.transformPose(self.origin_frame, curr_tag.pose)
+            curr_tag_transformed_pose = self.listener.transformPose(
+                self.origin_frame, curr_tag.pose)
 
             # check if the tag is in the dictionary of tag recording time or not
             if curr_tag.id not in self.tagtimes.keys():
@@ -309,7 +325,8 @@ class DataCollection(object):
         :param wait_time:
         :return:
         """
-        self.listener.waitForTransformFull(frame1, time1, frame2, time2, self.origin_frame, wait_time)
+        self.listener.waitForTransformFull(
+            frame1, time1, frame2, time2, self.origin_frame, wait_time)
         return self.listener.canTransformFull(frame1, time1, frame2, time2, self.origin_frame)
 
     def record_curr_pose_and_damping(self, wait_time):
@@ -319,13 +336,15 @@ class DataCollection(object):
         :param wait_time:
         :return:
         """
-        self.curr_record_time = self.listener.getLatestCommonTime("real_device", self.origin_frame)
+        self.curr_record_time = self.listener.getLatestCommonTime(
+            "real_device", self.origin_frame)
         if self.gather_transformation(self.origin_frame, self.curr_record_time, "real_device", self.curr_record_time,
                                       wait_time):
             (trans, rot) = self.listener.lookupTransformFull(self.origin_frame, self.curr_record_time, "real_device",
                                                              self.curr_record_time, self.origin_frame)
             # add vertex to pose graph for current position
-            self.curr_pose = self.pose_graph.add_odometry_vertices(self.pose_vertex_id, trans, rot, False)
+            self.curr_pose = self.pose_graph.add_odometry_vertices(
+                self.pose_vertex_id, trans, rot, False)
             # print("RECORDED VERTEX: current pose")
             # add vertex, edge, importance for reducing damping
             self.pose_graph.add_damping(self.curr_pose)
@@ -338,11 +357,13 @@ class DataCollection(object):
     def record_pose_at_tag_frame(self, wait_time, record_time):
         if self.gather_transformation(self.origin_frame, record_time, "real_device", record_time,
                                       wait_time):
-            (trans, rot) = self.listener.lookupTransformFull(self.origin_frame, record_time, "real_device",record_time, self.origin_frame)
+            (trans, rot) = self.listener.lookupTransformFull(self.origin_frame,
+                                                             record_time, "real_device", record_time, self.origin_frame)
             # incremnet pose vertex id
             self.pose_vertex_id += 2
             # add vertex to pose graph for current position
-            pose = self.pose_graph.add_odometry_vertices(self.pose_vertex_id, trans, rot, False)
+            pose = self.pose_graph.add_odometry_vertices(
+                self.pose_vertex_id, trans, rot, False)
             # print("RECORDED VERTEX: current pose")
             # add vertex, edge, importance for reducing damping
             self.pose_graph.add_damping(pose)
@@ -363,9 +384,11 @@ class DataCollection(object):
                                       tag.pose.header.stamp,
                                       wait_time):
             (trans, rot) = self.listener.lookupTransformFull(self.origin_frame, tag.pose.header.stamp,
-                                                             "tag_" + str(tag.id),
+                                                             "tag_" +
+                                                             str(tag.id),
                                                              tag.pose.header.stamp, self.origin_frame)
-            self.pose_graph.add_tag_vertices(tag.id, trans, rot, transformed_pose)
+            self.pose_graph.add_tag_vertices(
+                tag.id, trans, rot, transformed_pose)
             print("RECORDED VERTEX: tag " + str(tag.id))
             return True
         else:
@@ -378,7 +401,7 @@ class DataCollection(object):
         :return:
         """
         self.pose_graph.add_waypoint_vertices(waypoint_id, self.curr_pose)
-        print ("RECORD VERTEX: waypoint" + waypoint_id)
+        print("RECORD VERTEX: waypoint" + waypoint_id)
 
     def record_pose_to_pose_edge(self, wait_time):
         """
@@ -409,7 +432,8 @@ class DataCollection(object):
                                       wait_time):
             (trans, rot) = self.listener.lookupTransformFull("real_device", self.curr_record_time, "real_device",
                                                              tag_stamp, self.origin_frame)
-            self.pose_graph.add_cur_pose_to_pose_at_tag_frame(self.curr_pose, pose_at_tag_frame, trans, rot, 1)
+            self.pose_graph.add_cur_pose_to_pose_at_tag_frame(
+                self.curr_pose, pose_at_tag_frame, trans, rot, 1)
             print "RECORDED EDGE: Current pose to pose at tag frame transformation"
             return True
         else:
@@ -425,10 +449,27 @@ class DataCollection(object):
         tag_stamp = tag.pose.header.stamp
 
         if self.gather_transformation("real_device", self.curr_record_time, "tag_" + str(tag.id), tag_stamp, wait_time):
-            (trans, rot) = self.listener.lookupTransformFull("real_device", tag_stamp, "tag_" + str(tag.id),
-                                                             tag_stamp, self.origin_frame)
-            #pose_at_tag_frame = self.record_pose_at_tag_frame(wait_time, tag_stamp)
-            #state = self.record_curr_pose_to_pose_at_tag_frame_edge(wait_time, pose_at_tag_frame, tag_stamp)
+            # (trans, rot) = self.listener.lookupTransformFull("real_device", tag_stamp, "tag_" + str(tag.id),
+            #                                                  tag_stamp, self.origin_frame)
+            origin_to_tag_trans, origin_to_tag_rot = self.listener.lookupTransformFull(
+                self.origin_frame, tag_stamp, "tag_" + str(tag.id), tag_stamp, wait_time)
+            device_to_origin_trans, device_to_origin_rot = self.listener.lookupTransformFull(
+                'real_device', self.curr_record_time, self.origin_frame, self.curr_record_time, wait_time)
+
+            origin_to_tag_matrix = np.eye(4)
+            origin_to_tag_matrix[:3, :3] = Rotation.from_quat(
+                origin_to_tag_rot).as_dcm()
+            origin_to_tag_matrix[:3, 3] = origin_to_tag_trans
+
+            device_to_origin_matrix = np.eye(4)
+            device_to_origin_matrix[:3, :3] = Rotation.from_quat(
+                device_to_origin_rot).as_dcm()
+            device_to_origin_matrix[:3, 3] = device_to_origin_trans
+
+            transform = origin_to_tag_matrix.dot(device_to_origin_matrix)
+            trans = transform[:3, 3]
+            rot = Rotation.from_dcm(transform[:3, :3]).as_quat()
+
             if self.pose_graph.add_pose_to_tag(self.curr_pose, tag.id, trans, rot):
                 # print "RECORDED EDGE: Pose to tag transformation"
                 # update last record time for this tag
@@ -454,10 +495,12 @@ class DataCollection(object):
 
     def record_waypoint_vertices_edges(self):
         if self.Waypoint_Find_Try:
-            waypoint_id = raw_input("What do you want to name this waypoint with?")
+            waypoint_id = raw_input(
+                "What do you want to name this waypoint with?")
             self.record_waypoint_vertex(waypoint_id)
             self.record_pose_to_waypoint_edge(waypoint_id)
-            self.curr_record_time = self.listener.getLatestCommonTime("real_device", self.origin_frame)
+            self.curr_record_time = self.listener.getLatestCommonTime(
+                "real_device", self.origin_frame)
         self.Waypoint_Find_Try = False
 
     def determine_data_collection_mode(self):
@@ -472,7 +515,8 @@ class DataCollection(object):
                 # print "pose graph:", self.pose_graph.origin_tag
                 if self.pose_graph.origin_tag is not None:
                     self.origin_frame = self.map_frame
-                self.pose_vertex_id = max(self.pose_graph.odometry_vertices.keys()) + 1
+                self.pose_vertex_id = max(
+                    self.pose_graph.odometry_vertices.keys()) + 1
                 print("Posegraph LOADED FOR DATA COLLECTION")
                 self.start_record_with_map_frame()
         else:
@@ -492,7 +536,8 @@ class DataCollection(object):
             try:
                 if self.record_curr_pose_and_damping(rospy.Duration(1)):
                     print('RECORDING START: first odometry recorded')
-                    self.last_record_time = self.curr_record_time  # set last record time to nowtime as well.
+                    # set last record time to nowtime as well.
+                    self.last_record_time = self.curr_record_time
                     self.pose_vertex_id += 2  # add to the vertex id
                     self.recording = True  # set recording true
                 else:
@@ -513,7 +558,8 @@ class DataCollection(object):
             # Record vertex of current pose, edge of damping correction, and edge of past and present pose
             if self.record_curr_pose_and_damping(self.transform_wait_time) and self.record_pose_to_pose_edge(
                     self.transform_wait_time):
-                self.record_all_pose_to_tag_edge()  # Record edge of current pose to all tags detected
+                # Record edge of current pose to all tags detected
+                self.record_all_pose_to_tag_edge()
                 self.record_waypoint_vertices_edges()  # Record waypoints
                 self.last_record_time = self.curr_record_time
                 self.pose_vertex_id += 2  # increment vertex id
