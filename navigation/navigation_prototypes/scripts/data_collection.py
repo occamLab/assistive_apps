@@ -47,6 +47,7 @@ from scipy.spatial.transform import Rotation as R
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Pose, Vector3, Point
 from std_msgs import Header, ColorRGBA
+import numpy as np
 
 import pickle
 from pose_graph import PoseGraph, Vertex, Edge
