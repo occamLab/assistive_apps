@@ -456,6 +456,7 @@ class DataCollection(object):
         if self.gather_transformation("real_device", self.curr_record_time, "tag_" + str(tag.id), tag_stamp, wait_time):
             # (trans, rot) = self.listener.lookupTransformFull("real_device", tag_stamp, "tag_" + str(tag.id),
             #                                                  tag_stamp, self.origin_frame)
+
             origin_to_tag_trans, origin_to_tag_rot = self.listener.lookupTransformFull(
                 self.origin_frame, tag_stamp, "tag_" + str(tag.id), tag_stamp, self.origin_frame)
             device_to_origin_trans, device_to_origin_rot = self.listener.lookupTransformFull(
@@ -477,11 +478,12 @@ class DataCollection(object):
             device_to_origin_matrix[:3, 3] = device_to_origin_trans
             print("Device to Origin Matrix:\n", device_to_origin_matrix)
 
-            transform = origin_to_tag_matrix.dot(device_to_origin_matrix)
+            transform = device_to_origin_matrix.dot(origin_to_tag_matrix)
             trans = transform[:3, 3]
             rot = R.from_dcm(transform[:3, :3]).as_quat()
-            marker_message = Marker(header=Header(stamp=self.curr_record_time, frame_id='real_device'), pose=Pose(position=Point(trans)), scale=Vector3(1,1,1), color=ColorRGBA(0.1, 0, .9, 1), id=1, type=Marker.SPHERE)
+            marker_message = Marker(header=Header(stamp=self.curr_record_time, frame_id='real_device'), pose=Pose(position=Point(*trans)), scale=Vector3(0.1,0.1,0.1), color=ColorRGBA(0.1, 0, .9, 1), id=1, type=Marker.SPHERE)
             self.marker_pub.publish(marker_message)
+            print("")
 
             print("Device to Tag Matrix:\n", transform)
 
