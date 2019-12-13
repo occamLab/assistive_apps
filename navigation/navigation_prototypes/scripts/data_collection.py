@@ -46,7 +46,7 @@ from os import path, system
 from scipy.spatial.transform import Rotation as R
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Pose, Vector3, Point
-from std_msgs import Header, ColorRGBA
+from std_msgs.msg import Header, ColorRGBA
 import numpy as np
 
 import pickle
