@@ -44,6 +44,9 @@ from navigation_prototypes.srv import phone
 import tf
 from os import path, system
 from scipy.spatial.transform import Rotation as R
+from visualization_msgs.msg import Marker
+from geometry_msgs.msg import Pose, Vector3, Point
+from std_msgs import Header, ColorRGBA
 
 import pickle
 from pose_graph import PoseGraph, Vertex, Edge
@@ -74,6 +77,7 @@ class DataCollection(object):
         self.map_frame = "map"
         # Default origin frame is the odom frame assuming new data collection
         self.origin_frame = self.odom_frame
+        self.marker_pub = rospy.Publisher('/marker', Marker, queue_size=10)
 
         """Data Collection Parameters"""
         self.record_interval = rospy.Duration(
@@ -475,6 +479,8 @@ class DataCollection(object):
             transform = origin_to_tag_matrix.dot(device_to_origin_matrix)
             trans = transform[:3, 3]
             rot = R.from_dcm(transform[:3, :3]).as_quat()
+            marker_message = Marker(header=Header(stamp=self.curr_record_time, frame_id='real_device'), pose=Pose(position=Point(trans)), scale=Vector3(1,1,1), color=ColorRGBA(0.1, 0, .9, 1), id=1, type=Marker.SPHERE)
+            self.marker_pub.publish(marker_message)
 
             print("Device to Tag Matrix:\n", transform)
 
